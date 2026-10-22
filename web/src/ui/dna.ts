@@ -46,7 +46,7 @@ export class DnaView {
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(45, 1, 1, 2000);
   private group = new THREE.Group();
-  private sprites: { sprite: THREE.Sprite; d: DnaDriver }[] = [];
+  private sprites: { sprite: THREE.Sprite; d: DnaDriver; base: number; rank: number }[] = [];
   private links: THREE.LineSegments | null = null;
   private yaw = 0.6;
   private pitch = 0.35;
@@ -94,7 +94,7 @@ export class DnaView {
       sprite.position.set(d.pos[0] * SCALE, d.pos[1] * SCALE, d.pos[2] * SCALE);
       sprite.scale.setScalar(10);
       this.group.add(sprite);
-      this.sprites.push({ sprite, d });
+      this.sprites.push({ sprite, d, base: 1, rank: 0 });
       // Stalk down to the floor so depth reads.
       const stalk = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints([sprite.position.clone(), sprite.position.clone().setY(-SCALE * 1.05)]),
@@ -156,7 +156,8 @@ export class DnaView {
     const d = this.dna.drivers.find((x) => x.code === code)!;
     for (const s of this.sprites) {
       const on = s.d.code === code || d.neighbours.includes(s.d.code);
-      (s.sprite.material as THREE.SpriteMaterial).opacity = on ? 1 : 0.35;
+      s.base = on ? 1 : 0.35;
+      s.rank = s.d.code === code ? 2 : on ? 1 : 0;
       s.sprite.scale.setScalar(s.d.code === code ? 15 : 10);
       // The selected driver's rim lights in hard white; everyone else stays moulded grey.
       (s.sprite.material as THREE.SpriteMaterial).map = discTexture(s.d.code, s.d.colour, s.d.code === code);
@@ -180,7 +181,7 @@ export class DnaView {
       ${axes}
       ${d.tells?.length ? `<p class="caps tells-h">What gives ${d.code} away</p><ul class="tells">${d.tells.map((t) => `<li>${t.charAt(0).toUpperCase() + t.slice(1)}</li>`).join("")}</ul>` : ""}
       <p class="near">Drives most like <b>${d.neighbours.join("</b>, <b>")}</b>. The centre line is the field average; bars are scaled so the most extreme driver on each trait reaches the edge.</p>
-      <label class="caps" style="display:block;margin-top:14px;color:var(--ink-3)">Jump to
+      <label class="caps jump">Jump to
         <select style="margin-top:6px;width:100%;padding:10px;border-radius:12px;background:var(--rubber-3);color:var(--ink);border:0;font:inherit;text-transform:none;letter-spacing:0">${options}</select>
       </label>`;
     this.panel.querySelector("select")!.addEventListener("change", (e) => this.select((e.target as HTMLSelectElement).value));
@@ -192,9 +193,41 @@ export class DnaView {
     this.camera.position.set(Math.sin(this.yaw) * Math.cos(this.pitch) * r, Math.sin(this.pitch) * r, Math.cos(this.yaw) * Math.cos(this.pitch) * r);
     this.camera.lookAt(0, -8, 0);
     const canvas = this.world.renderer.domElement;
-    this.camera.aspect = canvas.clientWidth / canvas.clientHeight;
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    this.camera.aspect = w / h;
+    // On phones the heading and panel own the top and bottom; push the map into the band between.
+    if (w <= 860) this.camera.setViewOffset(w, h, 0, -h * 0.06, w, h);
+    else this.camera.clearViewOffset();
     this.camera.updateProjectionMatrix();
+    this.declutter(w, h);
     this.world.renderer.render(this.scene, this.camera);
+  }
+
+  /** When two discs land on top of each other on screen, keep the one in front (or the one the
+   * reader picked) and fade the other, so codes never overprint. */
+  private declutter(w: number, h: number) {
+    const focal = h / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2));
+    const pts = this.sprites.map((s) => {
+      const p = s.sprite.position.clone().project(this.camera);
+      const dist = s.sprite.position.distanceTo(this.camera.position);
+      // On-screen diameter of the disc, from its world size and distance.
+      const size = (s.sprite.scale.x * focal) / dist;
+      return { s, x: (p.x + 1) * 0.5 * w, y: (1 - p.y) * 0.5 * h, z: p.z, size };
+    });
+    for (const a of pts) {
+      let hidden = false;
+      for (const b of pts) {
+        if (a === b) continue;
+        const close = Math.hypot(a.x - b.x, a.y - b.y) < (a.size + b.size) * 0.42;
+        const loses = b.s.rank > a.s.rank || (b.s.rank === a.s.rank && b.z < a.z);
+        if (close && loses) {
+          hidden = true;
+          break;
+        }
+      }
+      (a.s.sprite.material as THREE.SpriteMaterial).opacity = hidden ? 0.08 : a.s.base;
+    }
   }
 
   dispose() {

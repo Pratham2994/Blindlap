@@ -63,6 +63,16 @@ export function howView(index: Index, report: Report): HTMLElement {
       <figcaption>Top-1 accuracy on each circuit's own laps, with the model trained on all the other circuits. The red tick is chance. Short or flat-out circuits give fewer corners to read.</figcaption>
     </figure>
 
+    <h2>Easiest and hardest to spot</h2>
+    <figure>
+      ${perDriver(lr.classes, lr.confusion)
+        .map(
+          (d) => `<div class="chart-row num"><span>${d.code}</span><span class="track"><i style="width:${d.acc * 100}%"></i><span class="chance" style="left:${lr.chance * 100}%"></span></span><span>${pct(d.acc)}</span></div>`,
+        )
+        .join("")}
+      <figcaption>Share of each driver's laps where the model's first guess was right. Drivers with a style unlike anyone else's stand out; teammates in similar cars blur together.</figcaption>
+    </figure>
+
     <h2>Who gets mixed up with whom</h2>
     <figure class="confusion"><canvas width="760" height="760" aria-label="Confusion matrix of true driver against model guess"></canvas>
       <figcaption>Rows are the real driver, columns the model's first guess. A bright diagonal is a driver with a clear style. Bright squares off the diagonal are drivers who look alike in this data, often teammates in the same car.</figcaption>
@@ -78,6 +88,16 @@ export function howView(index: Index, report: Report): HTMLElement {
 
   drawConfusion(root.querySelector("canvas")!, lr.classes, lr.confusion);
   return root;
+}
+
+function perDriver(classes: string[], m: number[][]) {
+  return classes
+    .map((code, i) => {
+      const total = m[i].reduce((a, v) => a + v, 0);
+      return { code, acc: total ? m[i][i] / total : 0, total };
+    })
+    .filter((d) => d.total >= 10)
+    .sort((a, b) => b.acc - a.acc);
 }
 
 function drawConfusion(canvas: HTMLCanvasElement, classes: string[], m: number[][]) {

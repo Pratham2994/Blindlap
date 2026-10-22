@@ -55,7 +55,8 @@ export class Lineup {
     const row = Math.max(ROW_MIN, Math.min(ROW_MAX, Math.floor(h / n)));
     if (row === this.row) return;
     this.row = row;
-    this.root.style.setProperty("--row", `${row - 2}px`);
+    // Rows are exactly one step tall, so a row passing behind another is fully covered.
+    this.root.style.setProperty("--row", `${row}px`);
     if (this.last.length) this.update(this.last, -1);
     else [...this.rows.values()].forEach((r, i) => (r.style.transform = `translateY(${i * row}px)`));
   }

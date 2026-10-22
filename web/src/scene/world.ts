@@ -17,7 +17,7 @@ export const COMPOUND = {
 };
 
 // Haze colour in linear space, equal to the sky shader's horizon so ground and sky meet without a seam.
-const HAZE = new THREE.Color().setRGB(0.03, 0.028, 0.025, THREE.LinearSRGBColorSpace);
+const HAZE = new THREE.Color().setRGB(0.022, 0.022, 0.023, THREE.LinearSRGBColorSpace);
 
 const ELEVATION = 3; // vertical exaggeration so hills read from the chase camera
 const TRACK_WIDTH = 13;
@@ -123,13 +123,13 @@ export class World {
         varying vec3 vDir;
         void main() {
           float h = vDir.y;
-          // Haze is warmer on the side the sun sits (+x), and thins quickly with height.
+          // Haze is a touch brighter on the side the light sits (+x), and thins quickly with height.
           float sun = max(dot(normalize(vDir.xz), normalize(vec2(0.9, 0.35))), 0.0);
           vec3 zenith = vec3(0.004, 0.004, 0.0045);
-          vec3 horizon = mix(vec3(0.03, 0.028, 0.025), vec3(0.085, 0.06, 0.04), pow(sun, 8.0));
+          vec3 horizon = mix(vec3(0.022, 0.022, 0.023), vec3(0.04, 0.039, 0.038), pow(sun, 8.0));
           float t = smoothstep(-0.02, 0.28, h);
           vec3 c = mix(horizon, zenith, t);
-          if (h < -0.02) c = vec3(0.03, 0.028, 0.025);
+          if (h < -0.02) c = vec3(0.022, 0.022, 0.023);
           gl_FragColor = vec4(c, 1.0);
         }`,
     });
@@ -316,7 +316,7 @@ export class World {
       edges.add(
         new THREE.Line(
           new THREE.BufferGeometry().setFromPoints(pts),
-          new THREE.LineBasicMaterial({ color: "#d8d6d0", transparent: true, opacity: 0.75 }),
+          new THREE.LineBasicMaterial({ color: "#d8d6d0", transparent: true, opacity: 0.5 }),
         ),
       );
     }
@@ -523,6 +523,7 @@ export class World {
       look = new THREE.Vector3(0, 0, 0);
     }
     this.updateLabels();
+    this.updateFog();
     if (this.mode === "orbit") {
       const k = 1 - Math.exp(-dt * 1.2);
       this.camPos.lerp(want, k);
@@ -541,6 +542,17 @@ export class World {
     this.composer.render();
   }
 
+  /** On board the far side of the circuit melts into the haze; from above or in the overview the
+   * whole sidewall ground stays visible. */
+  private updateFog() {
+    const fog = this.scene.fog as THREE.Fog;
+    const r = this.radius;
+    const [near, far] =
+      this.mode === "chase" ? [220, 1100] : this.mode === "heli" ? [1400, 5000] : [Math.min(r * 0.9, 900), Math.max(r * 2.6, 2600)];
+    fog.near += (near - fog.near) * 0.05;
+    fog.far += (far - fog.far) * 0.05;
+  }
+
   /** Overview shows every corner number; on board, the corners just behind and ahead of the car.
    * Evidence captions only show on board, beside the corner the car has just left. */
   private updateLabels() {
@@ -550,11 +562,13 @@ export class World {
     for (const l of this.labels) {
       const ahead = (((l.s - this.carS) % L) + L) % L;
       const behind = L - ahead;
-      l.sprite.visible =
-        this.labelsOn && (overview || ahead < (this.mode === "heli" ? 1200 : 650) || behind < 260);
+      // From above, the corners just read trail behind the car with their captions (not in the duel,
+      // where both cars cross them). On board, only the corners ahead are numbered.
+      const trail = this.mode === "heli" && !this.ghost.visible && behind < 700;
+      l.sprite.visible = this.labelsOn && (overview || ahead < (this.mode === "heli" ? 1200 : 650) || trail);
       // Captioned labels are wider; anchor them on the corner number, not the middle. Elsewhere only
       // the number shows (the left quarter of a captioned texture) so the map stays readable.
-      const aspect = this.mode === "chase" ? l.aspect : 2;
+      const aspect = trail ? l.aspect : 2;
       const map = (l.sprite.material as THREE.SpriteMaterial).map;
       if (map) map.repeat.set(aspect / l.aspect, 1);
       l.sprite.scale.set(size * aspect, size, 1);

@@ -82,7 +82,9 @@ async function route() {
     if (name === "play") {
       engine.start();
       engine.setVolume(!engine.muted);
-      mount(new PlayView(world, engine, index));
+      const [key, lapIndex] = (arg ?? "").split(".").map(Number);
+      const challenge = Number.isInteger(key) && Number.isInteger(lapIndex) && index.sessions.some((s) => s.key === key) ? { key, lapIndex } : null;
+      mount(new PlayView(world, engine, index, null, challenge));
     } else if (name === "daily") {
       engine.start();
       engine.setVolume(!engine.muted);

@@ -394,7 +394,7 @@ body.playing .topbar nav {
   position: absolute;
   left: 0;
   right: 0;
-  height: var(--row, 32px);
+  height: var(--row, 34px);
   display: grid;
   grid-template-columns: 4px 46px 1fr 44px;
   align-items: center;
@@ -404,7 +404,7 @@ body.playing .topbar nav {
   border: 0;
   background: transparent;
   text-align: left;
-  transition: transform 0.32s var(--ease-out), background 0.2s;
+  transition: transform 0.26s var(--ease-out), background 0.2s;
   background: var(--rubber-2);
   width: 100%;
 }
@@ -456,7 +456,7 @@ body.playing .topbar nav {
 .row .pct {
   text-align: right;
   font-size: 0.76rem;
-  color: var(--ink-2);
+  color: var(--ink);
 }
 
 .row.pick {
@@ -505,8 +505,10 @@ body.playing .topbar nav {
 .evidence .t {
   font-weight: 900;
   font-variation-settings: "wdth" 125;
-  color: var(--soft);
+  color: var(--ink);
   font-size: 1.1rem;
+  text-decoration: underline 2px;
+  text-underline-offset: 5px;
 }
 
 .evidence .what {
@@ -532,7 +534,7 @@ body.playing .topbar nav {
 
 @keyframes flash {
   from {
-    box-shadow: var(--deboss), 0 0 0 2px var(--soft);
+    box-shadow: var(--deboss), 0 0 0 2px var(--ink-3);
   }
   to {
     box-shadow: var(--deboss), 0 0 0 2px transparent;
@@ -600,7 +602,7 @@ body.playing .topbar nav {
 }
 
 .tyre .tick-label.taken {
-  fill: var(--soft);
+  fill: var(--ink);
 }
 
 .countdown {
@@ -766,7 +768,7 @@ body.playing .topbar nav {
 .caption li b {
   font-weight: 900;
   font-variation-settings: "wdth" 125;
-  color: var(--soft);
+  color: var(--ink);
 }
 
 .career {
@@ -1079,6 +1081,12 @@ body.playing .topbar nav {
   border-radius: 4px;
   background: var(--ink);
   transition: left 0.6s var(--ease-out), width 0.6s var(--ease-out);
+}
+
+.dna-panel .jump {
+  display: block;
+  margin-top: 14px;
+  color: var(--ink-3);
 }
 
 .dna-panel .tells-h {

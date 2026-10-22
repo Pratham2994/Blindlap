@@ -83,6 +83,7 @@ export class PlayView {
     private engine: EngineSynth,
     private index: Index,
     private daily: { date: string; plan: DailyLap[] } | null = null,
+    private challenge: DailyLap | null = null,
   ) {
     this.root = document.createElement("div");
     this.root.className = "hud";
@@ -110,7 +111,9 @@ export class PlayView {
     this.radio?.pause();
     this.root.innerHTML = `<div class="countdown"><p class="caps load-note">Loading a lap…</p></div>`;
     const sessions = this.index.sessions;
-    const planned = this.daily?.plan[this.dailyResults.length];
+    // A challenge link plays its lap first; after that the rounds are random again.
+    const planned = this.daily?.plan[this.dailyResults.length] ?? this.challenge ?? undefined;
+    this.challenge = null;
     let summary = sessions.find((s) => s.key === planned?.key);
     if (!summary) {
       const pool = sessions.filter((s) => !recent.includes(String(s.key)));
@@ -345,11 +348,23 @@ export class PlayView {
       ${this.lap.radio ? `<div class="radio"><button type="button" aria-label="Play team radio">${icons.play}</button><span class="wave">${"<i></i>".repeat(36)}</span><span class="label caps">Team radio, this session</span></div>` : ""}
       <div class="actions"><button type="button" class="btn primary" data-next>${lastDaily ? "Today's result" : "Next lap"} ${icons.next}</button>${
         rival ? `<button type="button" class="btn" data-duel>Race it against ${rival.code}</button>` : ""
-      }<a class="btn" href="#/dna">See ${truth}'s DNA</a></div>`;
+      }<a class="btn" href="#/dna">See ${truth}'s DNA</a><button type="button" class="btn" data-challenge>Copy challenge link</button></div>
+      <p class="caps share-note" aria-live="polite"></p>`;
     this.root.classList.add("revealed");
     this.root.appendChild(card);
     card.querySelector("[data-next]")!.addEventListener("click", () => (lastDaily ? this.showDailySummary() : void this.newRound()));
     if (rival) card.querySelector("[data-duel]")!.addEventListener("click", () => this.startDuel(rival));
+    card.querySelector("[data-challenge]")!.addEventListener("click", async () => {
+      // The link names the lap by its position in the session file, so it does not give the driver away.
+      const link = `${location.origin}${location.pathname}#/play/${this.session.key}.${this.session.laps.indexOf(this.lap)}`;
+      const note = card.querySelector(".share-note")!;
+      try {
+        await navigator.clipboard.writeText(link);
+        note.textContent = "Link copied. Whoever opens it gets this exact lap, with the name hidden.";
+      } catch {
+        note.textContent = link;
+      }
+    });
     if (this.lap.radio) this.setupRadio(card.querySelector(".radio")!, this.lap.radio);
     (card.querySelector("[data-next]") as HTMLElement).focus({ preventScroll: true });
   }

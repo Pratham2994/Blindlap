@@ -82,7 +82,7 @@ export class TyreGauge {
       const notch = el("path", {
         d: "M -5 -4 L 5 -4 L 0 4 Z",
         transform: `translate(${nx} ${ny}) rotate(${ang})`,
-        fill: "#e8312a",
+        fill: "#f2f0ea",
         opacity: 0,
       }, svg);
       this.ticks.push({ line, label, notch });
@@ -122,7 +122,7 @@ export class TyreGauge {
   markCorner(i: number) {
     const t = this.ticks[i];
     if (!t) return;
-    t.line.setAttribute("stroke", "#e8312a");
+    t.line.setAttribute("stroke", "#f2f0ea");
     t.label.classList.add("taken");
     t.notch.setAttribute("opacity", "1");
   }
