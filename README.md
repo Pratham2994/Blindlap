@@ -69,15 +69,15 @@ web/  Vite + TypeScript + Three.js + Web Audio
 
 ## Results
 
-Leave-one-circuit-out over 40 qualifying sessions (23 from 2025, 17 from 2026), 3,673 laps, 24
+Leave-one-circuit-out over 40 qualifying sessions (23 from 2025, 17 from 2026), 3,669 laps, 24
 drivers. Read live from `pipeline/model_out/report.json` and shown on the How it knows page.
 
 | Model | Top-1 driver | Top-3 driver | Right team |
 |---|---|---|---|
 | Chance | 4.2% | 12.6% | about 9% |
-| Logistic regression (ships) | **34.4%** | **64.1%** | **49.2%** |
-| Gradient-boosted trees | 43.0% | 72.2% | 59.1% |
-| Cross-season: trained on 2025 only, tested on 2026 laps | 25.3% | 55.6% | 40.3% |
+| Logistic regression (ships) | **34.7%** | **64.2%** | **49.1%** |
+| Gradient-boosted trees | 42.9% | 72.6% | 58.7% |
+| Cross-season: trained on 2025 only, tested on 2026 laps | 25.4% | 55.6% | 40.3% |
 
 - The shipped model is right about 8 times as often as picking at random, on circuits it never saw.
 - **Style survives new cars.** Trained only on 2025, it still names the driver of a 2026 lap 25% of the
@@ -100,7 +100,7 @@ uv pip install --python .venv/Scripts/python.exe -r requirements.txt
 .venv/Scripts/python.exe fetch.py                                   # 2025 qualifying
 BLINDLAP_YEAR=2026 .venv/Scripts/python.exe fetch.py                # 2026 qualifying so far
 BLINDLAP_SESSION="Practice 3" .venv/Scripts/python.exe fetch.py     # extra training laps
-./run_all.sh                     # build, train, evaluate, export to web/public/data
+./run_all.sh                     # build, train, evaluate, export, then check.py validates the output
 
 # web
 cd ../web

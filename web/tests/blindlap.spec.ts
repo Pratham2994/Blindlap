@@ -102,3 +102,14 @@ test("telemetry lab overlays two drivers and explains each corner", async ({ pag
   await a.selectOption({ index: 3 });
   await expect(page.locator(".lab-legend")).not.toHaveText(before);
 });
+
+test("the title's circuit picker starts a lap at that circuit", async ({ page }) => {
+  await page.goto("/#/");
+  const select = page.locator(".title .pick select");
+  const option = select.locator("option").nth(3);
+  const value = await option.getAttribute("value");
+  const label = (await option.textContent())!.replace(/ \d{4}$/, "");
+  await select.selectOption(value!);
+  await expect(page).toHaveURL(new RegExp(`#/play/${value}$`));
+  await expect(page.locator(".hud-session .where")).toHaveText(label);
+});

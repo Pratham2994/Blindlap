@@ -100,7 +100,7 @@ OpenF1 gives no lap distance, and telemetry and position arrive on different clo
    monotonic.
 4. **Validation**: the lap's start and end are recomputed as the times s crosses 0 and the lap
    length. A lap is dropped when that disagrees with the official start by more than 3 s, with the
-   official duration by more than 3 s, or when s goes backwards by more than 60 m (spin or bad data).
+   official duration by more than 1 s, or when s goes backwards by more than 60 m (spin or bad data).
 5. **Telemetry onto distance**: each telemetry timestamp gets its s by interpolating the position
    track in time.
 
@@ -180,15 +180,15 @@ computes seven plain-language traits scaled so the most extreme driver reaches Â
 
 ### 4.6 Final numbers
 
-Leave-one-circuit-out on 40 qualifying sessions (23 from 2025, 17 from 2026), 3,673 laps, 24 drivers.
+Leave-one-circuit-out on 40 qualifying sessions (23 from 2025, 17 from 2026), 3,669 laps, 24 drivers.
 18 practice 3 sessions from 2025 are used as extra training laps only.
 
 | Model | Top-1 driver | Top-3 driver | Right team | Log loss |
 |---|---|---|---|---|
 | Chance | 4.2% | 12.6% | about 9% | 3.18 |
-| Logistic regression (ships) | **34.4%** | **64.1%** | **49.2%** | 2.08 |
-| Gradient-boosted trees | 43.0% | 72.2% | 59.1% | 1.75 |
-| Cross-season (train 2025, test 2026) | 25.3% | 55.6% | 40.3% | |
+| Logistic regression (ships) | **34.7%** | **64.2%** | **49.1%** | 2.08 |
+| Gradient-boosted trees | 42.9% | 72.6% | 58.7% | 1.75 |
+| Cross-season (train 2025, test 2026) | 25.4% | 55.6% | 40.3% | |
 
 How the number moved during the night, and why:
 
@@ -199,6 +199,7 @@ How the number moved during the night, and why:
 | + 16 sessions of 2026, leave-one-circuit-out, fair lap filter, 24 drivers | 31.9% |
 | + 18 practice sessions as training data | 31.7% |
 | + throttle ramp and partial-throttle features | 34.4% |
+| + stricter lap validation (official and measured lap time within 1 s) | 34.7% |
 
 The drop from 37% to 32% is the test getting harder, not the model getting worse: more drivers
 (24 instead of 21), a stricter holdout (the same circuit's other season is also held out), two very
@@ -323,7 +324,8 @@ listed in section 8. DESIGN.md records the shipped system.
 | `pipeline/model.py` | Leave-one-circuit-out training and evaluation for logistic regression and GBM, the 2025 to 2026 cross-season test, temperature fitting, report and fold weights. |
 | `pipeline/export.py` | Writes the web data: sessions, index, report, DNA (PCA, neighbours, traits). |
 | `pipeline/careers.py` | Matches game drivers to F1DB by name and writes career totals. |
-| `pipeline/run_all.sh` | Build, train, export and careers for every fully downloaded session. |
+| `pipeline/run_all.sh` | Build, train, export, careers and checks for every fully downloaded session. |
+| `pipeline/check.py` | Invariants on the exported data: laps move forward, corners in order, weight shapes match, no impossible values, model beats chance. It caught one lap whose position track and official time disagreed by 3 s, which led to tighter lap validation. |
 | `web/src/main.ts` | Hash router (title, play, daily, DNA, how) and the single render loop. |
 | `web/src/data.ts` | Types for every JSON file, cached loaders, career line formatting. |
 | `web/src/lap.ts` | Telemetry interpolation at any time; lap time formatting. |

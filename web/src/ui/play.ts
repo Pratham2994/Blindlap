@@ -133,9 +133,11 @@ export class PlayView {
     if (this.disposed) return;
     const withRadio = this.session.laps.filter((l) => l.radio);
     const laps = withRadio.length > 6 ? withRadio : this.session.laps;
-    this.lap = planned
-      ? this.session.laps[planned.lapIndex % this.session.laps.length]
-      : laps[Math.floor(Math.random() * laps.length)];
+    // A planned lap index of -1 means "this circuit, any lap".
+    this.lap =
+      planned && planned.lapIndex >= 0
+        ? this.session.laps[planned.lapIndex % this.session.laps.length]
+        : laps[Math.floor(Math.random() * laps.length)];
     this.player = new LapPlayer(this.lap);
     this.guesser = new Guesser(this.session, this.index);
     this.ratios = gearRatios(this.lap.v, this.lap.rpm, this.lap.gear);

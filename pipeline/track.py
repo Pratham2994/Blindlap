@@ -168,7 +168,7 @@ def build_lap(cl: Centreline, ch: Channels, pos: Positions, lap: dict) -> Lap | 
     mono = np.maximum.accumulate(ps)
     start = float(np.interp(0.0, mono, pt))
     end = float(np.interp(cl.length, mono, pt))
-    if not (abs(start - t0) < 3 and abs((end - start) - lap["lap_duration"]) < 3):
+    if not (abs(start - t0) < 3 and abs((end - start) - lap["lap_duration"]) < 1.0):
         return None
     if np.any(np.diff(ps) < -60):  # going backwards = spin or bad projection
         return None

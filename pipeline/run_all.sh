@@ -9,3 +9,4 @@ $PY build.py $KEYS 2>&1 | grep -v -e RuntimeWarning -e nanmedian
 $PY model.py
 $PY export.py
 [ -f raw/f1db/f1db-csv.zip ] && $PY careers.py
+$PY check.py

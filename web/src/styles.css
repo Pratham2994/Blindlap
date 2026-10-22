@@ -301,6 +301,27 @@ body.playing .topbar nav {
   align-items: center;
 }
 
+.title .pick {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+  color: var(--ink-3);
+}
+
+.title .pick select {
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--rubber-3);
+  box-shadow: var(--deboss);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.85rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
 .title .honest {
   margin-top: 36px;
   max-width: 60ch;

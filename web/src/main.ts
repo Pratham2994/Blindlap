@@ -63,11 +63,32 @@ async function titleView(): Promise<View> {
       <a class="btn" href="#/daily">Daily five</a>
       <a class="btn" href="#/how">How it knows</a>
     </div>
+    <label class="pick caps">Or pick a circuit
+      <select aria-label="Pick a circuit to play">
+        <option value="">Any circuit</option>
+        ${index.seasons
+          .slice()
+          .reverse()
+          .map(
+            (y) =>
+              `<optgroup label="${y}">${index.sessions
+                .filter((s) => s.year === y)
+                .sort((a, b) => a.date.localeCompare(b.date))
+                .map((s) => `<option value="${s.key}">${s.circuit} ${y}</option>`)
+                .join("")}</optgroup>`,
+          )
+          .join("")}
+      </select>
+    </label>
     ${
       lr
         ? `<p class="honest">On circuits it never trained on, the model names the driver <strong>${Math.round(lr.top1 * 100)}%</strong> of the time and has them in its top three <strong>${Math.round(lr.top3 * 100)}%</strong> of the time. Picking at random gets ${Math.round(lr.chance * 100)}%. Sound on: the engine is synthesised from the telemetry. Behind this text: ${session.circuit}, the session's fastest lap.</p>`
         : ""
     }`;
+  root.querySelector("select")!.addEventListener("change", (e) => {
+    const v = (e.target as HTMLSelectElement).value;
+    location.hash = v ? `#/play/${v}` : "#/play";
+  });
   return { root, frame: (dt) => world.update(dt) };
 }
 
@@ -83,8 +104,11 @@ async function route() {
     if (name === "play") {
       engine.start();
       engine.setVolume(!engine.muted);
-      const [key, lapIndex] = (arg ?? "").split(".").map(Number);
-      const challenge = Number.isInteger(key) && Number.isInteger(lapIndex) && index.sessions.some((s) => s.key === key) ? { key, lapIndex } : null;
+      // #/play/<session>.<lap> is a challenge link; #/play/<session> is any lap at that circuit.
+      const [key, lap] = (arg ?? "").split(".");
+      const k = Number(key);
+      const lapIndex = lap === undefined ? -1 : Number(lap);
+      const challenge = key && Number.isInteger(k) && Number.isInteger(lapIndex) && index.sessions.some((s) => s.key === k) ? { key: k, lapIndex } : null;
       mount(new PlayView(world, engine, index, null, challenge));
     } else if (name === "daily") {
       engine.start();
