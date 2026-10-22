@@ -25,9 +25,9 @@ export function howView(index: Index, report: Report): HTMLElement {
           ([label, v, c]) => `<div class="chart-row num big"><span>${label}</span><span class="track"><i style="width:${(v as number) * 100}%"></i><span class="chance" style="left:${(c as number) * 100}%"></span></span><span>${pct(v as number)}</span></div>`,
         )
         .join("")}
-      <figcaption>${lr.laps} laps from ${lr.sessions.length} circuits, ${lr.classes.length} drivers. The red tick on each bar is what picking at random would score.</figcaption>
+      <figcaption>${lr.laps} laps from ${lr.sessions.length} qualifying sessions, ${lr.classes.length} drivers. The red tick on each bar is what picking at random would score.</figcaption>
     </figure>
-    <p>Each number comes from a circuit the model never trained on. To guess laps at Monza, it was trained on the other ${lr.sessions.length - 1} circuits only. The game uses those same models, so the guesses you watch are made blind too.</p>
+    <p>Each number comes from a circuit the model never trained on. To guess laps at Monza, it was trained on every other circuit, with Monza left out in every year. The game uses those same models, so the guesses you watch are made blind too.</p>
 
     <h2>From telemetry to corners</h2>
     <ol class="pipeline">
@@ -42,7 +42,7 @@ export function howView(index: Index, report: Report): HTMLElement {
     ${
       report.crossSeason
         ? `<h2>New cars, same drivers</h2>
-    <p>2026 brought new cars and new rules. A model trained only on ${report.crossSeason.train} sessions of 2025 was asked to name the driver of ${report.crossSeason.laps} push laps from ${report.crossSeason.test} sessions of 2026, ${report.crossSeason.drivers} drivers who raced both years. It named the right driver on <strong>${pct(report.crossSeason.top1)}</strong> of laps and had them in its top three on <strong>${pct(report.crossSeason.top3)}</strong> (chance ${pct(report.crossSeason.chance)}). ${
+    <p>2026 brought new cars and new rules. A model trained only on ${report.crossSeason.train} sessions of 2025 (the same circuits, the old cars) was asked to name the driver of ${report.crossSeason.laps} push laps from ${report.crossSeason.test} sessions of 2026, ${report.crossSeason.drivers} drivers who raced both years. It named the right driver on <strong>${pct(report.crossSeason.top1)}</strong> of laps and had them in its top three on <strong>${pct(report.crossSeason.top3)}</strong> (chance ${pct(report.crossSeason.chance)}). ${
             report.crossSeason.top1 > 2 * report.crossSeason.chance
               ? "Part of a driver's style survives a change of car."
               : "Style learnt in one car carries over to the next only weakly."

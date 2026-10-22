@@ -4,7 +4,7 @@ Each corner of a lap is one sample. A multinomial logistic regression turns a co
 features into P(driver | corner). A lap's guess is the product over corners (naive Bayes over
 corners), softened by a temperature because corners of one lap are not independent.
 
-Evaluation is leave-one-session-out: the model that guesses laps at Monza never saw Monza. The
+Evaluation is leave-one-circuit-out: the model that guesses laps at Monza never saw Monza, in any year. The
 browser uses exactly these per-session folds, so the game is as honest as the report.
 """
 import json
@@ -68,19 +68,27 @@ def evaluate(sessions, labels, make_model, name):
     per_session = []
     all_scores, all_truth, all_team_truth, all_team_maps = [], [], [], []
     folds = {}
-    for k, held in enumerate(sessions):
+    # Leave one circuit out: every year of the held-out circuit leaves training together, so the
+    # model never saw the track it is guessing on.
+    circuit = lambda s: s["session"]["circuit_short_name"]
+    rows = {s["session"]["session_key"]: corner_rows(s) for s in sessions}
+    models = {}
+    for c in sorted({circuit(s) for s in sessions}):
         Xtr, ytr = [], []
-        for j, s in enumerate(sessions):
-            if j == k:
+        for s in sessions:
+            if circuit(s) == c:
                 continue
-            X, _, y = corner_rows(s)
+            X, _, y = rows[s["session"]["session_key"]]
             m = np.isin(y, labels)
             Xtr.append(X[m]); ytr.append(y[m])
         model = make_model()
         model.fit(np.vstack(Xtr), np.concatenate(ytr))
+        models[c] = model
+    for held in sessions:
+        model = models[circuit(held)]
         folds[held["session"]["session_key"]] = model
 
-        X, li, y = corner_rows(held)
+        X, li, y = rows[held["session"]["session_key"]]
         scores = lap_scores(model.predict_proba(X), li, len(held["laps"]))
         truth = [acronym(held, l.driver) for l in held["laps"]]
         keep = np.array([t in labels for t in truth])
@@ -90,7 +98,8 @@ def evaluate(sessions, labels, make_model, name):
         tmap = {acronym(held, n): team(held, n) for n in held["drivers"]}
         all_team_maps += [tmap] * int(keep.sum())
         all_team_truth += [team(held, l.driver) for l, kk in zip(held["laps"], keep) if kk]
-        per_session.append((held["session"]["circuit_short_name"], scores[keep], [t for t, kk in zip(truth, keep) if kk]))
+        label = f'{held["session"]["circuit_short_name"]} {held["session"]["date_start"][:4]}'
+        per_session.append((label, scores[keep], [t for t, kk in zip(truth, keep) if kk]))
 
     classes = list(folds[next(iter(folds))].classes_)
     S = np.vstack(all_scores)
