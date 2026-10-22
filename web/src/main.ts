@@ -19,7 +19,7 @@ interface View {
 const view = document.getElementById("view")!;
 const world = new World(document.getElementById("stage") as HTMLCanvasElement);
 const engine = new EngineSynth();
-if (import.meta.env.DEV) (window as unknown as { world: World }).world = world;
+if (import.meta.env.DEV) Object.assign(window, { world, engine });
 let current: View | null = null;
 let index: Index;
 let titleSession: number | null = null;

@@ -257,6 +257,13 @@ cutoff opens with throttle and RPM. On top: a sine for the turbo and MGU-H whine
 wind and tyre roar that grows with the square of speed, a short gain dip on upshifts and bursts of
 band-passed noise for exhaust crackle when the driver lifts sharply or downshifts.
 
+![Spectrogram of 30 s of the synthesised engine](media/engine-spectrogram.png)
+
+The spectrogram above is 30 seconds recorded from the app in headless Chromium
+([engine.mp3](media/engine.mp3)): the first 3.6 s are the revs rising with each start light, then
+each saw-tooth climb in the harmonic stack is one gear's RPM rising, cut off by an upshift, and the
+long dips are the braking zones. Mean level is -20 dB with peaks at -7 dB, so nothing clips.
+
 Browsers start audio only after a user gesture. Starting a round from the title is one; opening a
 challenge link directly is not, so the engine resumes on the first tap or key press.
 
@@ -333,6 +340,7 @@ listed in section 8. DESIGN.md records the shipped system.
 | `web/src/ui/lab.ts` | The telemetry lab: SVG speed traces, braking marks, per-corner differences. |
 | `web/scripts/capture.mjs` | Captures every surface at desktop and phone size for design review. |
 | `web/scripts/record-demo.mjs` | Records the demo video and README screenshots in headless Chromium. |
+| `web/scripts/record-engine.mjs` | Records 30 s of the synthesised engine during a real lap (dev server). |
 | `DESIGN.md`, `.impeccable/design.json` | The shipped design system: tokens, rules, components, motion. |
 | `web/src/ui/icons.ts` | A small authored SVG icon set. |
 | `web/src/styles.css` | Tokens (rubber, ink, compounds), lettering, HUD, reveal, pages, responsive rules. |
@@ -381,8 +389,9 @@ listed in section 8. DESIGN.md records the shipped system.
   by a third review. Known open points: rows in flight during the 4× re-sort still show a frame of
   overlap; the primary button and the chance tick use soft red outside its "model's pick" job; the
   duel gap turns soft red when you are behind.
-- The engine sound was built from the physics of the engine and checked for errors in the browser,
-  but this build machine had no speakers: nobody has listened to it yet. Treat it as a first draft.
+- The engine sound was recorded from the app and its spectrogram checked (it follows RPM, shifts and
+  braking, and does not clip), but no person has listened to it yet: this build ran overnight with
+  nobody at the speakers. Treat its character as a first draft and tune it by ear.
 - Corners at Madring and Kuala Lumpur are detected, not mapped, so they are numbered 1 to 7 by
   braking zone, not by the official turn numbers.
 
