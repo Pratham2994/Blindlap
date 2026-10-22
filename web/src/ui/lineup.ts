@@ -63,6 +63,8 @@ export class Lineup {
 
   choose(code: string) {
     if (this.locked) return;
+    // Clicking a low row focuses it and scrolls the list; bring the leader back into view.
+    requestAnimationFrame(() => this.list.scrollTo({ top: 0, behavior: "smooth" }));
     this.pick = code;
     for (const [c, r] of this.rows) r.classList.toggle("pick", c === code);
     this.hint.innerHTML = `Your guess: <b>${code}</b>. Change it any time before the flag.`;
@@ -89,6 +91,7 @@ export class Lineup {
 
   reveal(truth: string) {
     this.locked = true;
+    this.list.scrollTo({ top: 0, behavior: "smooth" });
     this.rows.get(truth)?.classList.add("truth");
     this.hint.textContent = "Green is who was really driving.";
   }

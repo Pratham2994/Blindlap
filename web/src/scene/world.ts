@@ -21,9 +21,10 @@ const HAZE = new THREE.Color().setRGB(0.022, 0.022, 0.023, THREE.LinearSRGBColor
 
 const REDUCED_MOTION = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 
-const ELEVATION = 3; // vertical exaggeration so hills read from the chase camera
+const ELEVATION = 2; // vertical exaggeration so hills read from the chase camera
 const TRACK_WIDTH = 13;
-const STRIP_DEPTH = 2.2;
+const STRIP_DEPTH = 3; // the track is a thick strip floating over the sidewall, casting its shadow
+const FLOAT = 10;
 
 type CameraMode = "chase" | "heli" | "orbit";
 
@@ -188,7 +189,7 @@ export class World {
     const rot = THREE.MathUtils.degToRad(session.rotation || 0);
     const cos = Math.cos(rot);
     const sin = Math.sin(rot);
-    const base = STRIP_DEPTH + 1;
+    const base = FLOAT;
     const pos = Array.from({ length: n }, (_, i) => {
       const px = x[i] - cx;
       const py = y[i] - cy;
@@ -291,7 +292,7 @@ export class World {
       for (const sign of [1, -1]) {
         const ex = p.x + sd.x * half * sign;
         const ez = p.z + sd.z * half * sign;
-        wall.push(ex, p.y, ez, ex, 0, ez);
+        wall.push(ex, p.y, ez, ex, p.y - STRIP_DEPTH, ez);
       }
       if (i < n) {
         const a = i * 4;
@@ -567,7 +568,8 @@ export class World {
       // From above, the corners just read trail behind the car with their captions (not in the duel,
       // where both cars cross them). On board, only the corners ahead are numbered.
       const trail = this.mode === "heli" && !this.ghost.visible && behind < 700;
-      l.sprite.visible = this.labelsOn && (overview || ahead < (this.mode === "heli" ? 1200 : 650) || trail);
+      l.sprite.visible =
+        this.labelsOn && (overview || ahead < (this.mode === "heli" ? 1200 : 650) || trail) && !this.underHud(l.sprite.position);
       // Captioned labels are wider; anchor them on the corner number, not the middle. Elsewhere only
       // the number shows (the left quarter of a captioned texture) so the map stays readable.
       const aspect = trail ? l.aspect : 2;
@@ -576,6 +578,25 @@ export class World {
       l.sprite.scale.set(size * aspect, size, 1);
       l.sprite.center.set(1 / aspect, 0.5);
     }
+  }
+
+  /** True when a world point would draw under one of the play HUD panels (session title, tyre
+   * gauge, driver grid, evidence line), so its label is better hidden than printed over text. */
+  private underHud(p: THREE.Vector3): boolean {
+    if (!document.body.classList.contains("playing")) return false;
+    const v = p.clone().project(this.camera);
+    if (v.z > 1) return true;
+    const w = this.canvas.clientWidth || window.innerWidth;
+    const h = this.canvas.clientHeight || window.innerHeight;
+    const x = ((v.x + 1) / 2) * w;
+    const y = ((1 - v.y) / 2) * h;
+    if (w <= 860) return y < 200 || y > h - 320;
+    return (
+      (x < 560 && y < 170) || // session title
+      (x < 470 && y > h - 470) || // tyre gauge
+      x > w - 380 || // driver grid
+      y > h - 110 // evidence line
+    );
   }
 
   /** Start the on-board camera from where the overview camera is, then glide in. */

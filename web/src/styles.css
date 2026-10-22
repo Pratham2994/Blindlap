@@ -659,8 +659,9 @@ body.playing .topbar nav {
 .reveal {
   position: absolute;
   left: var(--gutter);
-  top: 50%;
-  transform: translateY(-50%);
+  top: max(76px, calc(50% - 360px));
+  max-height: calc(100vh - 92px);
+  overflow-y: auto;
   width: min(560px, calc(100vw - 2 * var(--gutter) - 320px));
   padding: 30px 32px 28px;
   border-radius: 26px;
@@ -672,7 +673,7 @@ body.playing .topbar nav {
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(calc(-50% + 24px));
+    transform: translateY(24px);
     filter: blur(6px);
   }
 }
