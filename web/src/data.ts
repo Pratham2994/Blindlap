@@ -105,6 +105,7 @@ export interface DnaDriver {
   vector: number[];
   neighbours: string[];
   style: Record<string, number>;
+  styleRaw?: Record<string, number>;
 }
 
 export interface Dna {

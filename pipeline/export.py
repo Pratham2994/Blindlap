@@ -130,6 +130,8 @@ def driver_dna(sessions, labels):
         "Low coasting": -avg[:, F["coast"]],
         "Commitment": avg[:, F["min_throttle"]],
     }
+    # Scale each axis so the most extreme driver sits at +-1; the raw z-score stays in "raw".
+    axes_scaled = {k: v / max(np.abs(v).max(), 1e-9) for k, v in axes.items()}
     loadings = [{"feature": f"{FEATURES[j % 8]}:{CORNER_CLASSES[j // 8]}", "pc": r(Vt[:3, j], 3)} for j in range(Vt.shape[1])]
     return {
         "explained": r(explained, 3),
@@ -137,7 +139,8 @@ def driver_dna(sessions, labels):
         "drivers": [
             {"code": c, "name": teams[c][2], "team": teams[c][0], "colour": teams[c][1], "pos": r(P[i], 3),
              "vector": r(M[i], 3), "neighbours": neighbours[c],
-             "style": {k: round(float(v[i]), 2) for k, v in axes.items()}}
+             "style": {k: round(float(v[i]), 3) for k, v in axes_scaled.items()},
+             "styleRaw": {k: round(float(v[i]), 3) for k, v in axes.items()}}
             for i, c in enumerate(codes)
         ],
     }

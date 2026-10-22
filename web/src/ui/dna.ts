@@ -151,10 +151,11 @@ export class DnaView {
     }
     const axes = Object.entries(d.style)
       .map(([k, v]) => {
-        const clamped = Math.max(-1.2, Math.min(1.2, v)) / 1.2;
+        const clamped = Math.max(-1, Math.min(1, v));
+        const raw = d.styleRaw?.[k] ?? v;
         const left = clamped < 0 ? 50 + clamped * 50 : 50;
         const width = Math.abs(clamped) * 50;
-        return `<div class="axis"><span>${k}</span><span class="track" title="${v > 0 ? "+" : ""}${v.toFixed(2)} vs the field"><i style="left:${left}%;width:${Math.max(width, 1)}%"></i></span></div>`;
+        return `<div class="axis"><span>${k}</span><span class="track" title="${raw > 0 ? "+" : ""}${raw.toFixed(2)} standard deviations vs the field"><i style="left:${left}%;width:${Math.max(width, 1)}%"></i></span></div>`;
       })
       .join("");
     const options = this.dna.drivers
@@ -164,7 +165,7 @@ export class DnaView {
       <h2 class="display">${d.code}</h2>
       <p class="caps team">${d.name} · ${d.team}</p>
       ${axes}
-      <p class="near">Drives most like <b>${d.neighbours.join("</b>, <b>")}</b>. Centre line is the field average; right is more of the trait.</p>
+      <p class="near">Drives most like <b>${d.neighbours.join("</b>, <b>")}</b>. The centre line is the field average; bars are scaled so the most extreme driver on each trait reaches the edge.</p>
       <label class="caps" style="display:block;margin-top:14px;color:var(--ink-3)">Jump to
         <select style="margin-top:6px;width:100%;padding:10px;border-radius:12px;background:var(--rubber-3);color:var(--ink);border:0;font:inherit;text-transform:none;letter-spacing:0">${options}</select>
       </label>`;

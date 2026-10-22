@@ -2,7 +2,8 @@
 import type { DriverInfo } from "../data";
 import type { Guess } from "../model";
 
-const ROW = 34;
+const ROW_MAX = 34;
+const ROW_MIN = 24;
 
 export class Lineup {
   readonly root: HTMLElement;
@@ -10,6 +11,9 @@ export class Lineup {
   private rows = new Map<string, HTMLButtonElement>();
   private hint: HTMLParagraphElement;
   private counter: HTMLSpanElement;
+  private row = ROW_MAX;
+  private seen = 0;
+  private last: Guess[] = [];
   pick: string | null = null;
   locked = false;
   onPick: (code: string) => void = () => {};
@@ -34,7 +38,7 @@ export class Lineup {
       const b = document.createElement("button");
       b.className = "row";
       b.type = "button";
-      b.style.transform = `translateY(${i * ROW}px)`;
+      b.style.transform = `translateY(${i * this.row}px)`;
       b.innerHTML = `<span class="chip" style="background:${d?.colour ?? "#888"}"></span><span class="code">${code}</span><span class="bar"><i></i></span><span class="pct num">–</span>`;
       b.setAttribute("aria-label", `${d?.name ?? code}, ${d?.team ?? ""}`);
       b.addEventListener("click", () => this.choose(code));
@@ -42,7 +46,18 @@ export class Lineup {
       this.list.appendChild(li);
       this.rows.set(code, b);
     });
-    this.list.style.minHeight = `${codes.length * ROW}px`;
+    // Fit every driver without scrolling: shrink rows when the panel is short.
+    new ResizeObserver(() => this.fit(codes.length)).observe(this.list);
+  }
+
+  private fit(n: number) {
+    const h = this.list.clientHeight;
+    const row = Math.max(ROW_MIN, Math.min(ROW_MAX, Math.floor(h / n)));
+    if (row === this.row) return;
+    this.row = row;
+    this.root.style.setProperty("--row", `${row - 2}px`);
+    if (this.last.length) this.update(this.last, -1);
+    else [...this.rows.values()].forEach((r, i) => (r.style.transform = `translateY(${i * row}px)`));
   }
 
   choose(code: string) {
@@ -54,13 +69,16 @@ export class Lineup {
   }
 
   update(guesses: Guess[], corners: number) {
+    if (corners < 0) corners = this.seen;
+    this.seen = corners;
+    this.last = guesses;
     const top = guesses[0]?.p ?? 1;
     guesses.forEach((g, i) => {
       const r = this.rows.get(g.code);
       if (!r) return;
-      r.style.transform = `translateY(${i * ROW}px)`;
+      r.style.transform = `translateY(${i * this.row}px)`;
       r.classList.toggle("lead", i === 0 && corners > 0);
-      (r.querySelector(".bar i") as HTMLElement).style.width = `${(g.p / top) * 100}%`;
+      (r.querySelector(".bar i") as HTMLElement).style.width = corners > 0 ? `${(g.p / top) * 100}%` : "0%";
       r.querySelector(".pct")!.textContent = corners > 0 ? `${Math.round(g.p * 100)}%` : "–";
     });
     this.counter.textContent = `${corners} corner${corners === 1 ? "" : "s"} read`;

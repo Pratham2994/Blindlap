@@ -10,7 +10,7 @@ import { icons } from "./icons";
 import { Lineup } from "./lineup";
 import { TyreGauge } from "./tyre";
 
-type Phase = "loading" | "lights" | "lap" | "reveal";
+type Phase = "loading" | "lights" | "lap" | "reveal" | "duel";
 
 interface Score {
   you: number;
@@ -69,6 +69,7 @@ export class PlayView {
   private lightsAt = 0;
   private goAt = 0;
   private radio: HTMLAudioElement | null = null;
+  private duel: { lap: LapData; player: LapPlayer; code: string } | null = null;
   private score = readScore();
   private disposed = false;
   private keyHandler = (e: KeyboardEvent) => this.onKey(e);
@@ -125,6 +126,7 @@ export class PlayView {
     this.world.setCarS(0);
     this.world.showCar(true);
     this.world.mode = "chase";
+    this.world.snapCamera();
     document.body.classList.add("playing");
     this.buildHud();
     this.phase = "lights";
@@ -136,6 +138,7 @@ export class PlayView {
   private buildHud() {
     const s = this.session;
     this.root.innerHTML = "";
+    this.root.classList.remove("revealed");
     const head = document.createElement("div");
     head.className = "hud-session";
     head.innerHTML = `<p class="display where">${s.circuit}</p><p class="caps meta num">${s.date.slice(0, 4)} qualifying · ${(s.length / 1000).toFixed(3)} km · Round ${this.score.rounds + 1} · You ${this.score.you} – Model ${this.score.model}</p>`;
@@ -191,6 +194,10 @@ export class PlayView {
 
   private setCamera(mode: "chase" | "heli") {
     if (this.phase === "reveal") return;
+    if (this.phase === "duel") {
+      this.world.mode = mode;
+      return;
+    }
     this.world.mode = mode;
     this.root.querySelectorAll("[data-cam]").forEach((x) => x.setAttribute("aria-pressed", String((x as HTMLElement).dataset.cam === mode)));
   }
@@ -238,6 +245,10 @@ export class PlayView {
       this.world.update(dt, smp.speed);
       return;
     }
+    if (this.phase === "duel" && this.duel && !this.paused) {
+      this.duelFrame(dt);
+      return;
+    }
     this.world.update(dt, this.phase === "lap" ? this.player.at(this.t).speed : 0);
   }
 
@@ -283,6 +294,10 @@ export class PlayView {
     const best = [...this.evidence].sort((a, b) => (b.deltas[truth] ?? 0) - (a.deltas[truth] ?? 0)).slice(0, 3);
     const cornerById = new Map(this.session.corners.map((c, i) => [i, c]));
 
+    // The duel rival: whoever the model picked, or its runner-up when it was right.
+    const rivalCode = modelPick !== truth ? modelPick : guesses[1]?.code;
+    const rival = [...this.session.laps].filter((l) => l.code === rivalCode).sort((a, b) => a.lapTime - b.lapTime)[0];
+
     const card = document.createElement("section");
     card.className = "reveal";
     card.setAttribute("aria-live", "polite");
@@ -295,14 +310,77 @@ export class PlayView {
         <span>Final confidence<b>${Math.round((guesses.find((g) => g.code === truth)?.p ?? 0) * 100)}%</b></span>
       </div>
       <ol class="caption">${best
-        .map((e) => `<li><b>${e.label}</b><span>${capitalise(e.sentence)}${cornerById.get(e.corner)?.braked === false ? " (flat-out corner)" : ""}.</span></li>`)
+        .map((e) => `<li><b>${e.label}</b><span>${capitalise(e.sentence)}${cornerById.get(e.corner)?.braked === false ? " (no braking)" : ""}.</span></li>`)
         .join("")}</ol>
       ${this.lap.radio ? `<div class="radio"><button type="button" aria-label="Play team radio">${icons.play}</button><span class="wave">${"<i></i>".repeat(36)}</span><span class="label caps">Team radio, this session</span></div>` : ""}
-      <div class="actions"><button type="button" class="btn primary" data-next>Next lap ${icons.next}</button><a class="btn" href="#/dna">See ${truth}'s DNA</a></div>`;
+      <div class="actions"><button type="button" class="btn primary" data-next>Next lap ${icons.next}</button>${
+        rival ? `<button type="button" class="btn" data-duel>Race it against ${rival.code}</button>` : ""
+      }<a class="btn" href="#/dna">See ${truth}'s DNA</a></div>`;
+    this.root.classList.add("revealed");
     this.root.appendChild(card);
     card.querySelector("[data-next]")!.addEventListener("click", () => void this.newRound());
+    if (rival) card.querySelector("[data-duel]")!.addEventListener("click", () => this.startDuel(rival));
     if (this.lap.radio) this.setupRadio(card.querySelector(".radio")!, this.lap.radio);
     (card.querySelector("[data-next]") as HTMLElement).focus({ preventScroll: true });
+  }
+
+  private startDuel(rival: LapData) {
+    this.radio?.pause();
+    this.duel = { lap: rival, player: new LapPlayer(rival), code: rival.code };
+    this.player = new LapPlayer(this.lap);
+    this.t = 0;
+    this.phase = "duel";
+    this.paused = false;
+    this.root.classList.add("dueling");
+    this.world.mode = "heli";
+    this.world.snapCamera();
+    this.engine.setVolume(!this.engine.muted);
+    const bar = document.createElement("div");
+    bar.className = "duel";
+    bar.innerHTML = `
+      <span class="car hard"></span><b>${this.lap.code}</b><span class="caps">vs</span><span class="car soft"></span><b>${rival.code}</b>
+      <span class="gap num">+0.000 s</span>
+      <span class="caps where">Same session</span>
+      <button type="button" class="btn" data-back>Back to result</button>`;
+    bar.querySelector("[data-back]")!.addEventListener("click", () => this.endDuel());
+    this.root.appendChild(bar);
+  }
+
+  private duelFrame(dt: number) {
+    const d = this.duel!;
+    const end = Math.max(this.player.duration, d.player.duration);
+    this.t = Math.min(this.t + dt * this.speed, end);
+    const a = this.player.at(Math.min(this.t, this.player.duration));
+    const b = d.player.at(Math.min(this.t, d.player.duration));
+    const ratio = this.ratios[a.gear];
+    this.engine.update(ratio > 0 && a.speed > 40 ? a.speed * ratio : a.rpm, a.throttle, a.speed, a.gear);
+    this.world.setCarS(a.s);
+    this.world.setGhostS(b.s);
+    // Gap at the white car's position: how long ago the red car passed the same point.
+    const gap = Math.min(this.t, this.player.duration) - timeAt(d.lap, a.s);
+    const gapEl = this.root.querySelector(".duel .gap");
+    const whereEl = this.root.querySelector(".duel .where");
+    if (gapEl) {
+      gapEl.textContent = `${gap >= 0 ? "+" : "-"}${Math.abs(gap).toFixed(3)} s`;
+      gapEl.classList.toggle("ahead", gap < 0);
+    }
+    if (whereEl) {
+      const c = this.session.corners.find((x) => a.s < x.hi);
+      whereEl.textContent = `${this.lap.code} ${gap < 0 ? "ahead" : "behind"}${c ? ` · into T${c.n}` : " · to the line"}`;
+    }
+    this.world.update(dt, a.speed);
+    if (this.t >= end) this.endDuel();
+  }
+
+  private endDuel() {
+    this.duel = null;
+    this.phase = "reveal";
+    this.world.setGhostS(null);
+    this.world.setCarS(0);
+    this.world.mode = "orbit";
+    this.engine.setVolume(false, 1.5);
+    this.root.classList.remove("dueling");
+    this.root.querySelector(".duel")?.remove();
   }
 
   private setupRadio(box: HTMLElement, url: string) {
@@ -343,6 +421,22 @@ export class PlayView {
       if (!this.disposed && this.radio === audio) void audio.play().catch(() => {});
     }, 1400);
   }
+}
+
+/** Time at which a lap reached distance s, by interpolating its (s, t) samples. */
+function timeAt(lap: LapData, s: number): number {
+  const S = lap.s;
+  let lo = 0;
+  let hi = S.length - 1;
+  if (s <= S[0]) return lap.t[0];
+  if (s >= S[hi]) return lap.t[hi];
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (S[mid] <= s) lo = mid;
+    else hi = mid;
+  }
+  const u = (s - S[lo]) / (S[hi] - S[lo] || 1);
+  return lap.t[lo] + (lap.t[hi] - lap.t[lo]) * u;
 }
 
 function capitalise(s: string) {

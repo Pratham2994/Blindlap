@@ -65,7 +65,8 @@ export class TyreGauge {
     el("circle", { cx: C, cy: C, r: BAND - 6, fill: "none", stroke: "#2a2a2a", "stroke-width": 0.8 }, svg);
     this.progress = el("path", { d: "", fill: "none", stroke: "#f2f0ea", "stroke-width": 9, "stroke-linecap": "round" }, svg);
 
-    // Corner notches.
+    // Corner notches. Numbers that would collide with the previous one are left off.
+    let lastLabelled = -1;
     for (const c of session.corners) {
       const f = c.s / session.length;
       const [x0, y0] = polar(BAND - 10, f);
@@ -74,6 +75,8 @@ export class TyreGauge {
       const [lx, ly] = polar(BAND - 24, f);
       const label = el("text", { x: lx, y: ly, class: "tick-label", "text-anchor": "middle", "dominant-baseline": "middle" }, svg);
       label.textContent = String(c.n);
+      if (lastLabelled >= 0 && f - lastLabelled < 0.028) label.setAttribute("opacity", "0");
+      else lastLabelled = f;
       const [nx, ny] = polar(BAND + 13, f);
       const ang = f * 360;
       const notch = el("path", {

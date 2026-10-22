@@ -39,13 +39,16 @@ export class World {
   private trackGroup = new THREE.Group();
   private frame: TrackFrame | null = null;
   private car: THREE.Group;
+  private ghost: THREE.Group;
   private carLight: THREE.PointLight;
   private sun: THREE.DirectionalLight;
   private line: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial> | null = null;
-  private labels: { sprite: THREE.Sprite; n: number }[] = [];
+  private labels: { sprite: THREE.Sprite; n: number; s: number }[] = [];
   private radius = 1000;
   private camPos = new THREE.Vector3(0, 800, 800);
   private camLook = new THREE.Vector3();
+  private offset = new THREE.Vector3(0, 400, 400);
+  private lookOffset = new THREE.Vector3();
   private orbitAngle = 0;
   mode: CameraMode = "orbit";
   carS = 0;
@@ -60,23 +63,26 @@ export class World {
     this.scene.background = new THREE.Color("#0b0b0b");
     this.scene.fog = new THREE.Fog("#0b0b0b", 1500, 6000);
 
-    this.scene.add(new THREE.HemisphereLight("#d8d4cc", "#050505", 0.35));
+    this.scene.add(new THREE.HemisphereLight("#d8d4cc", "#050505", 0.55));
     // One low raking light, like late sun across a moulded sidewall: it makes the relief read.
-    this.sun = new THREE.DirectionalLight("#fff4e6", 2.4);
+    this.sun = new THREE.DirectionalLight("#fff4e6", 3.2);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(4096, 4096);
     this.sun.shadow.bias = -0.0004;
     this.scene.add(this.sun, this.sun.target);
 
     this.car = this.makeCar();
-    this.carLight = new THREE.PointLight("#fff2dc", 900, 90, 1.6);
+    this.ghost = this.makeCar(COMPOUND.soft);
+    this.ghost.visible = false;
+    this.scene.add(this.ghost);
+    this.carLight = new THREE.PointLight("#fff2dc", 40, 45, 1.8);
     this.car.add(this.carLight);
     this.carLight.position.set(0, 6, 0);
     this.scene.add(this.trackGroup, this.car);
 
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.55, 0.5, 0.82);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.45, 0.45, 0.88);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
     this.resize();
@@ -92,12 +98,12 @@ export class World {
     this.camera.updateProjectionMatrix();
   }
 
-  private makeCar(): THREE.Group {
+  private makeCar(colour: THREE.Color = COMPOUND.hard): THREE.Group {
     const g = new THREE.Group();
     // Abstract contact patch: a long white-hot lozenge with a soft red heat core.
     const body = new THREE.Mesh(
-      new THREE.CapsuleGeometry(0.9, 4.2, 6, 12).rotateZ(Math.PI / 2),
-      new THREE.MeshStandardMaterial({ color: "#ffffff", emissive: COMPOUND.hard, emissiveIntensity: 2.2 }),
+      new THREE.CapsuleGeometry(0.7, 4.0, 6, 12).rotateZ(Math.PI / 2),
+      new THREE.MeshStandardMaterial({ color: colour, emissive: colour, emissiveIntensity: 1.1 }),
     );
     body.position.y = 1.1;
     body.castShadow = true;
@@ -145,9 +151,8 @@ export class World {
       const sd = this.sideAt(c.s);
       const turn = this.turnSign(c.s);
       sprite.position.copy(p).addScaledVector(sd, -turn * 34).setY(p.y + 14);
-      sprite.scale.set(36, 18, 1);
       this.trackGroup.add(sprite);
-      this.labels[k] = { sprite, n: c.n };
+      this.labels[k] = { sprite, n: c.n, s: c.s };
     }
 
     const r = this.radius;
@@ -211,7 +216,7 @@ export class World {
     tex.repeat.set(1, 1);
     const asphalt = new THREE.Mesh(
       geo,
-      new THREE.MeshStandardMaterial({ map: tex, color: "#5a5a58", roughness: 0.88, metalness: 0.05 }),
+      new THREE.MeshStandardMaterial({ map: tex, color: "#9a9893", roughness: 0.86, metalness: 0.05 }),
     );
     asphalt.receiveShadow = true;
     asphalt.castShadow = true;
@@ -296,7 +301,7 @@ export class World {
     const col: number[] = [];
     const sAttr: number[] = [];
     const idx: number[] = [];
-    const w = 1.3;
+    const w = 0.7;
     let j = 0;
     for (let i = 0; i <= n; i++) {
       const k = i % n;
@@ -418,6 +423,17 @@ export class World {
     if (this.line) this.line.material.uniforms.uCarS.value = s;
   }
 
+  /** A second car for the duel replay: the driver the model picked, in soft red. */
+  setGhostS(s: number | null) {
+    this.ghost.visible = s !== null && !!this.frame;
+    if (s === null || !this.frame) return;
+    const p = this.pointAt(s);
+    const t = this.tangentAt(s);
+    // Offset sideways a little so two cars on the same line never sit inside each other.
+    this.ghost.position.copy(p).addScaledVector(this.sideAt(s), 2.2);
+    this.ghost.rotation.y = Math.atan2(-t.z, t.x);
+  }
+
   showCar(on: boolean) {
     this.car.visible = on;
   }
@@ -434,8 +450,8 @@ export class World {
     let look: THREE.Vector3;
     if (this.mode === "chase") {
       const ahead = this.pointAt(this.carS + 45);
-      const back = 26 + speedKmh * 0.04;
-      want = p.clone().addScaledVector(t, -back).setY(p.y + 9 + speedKmh * 0.012);
+      const back = 30 + speedKmh * 0.04;
+      want = p.clone().addScaledVector(t, -back).setY(p.y + 11 + speedKmh * 0.012);
       look = ahead.setY(ahead.y + 2);
     } else if (this.mode === "heli") {
       want = p.clone().addScaledVector(t, -120).add(new THREE.Vector3(0, 230, 0));
@@ -446,15 +462,41 @@ export class World {
       want = new THREE.Vector3(Math.cos(this.orbitAngle) * r, this.radius * 0.95, Math.sin(this.orbitAngle) * r);
       look = new THREE.Vector3(0, 0, 0);
     }
-    const k = 1 - Math.exp(-dt * (this.mode === "orbit" ? 1.2 : 5));
-    this.camPos.lerp(want, k);
-    this.camLook.lerp(look, k);
+    this.updateLabels();
+    if (this.mode === "orbit") {
+      const k = 1 - Math.exp(-dt * 1.2);
+      this.camPos.lerp(want, k);
+      this.camLook.lerp(look, k);
+    } else {
+      // Smooth the camera's offset from the car, not its absolute position, so it never falls
+      // behind at 4x playback.
+      const k = 1 - Math.exp(-dt * 4);
+      this.offset.lerp(want.clone().sub(p), k);
+      this.lookOffset.lerp(look.clone().sub(p), k);
+      this.camPos.copy(p).add(this.offset);
+      this.camLook.copy(p).add(this.lookOffset);
+    }
     this.camera.position.copy(this.camPos);
     this.camera.lookAt(this.camLook);
     this.composer.render();
   }
 
+  /** Overview shows every corner number; on board, only the next few corners ahead. */
+  private updateLabels() {
+    const L = this.frame!.length;
+    const overview = this.mode === "orbit";
+    const size = overview ? this.radius / 22 : this.mode === "heli" ? 26 : 9;
+    for (const l of this.labels) {
+      const ahead = (((l.s - this.carS) % L) + L) % L;
+      l.sprite.visible = overview || ahead < (this.mode === "heli" ? 1400 : 650);
+      l.sprite.scale.set(size * 2, size, 1);
+    }
+  }
+
+  /** Start the on-board camera from where the overview camera is, then glide in. */
   snapCamera() {
-    this.camPos.copy(this.camera.position);
+    const p = this.pointAt(this.carS);
+    this.offset.copy(this.camera.position).sub(p);
+    this.lookOffset.copy(this.camLook).sub(p);
   }
 }

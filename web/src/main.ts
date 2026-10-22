@@ -17,6 +17,7 @@ interface View {
 const view = document.getElementById("view")!;
 const world = new World(document.getElementById("stage") as HTMLCanvasElement);
 const engine = new EngineSynth();
+if (import.meta.env.DEV) (window as unknown as { world: World }).world = world;
 let current: View | null = null;
 let index: Index;
 let titleSession: number | null = null;
@@ -68,6 +69,7 @@ async function route() {
   const hash = location.hash.replace(/^#\/?/, "");
   const [name, arg] = hash.split("/");
   setNav(name || "home");
+  document.body.classList.toggle("reading", name === "how");
   try {
     if (!index) index = await loadIndex();
     if (name === "play") {

@@ -168,6 +168,11 @@ button {
   box-shadow: var(--lift);
 }
 
+body.reading .topbar {
+  background: var(--rubber);
+  box-shadow: 0 1px 0 var(--groove);
+}
+
 body.playing .topbar nav {
   display: none;
 }
@@ -387,7 +392,7 @@ body.playing .topbar nav {
   position: absolute;
   left: 0;
   right: 0;
-  height: 32px;
+  height: var(--row, 32px);
   display: grid;
   grid-template-columns: 4px 46px 1fr 44px;
   align-items: center;
@@ -474,10 +479,10 @@ body.playing .topbar nav {
 
 .evidence {
   position: absolute;
-  left: 50%;
+  left: clamp(250px, calc(var(--gutter) + 30vw - 40px), 420px);
+  right: calc(var(--gutter) + min(300px, 34vw) + 16px);
   bottom: 28px;
-  transform: translateX(-50%);
-  width: min(720px, calc(100vw - 2 * var(--gutter)));
+  max-width: 760px;
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
@@ -622,6 +627,24 @@ body.playing .topbar nav {
 }
 
 /* ---------- Reveal ---------- */
+
+.hud .tyre,
+.hud .evidence,
+.hud .hud-session {
+  transition: opacity 0.8s var(--ease-out), transform 0.8s var(--ease-out);
+}
+
+.hud.revealed .tyre,
+.hud.revealed .evidence,
+.hud.revealed .hud-session {
+  opacity: 0;
+  transform: translateY(24px);
+  pointer-events: none;
+}
+
+.hud.revealed .evidence {
+  transform: translateY(24px);
+}
 
 .reveal {
   position: absolute;
@@ -799,6 +822,64 @@ body.playing .topbar nav {
 .radio .label {
   font-size: 0.75rem;
   color: var(--ink-3);
+}
+
+/* ---------- Duel replay ---------- */
+
+.hud.dueling .reveal {
+  display: none;
+}
+
+.duel {
+  position: absolute;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 10px 10px 22px;
+  border-radius: 999px;
+  background: rgba(14, 14, 14, 0.88);
+  box-shadow: var(--deboss);
+  white-space: nowrap;
+}
+
+.duel b {
+  font-weight: 900;
+  font-variation-settings: "wdth" 125;
+}
+
+.duel .car {
+  width: 22px;
+  height: 8px;
+  border-radius: 4px;
+}
+
+.duel .car.hard {
+  background: var(--hard);
+}
+
+.duel .car.soft {
+  background: var(--soft);
+}
+
+.duel .gap {
+  font-weight: 900;
+  font-variation-settings: "wdth" 125;
+  font-size: 1.4rem;
+  min-width: 8ch;
+  text-align: right;
+  color: var(--soft);
+}
+
+.duel .gap.ahead {
+  color: var(--inter);
+}
+
+.duel .where {
+  color: var(--ink-3);
+  min-width: 18ch;
 }
 
 /* ---------- Pages (DNA, How) ---------- */
@@ -1096,6 +1177,8 @@ figcaption {
     top: 120px;
   }
   .evidence {
+    left: var(--gutter);
+    right: var(--gutter);
     bottom: 16px;
     border-radius: 18px;
     grid-template-columns: auto 1fr;

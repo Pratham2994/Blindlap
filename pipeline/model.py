@@ -146,7 +146,7 @@ def main():
     results = {}
     lr_report, lr_folds = evaluate(
         sessions, labels,
-        lambda: LogisticRegression(C=0.05, max_iter=3000, class_weight="balanced"), "logreg")
+        lambda: LogisticRegression(C=0.1, max_iter=3000, class_weight="balanced"), "logreg")
     results["logreg"] = lr_report
     gb_report, _ = evaluate(
         sessions, labels,
