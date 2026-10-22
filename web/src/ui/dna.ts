@@ -1,6 +1,7 @@
 // Driver DNA: every driver's average corner style, projected to 3D. Close together = drive alike.
 import * as THREE from "three";
-import type { Dna, DnaDriver } from "../data";
+import type { Careers, Dna, DnaDriver } from "../data";
+import { careerLine } from "../data";
 import type { World } from "../scene/world";
 
 const SCALE = 60;
@@ -51,6 +52,7 @@ export class DnaView {
     private world: World,
     private dna: Dna,
     focus: string | null,
+    private careers: Careers = { source: "", drivers: {} },
   ) {
     this.root = document.createElement("div");
     this.root.className = "page dna";
@@ -164,6 +166,7 @@ export class DnaView {
     this.panel.innerHTML = `
       <h2 class="display">${d.code}</h2>
       <p class="caps team">${d.name} · ${d.team}</p>
+      ${this.careers.drivers[code] ? `<p class="career num">${careerLine(this.careers.drivers[code])}</p>` : ""}
       ${axes}
       <p class="near">Drives most like <b>${d.neighbours.join("</b>, <b>")}</b>. The centre line is the field average; bars are scaled so the most extreme driver on each trait reaches the edge.</p>
       <label class="caps" style="display:block;margin-top:14px;color:var(--ink-3)">Jump to

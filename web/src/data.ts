@@ -114,6 +114,22 @@ export interface Dna {
   drivers: DnaDriver[];
 }
 
+export interface Career {
+  id: string;
+  born: string;
+  nationality: string;
+  starts: number;
+  wins: number;
+  podiums: number;
+  poles: number;
+  titles: number;
+}
+
+export interface Careers {
+  source: string;
+  drivers: Record<string, Career>;
+}
+
 const base = `${import.meta.env.BASE_URL}data/`;
 const cache = new Map<string, Promise<unknown>>();
 
@@ -134,3 +150,16 @@ export const loadIndex = () => get<Index>("index.json");
 export const loadSession = (key: number) => get<Session>(`sessions/${key}.json`);
 export const loadReport = () => get<Report>("report.json");
 export const loadDna = () => get<Dna>("dna.json");
+// Optional second dataset: an empty set keeps the game working if the file is missing.
+export const loadCareers = () => get<Careers>("careers.json").catch((): Careers => ({ source: "", drivers: {} }));
+
+/** "73 wins · 50 poles · 4 titles", dropping zero counts after the first. */
+export function careerLine(c: Career | undefined): string {
+  if (!c) return "";
+  const parts = [`${c.starts} starts`];
+  if (c.wins) parts.push(`${c.wins} win${c.wins === 1 ? "" : "s"}`);
+  if (c.poles) parts.push(`${c.poles} pole${c.poles === 1 ? "" : "s"}`);
+  if (c.titles) parts.push(`${c.titles} title${c.titles === 1 ? "" : "s"}`);
+  if (!c.wins && c.podiums) parts.push(`${c.podiums} podium${c.podiums === 1 ? "" : "s"}`);
+  return parts.join(" · ");
+}

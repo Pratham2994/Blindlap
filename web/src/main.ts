@@ -1,7 +1,7 @@
 import "./styles.css";
 import { EngineSynth } from "./audio/engine";
 import type { Index } from "./data";
-import { loadDna, loadIndex, loadReport, loadSession } from "./data";
+import { loadCareers, loadDna, loadIndex, loadReport, loadSession } from "./data";
 import { World } from "./scene/world";
 import { dailyPlan, todayKey } from "./ui/daily";
 import { DnaView } from "./ui/dna";
@@ -84,7 +84,8 @@ async function route() {
       const date = todayKey();
       mount(new PlayView(world, engine, index, { date, plan: dailyPlan(index, date) }));
     } else if (name === "dna") {
-      mount(new DnaView(world, await loadDna(), arg ?? null));
+      const [dna, careers] = await Promise.all([loadDna(), loadCareers()]);
+      mount(new DnaView(world, dna, arg ?? null, careers));
     } else if (name === "how") {
       const r = howView(index, await loadReport());
       mount({ root: r, frame: () => {} });

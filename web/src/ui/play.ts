@@ -1,7 +1,7 @@
 // One round: lights out, an anonymous lap, the model reading corners, your guess, the reveal.
 import { gearRatios, EngineSynth } from "../audio/engine";
 import type { Index, LapData, Session } from "../data";
-import { loadSession } from "../data";
+import { careerLine, loadCareers, loadSession } from "../data";
 import { formatLapTime, LapPlayer } from "../lap";
 import type { Evidence } from "../model";
 import { Guesser } from "../model";
@@ -290,13 +290,16 @@ export class PlayView {
     }
   }
 
-  private reveal() {
+  private async reveal() {
     this.phase = "reveal";
     this.engine.update(5000, 0, 0, 0);
     this.engine.setVolume(false, 2.5);
     this.world.mode = "orbit";
     this.world.revealLine(true);
     const truth = this.lap.code;
+    const careers = await loadCareers();
+    if (this.disposed) return;
+    const career = careerLine(careers.drivers[truth]);
     const driver = Object.values(this.session.drivers).find((d) => d.code === truth)!;
     const guesses = this.guesser.guesses();
     const modelPick = guesses[0].code;
@@ -330,7 +333,7 @@ export class PlayView {
     card.setAttribute("aria-live", "polite");
     card.innerHTML = `
       <div class="verdicts">${tag("You", you, this.lineup.pick)}${tag("Model", model, modelPick)}</div>
-      <div class="who"><span class="chip" style="background:${driver.colour}"></span><div><h2 class="display">${driver.name.replace(/\s(\S+)$/, " <br>$1")}</h2><p class="caps team">${driver.team} · lap ${this.lap.lapNumber}</p></div></div>
+      <div class="who"><span class="chip" style="background:${driver.colour}"></span><div><h2 class="display">${driver.name.replace(/\s(\S+)$/, " <br>$1")}</h2><p class="caps team">${driver.team} · lap ${this.lap.lapNumber}</p>${career ? `<p class="career num">${career} <span>career, ${careers.source}</span></p>` : ""}</div></div>
       <div class="stats caps num">
         <span>Lap time<b>${formatLapTime(this.lap.lapTime)}</b></span>
         <span>Model ranked them<b>P${rank} of ${guesses.length}</b></span>

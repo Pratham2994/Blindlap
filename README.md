@@ -57,10 +57,25 @@ web/  Vite + TypeScript + Three.js + Web Audio
 
 ## Results
 
-Read live from `pipeline/model_out/report.json` and shown on the How it knows page. With 23 of the
-24 sessions, logistic regression names the right driver on roughly a third of laps and has them in
-its top three on about two thirds (chance is about 5% and 14%). A gradient-boosted model is a few
-points better; the linear model ships because it can explain each corner and runs in a few KB.
+Leave-one-session-out over 23 of the 24 sessions (OpenF1 has no lap timing for Baku), 2,012 laps,
+21 drivers. Read live from `pipeline/model_out/report.json` and shown on the How it knows page.
+
+| Model | Top-1 driver | Top-3 driver | Right team |
+|---|---|---|---|
+| Chance | 4.8% | 14.3% | 10% |
+| Logistic regression (ships) | **37.3%** | **65.7%** | **49.3%** |
+| Gradient-boosted trees | 44.6% | 75.3% | 60.8% |
+
+The linear model ships because each corner's push toward a driver is a readable sum, which is what
+the game's evidence line shows, and its weights are a few KB that run in the browser.
+
+## Tests
+
+```bash
+cd web
+npm run typecheck
+npx playwright test   # plays a full round in headless Chromium with WebGL, plus DNA, How, Daily
+```
 
 ## Run it
 

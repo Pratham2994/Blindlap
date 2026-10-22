@@ -749,6 +749,20 @@ body.playing .topbar nav {
   color: var(--soft);
 }
 
+.career {
+  margin: 8px 0 0;
+  color: var(--ink-2);
+  font-size: 0.85rem;
+}
+
+.career span {
+  color: var(--ink-3);
+}
+
+.dna-panel .career {
+  margin: -8px 0 16px;
+}
+
 .reveal .stats {
   display: flex;
   gap: 28px;
