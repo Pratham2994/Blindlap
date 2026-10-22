@@ -1563,6 +1563,9 @@ figcaption {
     flex-basis: 100%;
     padding-left: 48px;
   }
+  .topbar nav .long {
+    display: none;
+  }
   .topbar nav a {
     padding: 8px 9px;
     font-size: 0.6rem;
