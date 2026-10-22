@@ -8,8 +8,8 @@ who wants to extend it.
 
 Every F1 driver attacks a corner a little differently: one brakes later, one carries more speed to
 the apex, one gets back on the throttle earlier. Blind Lap asks whether that "handwriting" is strong
-enough to identify a driver from telemetry alone. It replays a real 2025 qualifying lap with the
-name removed, on a 3D circuit built from the car's own position data, with an engine sound
+enough to identify a driver from telemetry alone. It replays a real 2025 or 2026 qualifying lap with
+the name removed, on a 3D circuit built from the car's own position data, with an engine sound
 synthesised from the car's own RPM and throttle. As the car leaves each corner, a model trained on
 other circuits reads that corner and updates its guess. The player guesses too. The reveal plays
 the driver's real team radio.
@@ -25,6 +25,7 @@ the driver's real team radio.
 | Daily five | The same five laps for every visitor on a given date (seeded), saved per day, with a result grid and a copy-to-clipboard share text. |
 | Challenge link | "Copy challenge link" on the reveal gives a URL (`#/play/<session>.<lap index>`) that opens that exact lap for a friend. The link uses the lap's position in the session file, so it does not reveal the driver. |
 | Driver DNA | Every driver's average corner style as a 3D point (PCA of 24 style dimensions). Drag to turn, click or pick a driver to see six plain-language style traits, closest matches and career totals. |
+| Telemetry lab | Any session, any two drivers: their fastest laps' speed traces overlaid against distance, braking as blue marks under the trace, and for each corner the single biggest difference between them in words ("VER brakes 15 m earlier than LEC"). |
 | How it knows | The method and the honest numbers: top-1, top-3 and team accuracy as bars against chance, the cross-season result, accuracy per session, the easiest and hardest drivers to spot, a confusion matrix, what the data cannot see, and the GBM comparison. All read from the evaluation report. |
 
 ## 3. Architecture
@@ -74,6 +75,10 @@ any static host with no server.
   Ergast dump with results and lap times only. It has no telemetry, so it cannot power this.
 - **F1DB** (GitHub release `v2026.17.0`, checksum verified): career totals (starts, wins, poles,
   podiums, titles). Used for the reveal card and the DNA panel.
+
+Downloaded: every 2025 qualifying session (24), every 2026 qualifying session held so far (18, up to
+Singapore on 10 October 2026), and every 2025 Practice 3 (18; sprint weekends have none). About 6 GB
+of raw JSON, kept out of git.
 
 ### 4.2 Turning samples into comparable laps (`track.py`)
 
@@ -166,21 +171,39 @@ clip nearest after the lap. The DNA file averages each driver's 24-dimensional v
 of the season, runs PCA to 3D, finds each driver's three closest matches by cosine similarity, and
 computes six plain-language traits scaled so the most extreme driver reaches ±1.
 
-### 4.6 Final numbers (full season)
+### 4.6 Final numbers
 
-Leave-one-session-out on 23 sessions, 2,012 laps, 21 drivers:
+Leave-one-circuit-out on 39 qualifying sessions (23 from 2025, 16 from 2026), 3,565 laps, 24 drivers.
+18 practice 3 sessions from 2025 are used as extra training laps only.
 
 | Model | Top-1 driver | Top-3 driver | Right team | Log loss |
 |---|---|---|---|---|
-| Chance | 4.8% | 14.3% | 10% | 3.04 |
-| Logistic regression (ships) | **37.3%** | **65.7%** | **49.3%** | 1.98 |
-| Gradient-boosted trees | 44.6% | 75.3% | 60.8% | 1.66 |
+| Chance | 4.2% | 12.6% | about 9% | 3.18 |
+| Logistic regression (ships) | **31.7%** | **60.7%** | **45.5%** | 2.20 |
+| Gradient-boosted trees | 40.7% | 69.9% | 56.3% | 1.84 |
+| Cross-season (train 2025, test 2026) | 23.0% | 51.6% | 36.9% | |
 
-The game's model is right about 7.8 times as often as picking at random, on circuits it never saw.
+How the number moved during the night, and why:
 
-**Data gaps.** OpenF1 has no lap timing for Baku 2025 qualifying, so Baku is not in the game (23 of 24
-sessions). Las Vegas 2025 qualifying was wet, so only 34 laps from 10 drivers fall within 3.5% of the
-best lap.
+| Setup | Top-1 (logistic) |
+|---|---|
+| 4 sessions of 2025, leave-one-session-out | 30.4% |
+| 23 sessions of 2025 | 37.3% |
+| + 16 sessions of 2026, leave-one-circuit-out, fair lap filter, 24 drivers | 31.9% |
+| + 18 practice sessions as training data | 31.7% |
+
+The drop from 37% to 32% is the test getting harder, not the model getting worse: more drivers
+(24 instead of 21), a stricter holdout (the same circuit's other season is also held out), two very
+different generations of car, and the slower teams back in the data.
+
+Per session, Hungaroring is easiest (49% in 2026, 46% in 2025) and Melbourne 2026 hardest (14%, the
+first qualifying under the new rules; why it is so low was not investigated). Per driver, the easiest to
+spot include drivers in the most unusual cars (Pérez and Bottas at Cadillac), which is the car-vs-driver
+caveat again; the hardest are midfield drivers whose cars and styles sit near the field average.
+
+**Data gaps.** OpenF1 has no lap timing for Baku 2025 qualifying, so it is not in the game. MultiViewer
+has no corner map yet for Madring (Madrid) and Kuala Lumpur 2026, so their corners are detected from
+the fastest lap's speed trace (7 braking corners each). Las Vegas 2025 qualifying was wet.
 
 ## 5. The web app in depth
 
@@ -192,9 +215,10 @@ condensed for labels. Playwright for end-to-end tests.
 
 ### 5.2 Rendering (`scene/world.ts`, `scene/textures.ts`)
 
-- **Track**: a ribbon 13 m wide following the real x, y, z (elevation exaggerated 3× so hills read),
-  rotated to the broadcast map orientation. Side walls drop to the ground, so the circuit reads as a
-  solid strip. Asphalt is a generated grain texture tiled every 14 m. Painted edge lines. Striped
+- **Track**: a ribbon 13 m wide following the real x, y, z (elevation exaggerated 2× so hills read),
+  rotated to the broadcast map orientation. It is a 3 m thick strip floating 10 m over the ground, so
+  its shadow draws the circuit's shape on the sidewall below. (A first version dropped solid walls to
+  the ground; on hilly tracks like Austin they became black cliffs.) Asphalt is a generated grain texture tiled every 14 m. Painted edge lines. Striped
   kerbs on the inside of every corner (inside found from the sign of the tangent's turn).
 - **Ground**: a disc textured as a tyre sidewall: bands of concentric moulding grooves, two raised
   rims and the session's details moulded in a ring ("BLIND LAP", circuit, length, corners). The same
@@ -207,6 +231,12 @@ condensed for labels. Playwright for end-to-end tests.
   overhead, and an orbit for title and reveal. On-board cameras smooth their offset from the car
   rather than their absolute position, so they never fall behind at 4× playback.
 - **Post**: ACES tone mapping, a restrained bloom pass for the car and the line, 4096 shadow map.
+- **Sky and fog**: a dome shader with a low neutral haze, a touch brighter on the side the light
+  comes from. Fog uses the same colour in linear space so ground and sky meet without a seam, and
+  its distance changes per camera: close on board, so the far side of the circuit melts away; far
+  overhead and in the overview, so the whole sidewall stays visible.
+- **Labels that respect the HUD**: corner labels are projected to the screen each frame and hidden
+  when they would land under the session title, the tyre gauge, the driver grid or the evidence line.
 - **Corner labels**: sprites with corner numbers; on board only the next few corners show. Once
   read, a label turns soft red and gains a caption of what the model saw ("BRAKES 11 M LATER").
 
@@ -218,6 +248,9 @@ harmonics) are mixed, soft-clipped by a tanh wave shaper, and sent through a res
 cutoff opens with throttle and RPM. On top: a sine for the turbo and MGU-H whine, filtered noise for
 wind and tyre roar that grows with the square of speed, a short gain dip on upshifts and bursts of
 band-passed noise for exhaust crackle when the driver lifts sharply or downshifts.
+
+Browsers start audio only after a user gesture. Starting a round from the title is one; opening a
+challenge link directly is not, so the engine resumes on the first tap or key press.
 
 Pitch comes from speed × a per-gear ratio learnt from the lap itself (median RPM/speed in each
 gear), not from the 3.7 Hz RPM channel directly. Interpolating RPM would smear every gear change
@@ -288,7 +321,11 @@ listed in section 8. DESIGN.md records the shipped system.
 | `web/src/ui/tyre.ts` | The SVG tyre gauge. |
 | `web/src/ui/daily.ts` | Seeded daily plan, per-day storage, summary table and share text. |
 | `web/src/ui/dna.ts` | The DNA 3D view and trait panel. |
-| `web/src/ui/how.ts` | The method page and confusion matrix canvas. |
+| `web/src/ui/how.ts` | The method page: bars against chance, cross-season result, per-session and per-driver accuracy, confusion matrix canvas. |
+| `web/src/ui/lab.ts` | The telemetry lab: SVG speed traces, braking marks, per-corner differences. |
+| `web/scripts/capture.mjs` | Captures every surface at desktop and phone size for design review. |
+| `web/scripts/record-demo.mjs` | Records the demo video and README screenshots in headless Chromium. |
+| `DESIGN.md`, `.impeccable/design.json` | The shipped design system: tokens, rules, components, motion. |
 | `web/src/ui/icons.ts` | A small authored SVG icon set. |
 | `web/src/styles.css` | Tokens (rubber, ink, compounds), lettering, HUD, reveal, pages, responsive rules. |
 | `web/tests/blindlap.spec.ts` | End-to-end tests: title, a full round with guess, reveal and duel, DNA, How, daily share. |
@@ -308,7 +345,15 @@ listed in section 8. DESIGN.md records the shipped system.
    an over-bright car light, oversized labels, an overflowing driver list, a camera that lagged at
    4×, the mobile layout.
 5. Added depth: the duel replay, Daily five, 3D evidence captions, F1DB careers, end-to-end tests.
-6. Retrained on the full season, re-exported, ran the tests, and wrote this document.
+6. Ran the impeccable finish review (two rounds, see 5.7) and fixed what it found; the documenter
+   subagent wrote DESIGN.md from the shipped code.
+7. Added the 2026 season. That forced a stricter evaluation (leave-one-circuit-out, because the
+   same circuit now appears in two seasons), exposed a biased lap filter (slow teams were missing),
+   and needed corner detection for two circuits without published maps.
+8. Added the cross-season test, practice sessions as training data, driver "tells", challenge links,
+   the telemetry lab, the floating track strip and HUD-aware labels.
+9. Recorded the demo video and screenshots with Playwright, checked the production build served
+   statically, ran the full test suite, and wrote this document.
 
 ## 8. Honest limits
 
@@ -321,10 +366,20 @@ listed in section 8. DESIGN.md records the shipped system.
   that puts a corner a few metres off. This is the same for every driver, so it does not bias the
   comparison.
 - Daily five plans depend on the exported data; re-exporting changes which laps a date gets.
+- The design review ran two rounds. The last batch of fixes was checked with fresh captures, not
+  by a third review. Known open points: rows in flight during the 4× re-sort still show a frame of
+  overlap; the primary button and the chance tick use soft red outside its "model's pick" job; the
+  duel gap turns soft red when you are behind.
+- The engine sound was built from the physics of the engine and checked for errors in the browser,
+  but this build machine had no speakers: nobody has listened to it yet. Treat it as a first draft.
+- Corners at Madring and Kuala Lumpur are detected, not mapped, so they are numbered 1 to 7 by
+  braking zone, not by the official turn numbers.
 
 ## 9. Ideas for next
 
-- Add 2026 qualifying (OpenF1 already has it) and a season switch.
-- Per-driver model cards: which corners and features identify each driver.
-- A practice mode that shows the model's per-corner push as bars for every driver.
-- Deploy to the portfolio domain (the site is static: `npm run build` and upload `web/dist`).
+- Per-driver model cards: which corners and features identify each driver, beyond the three tells.
+- A training mode that shows the model's per-corner push as bars for every driver while the lap runs.
+- Close the gap to the tree model with better features (brake release, throttle smoothness) rather
+  than more data, since more data did not help the linear model.
+- Update 2026 after each new qualifying: `BLINDLAP_YEAR=2026 fetch.py` then `run_all.sh`.
+- Deploy to the portfolio domain: the site is static, `npm run build` and upload `web/dist`.

@@ -187,7 +187,7 @@ def build_lap(cl: Centreline, ch: Channels, pos: Positions, lap: dict) -> Lap | 
 def push_laps(laps: list[dict], own: float = 1.025, field: float = 1.07) -> list[dict]:
     """Flying laps: within 2.5% of the driver's own best (drops out-, in- and cool-down laps) and
     inside the 107% rule. Judging against each driver's own best keeps slower teams in the data."""
-    timed = [l for l in laps if l.get("lap_duration") and not l.get("is_pit_out_lap")]
+    timed = [l for l in laps if l.get("lap_duration") and l.get("date_start") and not l.get("is_pit_out_lap")]
     if not timed:
         return []
     best = min(l["lap_duration"] for l in timed)

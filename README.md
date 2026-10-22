@@ -2,80 +2,90 @@
 
 **Can a model tell who is driving an F1 car from the telemetry alone?**
 
-Blind Lap replays a real 2025 qualifying lap with the driver's name removed. The lap runs on a 3D
-circuit built from the car's recorded position, and you hear an engine synthesised live from its RPM,
-gear and throttle. As the car leaves each corner, a model reads how that corner was driven and
+![Blind Lap: an anonymous lap with the model's live guesses](docs/media/demo.gif)
+
+Blind Lap replays a real 2025 or 2026 qualifying lap with the driver's name removed. The lap runs on
+a 3D circuit built from the car's recorded position, and you hear an engine synthesised live from its
+RPM, gear and throttle. As the car leaves each corner, a model reads how that corner was driven and
 updates its guess. You guess too. Then the reveal plays the driver's real team radio from that
 session.
 
 - **Play**: one anonymous lap, the model's live line-up, your pick, the reveal.
-- **Daily five**: the same five laps for everyone each day, with a result grid you can share.
 - **Duel**: after the reveal, race the lap against the driver the model picked, with a live gap.
-- **Driver DNA**: every driver's corner style projected into 3D. Drivers who sit close drive alike.
+- **Daily five**: the same five laps for everyone each day, with a result grid to share.
+- **Challenge link**: send a friend one exact lap, without giving the driver away.
+- **Driver DNA**: every driver's corner style projected into 3D, with the habits that give them away.
+- **Telemetry lab**: any session, any two drivers, speed traces and braking overlaid corner by corner.
 - **How it knows**: the method and the evaluation, read from the same report the model produced.
+
+| | |
+|---|---|
+| ![Chase camera mid-lap](docs/media/lap.png) | ![Overhead camera with evidence captions](docs/media/above.png) |
+| ![Reveal with ruled evidence caption and team radio](docs/media/reveal.png) | ![Driver DNA](docs/media/dna.png) |
+
+A one-minute screen recording is in [docs/media/demo.mp4](docs/media/demo.mp4). The full technical
+write-up, file by file, is in [docs/OVERVIEW.md](docs/OVERVIEW.md).
 
 ## How it works
 
 ```
-OpenF1 API ──► fetch.py ──► raw/<session>/*.json
+OpenF1 API ──► fetch.py ──► raw/<session>/*.json          (2025 + 2026 qualifying, 2025 practice 3)
 MultiViewer ─┘                    │
-                                  ▼
-                track.py   one centreline per circuit; every sample projected to metres along it
+F1DB release ─► careers.py        ▼
+                track.py     one centreline per circuit; every sample projected to metres along it
                 features.py  8 style features per corner, z-scored against the field
-                build.py   build/<session>.pkl
+                build.py     build/<session>.pkl   (corners detected from speed where no map exists)
                                   │
                                   ▼
-                model.py   leave-one-session-out logistic regression (+ GBM baseline)
-                export.py  web/public/data/*.json  (laps, track, fold weights, report, DNA)
+                model.py     leave-one-circuit-out logistic regression (+ GBM baseline, cross-season test)
+                export.py    web/public/data/*.json  (laps, track, fold weights, report, DNA, tells)
                                   │
                                   ▼
 web/  Vite + TypeScript + Three.js + Web Audio
-      model.ts runs the same per-session model in the browser, corner by corner
+      model.ts runs the same held-out model in the browser, corner by corner
 ```
 
-1. **Data.** Car telemetry (~3.7 Hz), 3D position (~4 Hz) and team radio for all 24 qualifying
-   sessions of 2025 come from [OpenF1](https://openf1.org). Corner positions come from
-   MultiViewer's circuit maps. (FastF1's live-timing source now returns 401, so it is not used.)
-2. **One line per circuit.** The fastest lap's position samples become a closed centripetal
-   Catmull-Rom spline. Every position sample of every push lap is projected onto it with a KD-tree,
-   so a distance means the same place on track for every driver. Laps that go backwards, lose data
-   or disagree with the official lap time are dropped.
-3. **Corner features.** The lap is cut into one zone per corner. In each zone: braking point,
-   braking length, entry speed, apex speed, apex position, throttle pickup point, deepest lift and
-   coasting distance. Each is turned into a robust z-score (median and MAD) against every push lap
-   at that corner in that session, so the model learns "brakes 9 m later than the field", which
+1. **Data.** Car telemetry (~3.7 Hz), 3D position (~4 Hz) and team radio from
+   [OpenF1](https://openf1.org); corner positions from MultiViewer's circuit maps; career totals from
+   [F1DB](https://github.com/f1db/f1db). (FastF1's live-timing source returns 401 now, so it is not used.)
+2. **One line per circuit.** The fastest lap's positions become a closed centripetal Catmull-Rom
+   spline. Every position sample is projected onto it with a KD-tree, so a distance means the same
+   place on track for every driver. Laps that go backwards, lose data or disagree with the official
+   lap time are dropped.
+3. **Corner features.** Each corner zone yields braking point, braking length, entry speed, apex speed,
+   apex position, throttle pickup, deepest lift and coasting distance, each turned into a robust
+   z-score against every push lap at that corner in that session: "brakes 9 m later than the field"
    survives a change of circuit.
-4. **Model.** Features go into one block per corner type (slow, medium, fast). A multinomial
-   logistic regression gives P(driver | corner). A lap's guess sums log-probabilities over its
-   corners with a temperature fitted on held-out laps. Every number is evaluated leave-one-session-out:
-   the model that guesses at Monza never saw Monza, and the browser uses exactly those fold models.
-5. **Front end.** The track is a raised asphalt strip on a ground moulded like a tyre sidewall. The
-   rubber line the car lays is coloured by the real inputs (blue under braking, white at full
-   throttle) and fades behind the car except at corners where the model took evidence. The engine
-   is four oscillators at the V6 firing frequency through a soft clipper, with a turbo whine, wind
-   noise and exhaust crackle on lifts.
+4. **Model.** Features go into one block per corner type (slow, medium, fast). A multinomial logistic
+   regression gives P(driver | corner); a lap sums log-probabilities over its corners with a
+   temperature fitted on held-out laps. Evaluation is leave-one-circuit-out across both seasons: the
+   model that guesses at Monza never saw Monza in any year, and the browser uses exactly those models.
+5. **Front end.** A raised asphalt strip floats over a ground moulded like a tyre sidewall. The rubber
+   line is coloured by the real inputs (blue braking, white full throttle) and fades behind the car
+   except at corners the model read. The engine is oscillators at the V6 firing frequency through a
+   soft clipper, with turbo whine, wind and exhaust crackle on lifts.
 
 ## Results
 
-Leave-one-session-out over 23 of the 24 sessions (OpenF1 has no lap timing for Baku), 2,012 laps,
-21 drivers. Read live from `pipeline/model_out/report.json` and shown on the How it knows page.
+Leave-one-circuit-out over 39 qualifying sessions (23 from 2025, 16 from 2026), 3,565 laps, 24
+drivers. Read live from `pipeline/model_out/report.json` and shown on the How it knows page.
 
 | Model | Top-1 driver | Top-3 driver | Right team |
 |---|---|---|---|
-| Chance | 4.8% | 14.3% | 10% |
-| Logistic regression (ships) | **37.3%** | **65.7%** | **49.3%** |
-| Gradient-boosted trees | 44.6% | 75.3% | 60.8% |
+| Chance | 4.2% | 12.6% | about 9% |
+| Logistic regression (ships) | **31.7%** | **60.7%** | **45.5%** |
+| Gradient-boosted trees | 40.7% | 69.9% | 56.3% |
+| Cross-season: trained on 2025 only, tested on 2026 laps | 23.0% | 51.6% | 36.9% |
 
-The linear model ships because each corner's push toward a driver is a readable sum, which is what
-the game's evidence line shows, and its weights are a few KB that run in the browser.
-
-## Tests
-
-```bash
-cd web
-npm run typecheck
-npx playwright test   # plays a full round in headless Chromium with WebGL, plus DNA, How, Daily
-```
+- The shipped model is right about 7.5 times as often as picking at random, on circuits it never saw.
+- **Style survives new cars.** Trained only on 2025, it still names the driver of a 2026 lap 23% of the
+  time against 5% chance, under new regulations and, for some drivers, a new team.
+- **Teammates are the hard case.** The confusion matrix shows the model often finds the car before the
+  driver; the easiest drivers to spot include those in the most unusual cars.
+- The linear model ships because each corner's push toward a driver is a readable sum, which is what
+  the game's evidence line shows, and its weights are a few KB that run in the browser. Adding 18
+  practice sessions as training data left it flat (31.9% to 31.7% top-1) while the tree model gained
+  a point: the linear model is limited by its features, not by data.
 
 ## Run it
 
@@ -84,19 +94,30 @@ npx playwright test   # plays a full round in headless Chromium with WebGL, plus
 cd pipeline
 uv venv --python 3.12 .venv
 uv pip install --python .venv/Scripts/python.exe -r requirements.txt
-.venv/Scripts/python.exe fetch.py      # ~1 hour: OpenF1 allows 30 requests a minute
-./run_all.sh                           # build, train, evaluate, export to web/public/data
+.venv/Scripts/python.exe fetch.py                                   # 2025 qualifying
+BLINDLAP_YEAR=2026 .venv/Scripts/python.exe fetch.py                # 2026 qualifying so far
+BLINDLAP_SESSION="Practice 3" .venv/Scripts/python.exe fetch.py     # extra training laps
+./run_all.sh                     # build, train, evaluate, export to web/public/data
 
 # web
 cd ../web
 npm install
 npm run dev        # http://localhost:5173
-npm run build      # static site in web/dist
+npm run build      # static site in web/dist, deployable to any static host
 ```
 
-The exported data is committed, so the web app runs without the pipeline.
+OpenF1 allows about 30 requests a minute, so each season takes about an hour to download. The
+exported data is committed, so the web app runs without the pipeline.
+
+## Tests
+
+```bash
+cd web
+npm run typecheck
+npx playwright test   # plays a full round in headless Chromium with WebGL, plus duel, DNA, lab, How, daily, challenge links
+```
 
 ## Credits
 
-Telemetry, positions and team radio: OpenF1. Corner maps: MultiViewer. Blind Lap is a fan
-project and is not associated with Formula 1, the FIA or any team.
+Telemetry, positions and team radio: OpenF1. Corner maps: MultiViewer. Career totals: F1DB. Blind
+Lap is a fan project and is not associated with Formula 1, the FIA or any team.
