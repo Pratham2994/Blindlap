@@ -3,6 +3,7 @@ import { EngineSynth } from "./audio/engine";
 import type { Index } from "./data";
 import { loadDna, loadIndex, loadReport, loadSession } from "./data";
 import { World } from "./scene/world";
+import { dailyPlan, todayKey } from "./ui/daily";
 import { DnaView } from "./ui/dna";
 import { howView } from "./ui/how";
 import { icons } from "./ui/icons";
@@ -55,6 +56,7 @@ async function titleView(): Promise<View> {
     <p class="lede">A real 2025 qualifying lap with the name taken off. A model reads how the car takes each corner and guesses who is driving. So do you.</p>
     <div class="actions">
       <a class="btn primary" href="#/play">${icons.play} Start a lap</a>
+      <a class="btn" href="#/daily">Daily five</a>
       <a class="btn" href="#/how">How it knows</a>
     </div>
     ${
@@ -68,7 +70,7 @@ async function titleView(): Promise<View> {
 async function route() {
   const hash = location.hash.replace(/^#\/?/, "");
   const [name, arg] = hash.split("/");
-  setNav(name || "home");
+  setNav(name === "daily" ? "play" : name || "home");
   document.body.classList.toggle("reading", name === "how");
   try {
     if (!index) index = await loadIndex();
@@ -76,6 +78,11 @@ async function route() {
       engine.start();
       engine.setVolume(!engine.muted);
       mount(new PlayView(world, engine, index));
+    } else if (name === "daily") {
+      engine.start();
+      engine.setVolume(!engine.muted);
+      const date = todayKey();
+      mount(new PlayView(world, engine, index, { date, plan: dailyPlan(index, date) }));
     } else if (name === "dna") {
       mount(new DnaView(world, await loadDna(), arg ?? null));
     } else if (name === "how") {

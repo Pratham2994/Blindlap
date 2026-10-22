@@ -43,7 +43,7 @@ export class World {
   private carLight: THREE.PointLight;
   private sun: THREE.DirectionalLight;
   private line: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial> | null = null;
-  private labels: { sprite: THREE.Sprite; n: number; s: number }[] = [];
+  private labels: { sprite: THREE.Sprite; n: number; s: number; aspect: number }[] = [];
   private radius = 1000;
   private camPos = new THREE.Vector3(0, 800, 800);
   private camLook = new THREE.Vector3();
@@ -152,7 +152,7 @@ export class World {
       const turn = this.turnSign(c.s);
       sprite.position.copy(p).addScaledVector(sd, -turn * 34).setY(p.y + 14);
       this.trackGroup.add(sprite);
-      this.labels[k] = { sprite, n: c.n, s: c.s };
+      this.labels[k] = { sprite, n: c.n, s: c.s, aspect: 2 };
     }
 
     const r = this.radius;
@@ -344,7 +344,7 @@ export class World {
           // The line fades behind the car like a wake, except where the model took evidence.
           float wake = max(exp(-max(behind, 0.0) / uFade), 0.12);
           float a = max(max(wake, vKeep * 0.95), uReveal * 0.8);
-          vec3 c = vColor * (1.0 + vKeep * 0.6) * mix(1.6, 1.0, 1.0 - wake);
+          vec3 c = vColor * (1.0 + vKeep * 0.5) * mix(1.15, 0.9, 1.0 - wake);
           gl_FragColor = vec4(c, a);
         }`,
     });
@@ -355,7 +355,7 @@ export class World {
   }
 
   /** Mark a corner where the model took evidence: keep its rubber, light its label. */
-  markEvidence(cornerIndex: number, lo: number, hi: number) {
+  markEvidence(cornerIndex: number, lo: number, hi: number, note?: string) {
     if (this.line) {
       const a = this.line.geometry.getAttribute("aKeep") as THREE.BufferAttribute;
       const s = this.line.geometry.getAttribute("aS") as THREE.BufferAttribute;
@@ -368,7 +368,8 @@ export class World {
     const l = this.labels[cornerIndex];
     if (l) {
       const m = l.sprite.material as THREE.SpriteMaterial;
-      m.map = labelTexture(`T${l.n}`, "#e8312a");
+      m.map = labelTexture(`T${l.n}`, "#e8312a", note);
+      l.aspect = note ? 8 : 2;
       m.opacity = 1;
       m.needsUpdate = true;
     }
@@ -489,7 +490,9 @@ export class World {
     for (const l of this.labels) {
       const ahead = (((l.s - this.carS) % L) + L) % L;
       l.sprite.visible = overview || ahead < (this.mode === "heli" ? 1400 : 650);
-      l.sprite.scale.set(size * 2, size, 1);
+      // Captioned labels are wider; anchor them on the corner number, not the middle.
+      l.sprite.scale.set(size * l.aspect, size, 1);
+      l.sprite.center.set(1 / l.aspect, 0.5);
     }
   }
 

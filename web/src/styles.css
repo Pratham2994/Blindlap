@@ -824,6 +824,73 @@ body.playing .topbar nav {
   color: var(--ink-3);
 }
 
+/* ---------- Daily five ---------- */
+
+.reveal.daily h2 {
+  font-size: clamp(2.4rem, 5vw, 4rem);
+}
+
+.daily-grid {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 22px;
+  font-size: 0.9rem;
+}
+
+.daily-grid th {
+  text-align: left;
+  font-weight: 650;
+  font-variation-settings: "wdth" 112;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.68rem;
+  color: var(--ink-3);
+  padding: 0 0 8px;
+}
+
+.daily-grid td {
+  padding: 10px 0;
+  border-top: 1px solid var(--groove);
+  color: var(--ink-2);
+}
+
+.daily-grid td b {
+  font-weight: 900;
+  font-variation-settings: "wdth" 125;
+  color: var(--ink);
+}
+
+.daily-grid tfoot td {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.sq {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  vertical-align: middle;
+}
+
+.sq.win {
+  background: var(--inter);
+}
+
+.sq.half {
+  background: var(--medium);
+}
+
+.sq.miss {
+  background: var(--rubber-3);
+  box-shadow: var(--deboss);
+}
+
+.share-note {
+  margin: 16px 0 0;
+  color: var(--ink-3);
+}
+
 /* ---------- Duel replay ---------- */
 
 .hud.dueling .reveal {
@@ -1159,6 +1226,46 @@ figcaption {
   padding: var(--gutter);
   text-align: center;
   color: var(--ink-2);
+}
+
+@media (max-width: 520px) {
+  .wordmark {
+    white-space: nowrap;
+    font-size: 0.9rem;
+  }
+  .topbar {
+    gap: 10px;
+  }
+  .hud-controls {
+    top: 54px;
+    left: var(--gutter);
+    right: var(--gutter);
+    justify-content: flex-start;
+    gap: 6px;
+  }
+  .hud-session {
+    top: 148px;
+  }
+  .hud-session .meta {
+    font-size: 0.62rem;
+  }
+  .hud .tyre {
+    top: 214px;
+    width: 190px;
+    left: -28px;
+  }
+  .lineup {
+    height: 210px;
+  }
+  .lineup .hint {
+    display: none;
+  }
+  .topbar nav a {
+    padding: 8px 9px;
+    font-size: 0.6rem;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+  }
 }
 
 @media (max-width: 860px) {

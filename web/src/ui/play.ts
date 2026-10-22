@@ -7,6 +7,8 @@ import type { Evidence } from "../model";
 import { Guesser } from "../model";
 import type { World } from "../scene/world";
 import { icons } from "./icons";
+import type { DailyLap, DailyResult } from "./daily";
+import { readDaily, shareText, summaryHtml, writeDaily } from "./daily";
 import { Lineup } from "./lineup";
 import { TyreGauge } from "./tyre";
 
@@ -74,14 +76,24 @@ export class PlayView {
   private disposed = false;
   private keyHandler = (e: KeyboardEvent) => this.onKey(e);
 
+  private dailyResults: DailyResult[] = [];
+
   constructor(
     private world: World,
     private engine: EngineSynth,
     private index: Index,
+    private daily: { date: string; plan: DailyLap[] } | null = null,
   ) {
     this.root = document.createElement("div");
     this.root.className = "hud";
     window.addEventListener("keydown", this.keyHandler);
+    if (daily) {
+      this.dailyResults = readDaily(daily.date);
+      if (this.dailyResults.length >= daily.plan.length) {
+        this.showDailySummary();
+        return;
+      }
+    }
     void this.newRound();
   }
 
@@ -98,11 +110,15 @@ export class PlayView {
     this.radio?.pause();
     this.root.innerHTML = `<div class="countdown"><p class="caps load-note">Loading a lap…</p></div>`;
     const sessions = this.index.sessions;
-    const pool = sessions.filter((s) => !recent.includes(String(s.key)));
-    const pickFrom = pool.length ? pool : sessions;
-    const summary = pickFrom[Math.floor(Math.random() * pickFrom.length)];
-    recent.push(String(summary.key));
-    if (recent.length > Math.min(6, sessions.length - 1)) recent.shift();
+    const planned = this.daily?.plan[this.dailyResults.length];
+    let summary = sessions.find((s) => s.key === planned?.key);
+    if (!summary) {
+      const pool = sessions.filter((s) => !recent.includes(String(s.key)));
+      const pickFrom = pool.length ? pool : sessions;
+      summary = pickFrom[Math.floor(Math.random() * pickFrom.length)];
+      recent.push(String(summary.key));
+      if (recent.length > Math.min(6, sessions.length - 1)) recent.shift();
+    }
 
     try {
       this.session = await loadSession(summary.key);
@@ -113,7 +129,9 @@ export class PlayView {
     if (this.disposed) return;
     const withRadio = this.session.laps.filter((l) => l.radio);
     const laps = withRadio.length > 6 ? withRadio : this.session.laps;
-    this.lap = laps[Math.floor(Math.random() * laps.length)];
+    this.lap = planned
+      ? this.session.laps[planned.lapIndex % this.session.laps.length]
+      : laps[Math.floor(Math.random() * laps.length)];
     this.player = new LapPlayer(this.lap);
     this.guesser = new Guesser(this.session, this.index);
     this.ratios = gearRatios(this.lap.v, this.lap.rpm, this.lap.gear);
@@ -141,7 +159,11 @@ export class PlayView {
     this.root.classList.remove("revealed");
     const head = document.createElement("div");
     head.className = "hud-session";
-    head.innerHTML = `<p class="display where">${s.circuit}</p><p class="caps meta num">${s.date.slice(0, 4)} qualifying · ${(s.length / 1000).toFixed(3)} km · Round ${this.score.rounds + 1} · You ${this.score.you} – Model ${this.score.model}</p>`;
+    head.innerHTML = `<p class="display where">${s.circuit}</p><p class="caps meta num">${s.date.slice(0, 4)} qualifying · ${(s.length / 1000).toFixed(3)} km · ${
+      this.daily
+        ? `Daily five · lap ${this.dailyResults.length + 1} of ${this.daily.plan.length}`
+        : `Round ${this.score.rounds + 1} · You ${this.score.you} – Model ${this.score.model}`
+    }</p>`;
 
     const controls = document.createElement("div");
     controls.className = "hud-controls";
@@ -256,7 +278,7 @@ export class PlayView {
     const ev = this.guesser.ingest(this.lap, i);
     this.evidence.push(ev);
     const c = this.session.corners[i];
-    this.world.markEvidence(i, c.lo, c.hi);
+    this.world.markEvidence(i, c.lo, c.hi, ev.short);
     this.tyre.markCorner(i);
     this.lineup.update(this.guesser.guesses(), this.guesser.seen);
     const box = this.root.querySelector(".evidence") as HTMLElement | null;
@@ -285,6 +307,11 @@ export class PlayView {
     const model = grade(modelPick);
     this.score = { you: this.score.you + you, model: this.score.model + model, rounds: this.score.rounds + 1 };
     writeScore(this.score);
+    const lastDaily = !!this.daily && this.dailyResults.length + 1 >= this.daily.plan.length;
+    if (this.daily) {
+      this.dailyResults.push({ you, model, truth, circuit: this.session.circuit });
+      writeDaily(this.daily.date, this.dailyResults);
+    }
     this.lineup.reveal(truth);
 
     const tag = (who: string, pts: number, code: string | null) =>
@@ -313,15 +340,43 @@ export class PlayView {
         .map((e) => `<li><b>${e.label}</b><span>${capitalise(e.sentence)}${cornerById.get(e.corner)?.braked === false ? " (no braking)" : ""}.</span></li>`)
         .join("")}</ol>
       ${this.lap.radio ? `<div class="radio"><button type="button" aria-label="Play team radio">${icons.play}</button><span class="wave">${"<i></i>".repeat(36)}</span><span class="label caps">Team radio, this session</span></div>` : ""}
-      <div class="actions"><button type="button" class="btn primary" data-next>Next lap ${icons.next}</button>${
+      <div class="actions"><button type="button" class="btn primary" data-next>${lastDaily ? "Today's result" : "Next lap"} ${icons.next}</button>${
         rival ? `<button type="button" class="btn" data-duel>Race it against ${rival.code}</button>` : ""
       }<a class="btn" href="#/dna">See ${truth}'s DNA</a></div>`;
     this.root.classList.add("revealed");
     this.root.appendChild(card);
-    card.querySelector("[data-next]")!.addEventListener("click", () => void this.newRound());
+    card.querySelector("[data-next]")!.addEventListener("click", () => (lastDaily ? this.showDailySummary() : void this.newRound()));
     if (rival) card.querySelector("[data-duel]")!.addEventListener("click", () => this.startDuel(rival));
     if (this.lap.radio) this.setupRadio(card.querySelector(".radio")!, this.lap.radio);
     (card.querySelector("[data-next]") as HTMLElement).focus({ preventScroll: true });
+  }
+
+  private showDailySummary() {
+    const d = this.daily!;
+    this.radio?.pause();
+    this.phase = "reveal";
+    this.engine.setVolume(false);
+    this.root.classList.remove("revealed", "dueling");
+    this.root.innerHTML = "";
+    const card = document.createElement("section");
+    card.className = "reveal daily";
+    card.innerHTML = `${summaryHtml(d.date, this.dailyResults)}
+      <div class="actions">
+        <button type="button" class="btn primary" data-copy>Copy result</button>
+        <a class="btn" href="#/play">Keep playing</a>
+      </div>
+      <p class="caps share-note" aria-live="polite">New five at midnight, your time.</p>`;
+    card.querySelector("[data-copy]")!.addEventListener("click", async () => {
+      const note = card.querySelector(".share-note")!;
+      try {
+        await navigator.clipboard.writeText(shareText(d.date, this.dailyResults));
+        note.textContent = "Copied. Paste it anywhere.";
+      } catch {
+        note.textContent = "Could not reach the clipboard. Select the table and copy it instead.";
+      }
+    });
+    this.root.appendChild(card);
+    this.world.mode = "orbit";
   }
 
   private startDuel(rival: LapData) {

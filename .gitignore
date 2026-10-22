@@ -15,3 +15,7 @@ web/dist/
 .impeccable/review/
 .impeccable/mocks/
 *.log
+
+# Playwright
+web/test-results/
+web/playwright-report/

@@ -14,6 +14,7 @@ export interface Evidence {
   movers: string[]; // drivers this corner pushed up the most
   deltas: Record<string, number>; // how much this corner moved each driver, vs the average driver
   feature: string;
+  short: string; // three-word version for the 3D caption
 }
 
 const FEATURE_TEXT: Record<string, (d: number) => string | null> = {
@@ -25,6 +26,17 @@ const FEATURE_TEXT: Record<string, (d: number) => string | null> = {
   throttle_point: (d) => (Math.abs(d) < 3 ? null : `went to full throttle ${Math.abs(d).toFixed(0)} m ${d > 0 ? "later" : "earlier"}`),
   min_throttle: (d) => (Math.abs(d) < 3 ? null : d > 0 ? `lifted ${Math.abs(d).toFixed(0)}% less` : `lifted ${Math.abs(d).toFixed(0)}% more`),
   coast: (d) => (Math.abs(d) < 3 ? null : `coasted ${Math.abs(d).toFixed(0)} m ${d > 0 ? "more" : "less"}`),
+};
+
+const FEATURE_SHORT: Record<string, (d: number) => string> = {
+  brake_point: (d) => `brakes ${Math.abs(d).toFixed(0)} m ${d > 0 ? "later" : "earlier"}`,
+  brake_length: (d) => `${Math.abs(d).toFixed(0)} m ${d > 0 ? "longer" : "shorter"} braking`,
+  entry_speed: (d) => `${d > 0 ? "+" : "-"}${Math.abs(d).toFixed(0)} km/h entry`,
+  apex_speed: (d) => `${d > 0 ? "+" : "-"}${Math.abs(d).toFixed(0)} km/h apex`,
+  apex_offset: (d) => `apex ${Math.abs(d).toFixed(0)} m ${d > 0 ? "later" : "earlier"}`,
+  throttle_point: (d) => `throttle ${Math.abs(d).toFixed(0)} m ${d > 0 ? "later" : "earlier"}`,
+  min_throttle: (d) => `lifts ${Math.abs(d).toFixed(0)}% ${d > 0 ? "less" : "more"}`,
+  coast: (d) => `coasts ${Math.abs(d).toFixed(0)} m ${d > 0 ? "more" : "less"}`,
 };
 
 export class Guesser {
@@ -76,7 +88,7 @@ export class Guesser {
   }
 
   /** The single most unusual thing the driver did at this corner, in words. */
-  describe(lap: LapData, c: number): { sentence: string; feature: string } {
+  describe(lap: LapData, c: number): { sentence: string; feature: string; short: string } {
     const feats = this.index.features;
     const corner = this.session.corners[c];
     const order = feats
@@ -88,9 +100,9 @@ export class Guesser {
       const med = this.session.field.med[c][o.k];
       if (raw == null || med == null) continue;
       const text = FEATURE_TEXT[o.f]?.(raw - med);
-      if (text) return { sentence: text, feature: o.f };
+      if (text) return { sentence: text, feature: o.f, short: FEATURE_SHORT[o.f](raw - med) };
     }
-    return { sentence: "took it exactly like the field", feature: "" };
+    return { sentence: "took it exactly like the field", feature: "", short: "like the field" };
   }
 
   guesses(): Guess[] {

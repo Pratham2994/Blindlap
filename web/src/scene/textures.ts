@@ -105,9 +105,9 @@ export function sidewallTextures(lettering: string[]): { map: THREE.CanvasTextur
 }
 
 /** A text sprite for corner numbers. */
-export function labelTexture(text: string, colour = "#f2f2f2"): THREE.CanvasTexture {
+export function labelTexture(text: string, colour = "#f2f2f2", note?: string): THREE.CanvasTexture {
   const c = document.createElement("canvas");
-  c.width = 256;
+  c.width = note ? 1024 : 256;
   c.height = 128;
   const g = c.getContext("2d")!;
   g.font = `800 88px "Archivo Variable", sans-serif`;
@@ -116,6 +116,13 @@ export function labelTexture(text: string, colour = "#f2f2f2"): THREE.CanvasText
   g.textBaseline = "middle";
   g.fillStyle = colour;
   g.fillText(text, 128, 68);
+  if (note) {
+    // The corner's evidence, set beside the number like a caption.
+    g.textAlign = "left";
+    g.font = `700 50px "Archivo Variable", sans-serif`;
+    g.fillStyle = "#f2f0ea";
+    g.fillText(note.toUpperCase(), 262, 70);
+  }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
