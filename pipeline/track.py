@@ -184,12 +184,19 @@ def build_lap(cl: Centreline, ch: Channels, pos: Positions, lap: dict) -> Lap | 
     )
 
 
-def push_laps(laps: list[dict], slack: float = 1.035) -> list[dict]:
+def push_laps(laps: list[dict], own: float = 1.025, field: float = 1.07) -> list[dict]:
+    """Flying laps: within 2.5% of the driver's own best (drops out-, in- and cool-down laps) and
+    inside the 107% rule. Judging against each driver's own best keeps slower teams in the data."""
     timed = [l for l in laps if l.get("lap_duration") and not l.get("is_pit_out_lap")]
     if not timed:
         return []
     best = min(l["lap_duration"] for l in timed)
-    return [l for l in timed if l["lap_duration"] <= best * slack]
+    own_best = {}
+    for l in timed:
+        n = l["driver_number"]
+        own_best[n] = min(own_best.get(n, 1e9), l["lap_duration"])
+    return [l for l in timed
+            if l["lap_duration"] <= own_best[l["driver_number"]] * own and l["lap_duration"] <= best * field]
 
 
 def session_centreline(sk: int, laps: list[dict]):

@@ -83,3 +83,11 @@ test("daily five summary and share text", async ({ page, context }) => {
   expect(text).toMatch(/BLIND LAP · daily five/);
   expect(text.split(/\r?\n/)[1].trimEnd()).toMatch(/^You {3}🟩🟨⬛🟩⬛ 7$/u);
 });
+
+test("a challenge link opens that exact lap without naming the driver", async ({ page }) => {
+  const index = await (await page.request.get("/data/index.json")).json();
+  const monza = index.sessions.find((s: { circuit: string }) => s.circuit === "Monza");
+  await page.goto(`/#/play/${monza.key}.0`);
+  await expect(page.locator(".hud-session .where")).toHaveText("Monza");
+  expect(page.url()).not.toMatch(/[A-Z]{3}/);
+});

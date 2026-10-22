@@ -23,8 +23,9 @@ the driver's real team radio.
 | Reveal | Verdicts for you and the model (right, teammate, wrong), driver, team, lap time, the rank the model gave the real driver, the three corners that pointed hardest at them, career totals from F1DB, and the real team radio clip from that session. |
 | Duel | Replays the lap against the fastest lap of the driver the model picked (or its runner-up when it was right), as a red ghost car, with a live time gap at the white car's position. |
 | Daily five | The same five laps for every visitor on a given date (seeded), saved per day, with a result grid and a copy-to-clipboard share text. |
+| Challenge link | "Copy challenge link" on the reveal gives a URL (`#/play/<session>.<lap index>`) that opens that exact lap for a friend. The link uses the lap's position in the session file, so it does not reveal the driver. |
 | Driver DNA | Every driver's average corner style as a 3D point (PCA of 24 style dimensions). Drag to turn, click or pick a driver to see six plain-language style traits, closest matches and career totals. |
-| How it knows | The method and the honest numbers: top-1, top-3 and team accuracy against chance, accuracy per circuit, a confusion matrix, what the data cannot see, and the GBM comparison. All read from the evaluation report. |
+| How it knows | The method and the honest numbers: top-1, top-3 and team accuracy as bars against chance, the cross-season result, accuracy per session, the easiest and hardest drivers to spot, a confusion matrix, what the data cannot see, and the GBM comparison. All read from the evaluation report. |
 
 ## 3. Architecture
 
@@ -36,7 +37,7 @@ F1DB release zip ───►│ careers.py    career totals per driver         
                      │ track.py      centreline per circuit, lap alignment to metres               │
                      │ features.py   8 corner features, z-scored against the field                │
                      │ build.py      build/<session>.pkl                                           │
-                     │ model.py      leave-one-session-out evaluation + per-session fold weights   │
+                     │ model.py      leave-one-circuit-out evaluation + per-session fold weights   │
                      │ export.py     web/public/data/{index,report,dna}.json, sessions/<key>.json   │
                      └───────────────────────────────────────┬─────────────────────────────────────┘
                                                              │ static JSON (committed)
@@ -79,7 +80,10 @@ any static host with no server.
 OpenF1 gives no lap distance, and telemetry and position arrive on different clocks. Comparing
 "where did they brake" needs every sample placed on the same measuring tape.
 
-1. **Push laps**: timed laps that are not out-laps and are within 3.5% of the session's best.
+1. **Push laps**: timed laps that are not out-laps, within 2.5% of the driver's own best lap and
+   inside the 107% rule. A first version used "within 3.5% of the session's best", which silently
+   dropped every lap of the slowest team (Cadillac in 2026); judging each driver against their own
+   best keeps the whole grid.
 2. **Centreline**: the fastest lap with clean position data is turned into a closed loop.
    Near-duplicate points are dropped, a centripetal Catmull-Rom spline is run through the rest
    (centripetal parametrisation avoids loops and overshoot at tight corners), the curve is resampled
@@ -139,9 +143,13 @@ that a driver brakes late for hairpins but lifts early in sweepers.
 - **Lap guess**: the sum over corners of log P(driver | corner), divided by a temperature. Summing is
   naive Bayes over corners. Corners of one lap are not independent witnesses, so the raw sum is
   overconfident; the temperature that minimises held-out log loss is fitted from the evaluation.
-- **Evaluation**: leave-one-session-out. For each of the sessions, a model is trained on all the
-  others and scores that session's laps. This is the only honest test for this question: the same
-  circuit in training would let the model memorise "who was fast at Monza", not driving style.
+- **Evaluation**: leave-one-circuit-out. For each circuit, a model is trained on every session at
+  every other circuit (both seasons) and scores that circuit's laps in every year. This is the only
+  honest test for this question: the same circuit in training, even from the other season, would let
+  the model memorise "who was fast at Monza", not driving style. With one season this is the same as
+  leave-one-session-out; with two it is stricter.
+- **Cross-season test**: a model trained only on 2025 guesses every 2026 lap of drivers who raced
+  both years. 2026 brought new cars and new rules, so this asks whether style survives a new car.
 - **Baselines tried**: a histogram gradient-boosted tree model scored a few points higher top-1; a
   small MLP (32 or 64 hidden units) scored lower. Logistic regression ships because each corner's
   push toward a driver is a readable sum of weight × feature, and the weights are a few KB.
@@ -244,6 +252,18 @@ deliberately avoids the usual F1 broadcast look (team-colour glass panels and ch
 blue-black). The lap clock is a tyre: the lap is the band round the rim, corners are notches, and
 speed and gear sit on the wheel.
 
+### 5.7 Design review
+
+The finished build went through the impeccable finish reviewer, a fresh subagent that judges the
+screenshots and code against the written direction contract. Round one returned "fix" with eight
+groups of material problems. All of them were real, among them: rows overprinting while the grid
+re-sorted; yellow (your pick) used for a model verdict; team colour used as a big stripe; corner
+sprites printing over the title copy; the phone duel bar running off screen; a "hero metric" scoreboard.
+Round two scored two groups resolved and six partial, and found three regressions from round one (a
+warm haze outside the palette, the ground lost in the overhead view, amber percentages). A final batch
+addressed those, verified with fresh captures rather than a third review round. The open items are
+listed in section 8. DESIGN.md records the shipped system.
+
 ## 6. File by file
 
 | File | Purpose |
@@ -252,7 +272,7 @@ speed and gear sit on the wheel.
 | `pipeline/track.py` | Loading raw JSON, centreline building (Catmull-Rom), KD-tree projection, lap alignment and validation. |
 | `pipeline/features.py` | Corner zones, the 8 corner features, robust field z-scores, corner classes, block expansion. |
 | `pipeline/build.py` | Runs track + features for each session, writes `build/<key>.pkl`. One bad session never stops the rest. |
-| `pipeline/model.py` | Leave-one-session-out training and evaluation for logistic regression and GBM, temperature fitting, report and fold weights. |
+| `pipeline/model.py` | Leave-one-circuit-out training and evaluation for logistic regression and GBM, the 2025 to 2026 cross-season test, temperature fitting, report and fold weights. |
 | `pipeline/export.py` | Writes the web data: sessions, index, report, DNA (PCA, neighbours, traits). |
 | `pipeline/careers.py` | Matches game drivers to F1DB by name and writes career totals. |
 | `pipeline/run_all.sh` | Build, train, export and careers for every fully downloaded session. |

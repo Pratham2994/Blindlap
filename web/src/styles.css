@@ -1188,6 +1188,20 @@ figcaption {
   color: var(--ink-2);
 }
 
+@media (min-width: 861px) {
+  .two-col {
+    columns: 2;
+    column-gap: 40px;
+  }
+  .two-col .chart-row {
+    break-inside: avoid;
+    grid-template-columns: 130px 1fr 44px;
+  }
+  .two-col figcaption {
+    column-span: all;
+  }
+}
+
 .chart-row.big {
   grid-template-columns: 210px 1fr 56px;
   padding: 8px 0;
@@ -1386,7 +1400,21 @@ figcaption {
   .dna-head h1 {
     font-size: 2rem;
   }
-  .chart-row.big {
+  @media (min-width: 861px) {
+  .two-col {
+    columns: 2;
+    column-gap: 40px;
+  }
+  .two-col .chart-row {
+    break-inside: avoid;
+    grid-template-columns: 130px 1fr 44px;
+  }
+  .two-col figcaption {
+    column-span: all;
+  }
+}
+
+.chart-row.big {
     grid-template-columns: 1fr 52px;
     row-gap: 6px;
   }

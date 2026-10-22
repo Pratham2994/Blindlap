@@ -53,14 +53,14 @@ export function howView(index: Index, report: Report): HTMLElement {
     <h2>Why a simple model</h2>
     <p>A gradient-boosted tree model on the same features scores <strong>${pct(gb.top1)}</strong> top-1 and <strong>${pct(gb.top3)}</strong> top-3, against <strong>${pct(lr.top1)}</strong> and <strong>${pct(lr.top3)}</strong> for logistic regression. The linear model is ${gb.top1 > lr.top1 ? "slightly behind" : "as good or better"}, and it can say why: every corner's push toward a driver is a sum of weight × feature, which is exactly what the evidence line in the game shows. It is also a few kilobytes of weights, so it runs in your browser.</p>
 
-    <h2>Accuracy by circuit</h2>
-    <figure>
+    <h2>Accuracy by session</h2>
+    <figure class="two-col">
       ${sessions
         .map(
           (s) => `<div class="chart-row num"><span>${s.circuit}</span><span class="track"><i style="width:${s.top1 * 100}%"></i><span class="chance" style="left:${lr.chance * 100}%"></span></span><span>${pct(s.top1)}</span></div>`,
         )
         .join("")}
-      <figcaption>Top-1 accuracy on each circuit's own laps, with the model trained on all the other circuits. The red tick is chance. Short or flat-out circuits give fewer corners to read.</figcaption>
+      <figcaption>Top-1 accuracy on each session's laps, with the model trained on every other circuit. The red tick is chance. Short or flat-out circuits give fewer corners to read.</figcaption>
     </figure>
 
     <h2>Easiest and hardest to spot</h2>

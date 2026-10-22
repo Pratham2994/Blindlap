@@ -11,22 +11,38 @@ from track import RAW, build_lap, driver_channels, driver_positions, load, push_
 OUT = Path(__file__).parent / "build"
 
 
+def detect_corners(lap, min_drop=25.0, min_gap=160.0):
+    """Corners as speed minima that follow a real slowdown, numbered in lap order. This finds every
+    corner the driver brakes or lifts for; flat-out kinks are not corners for our features anyway."""
+    s, v = lap.s, lap.speed
+    found = []
+    for i in range(1, len(v) - 1):
+        if not (v[i] <= v[i - 1] and v[i] < v[i + 1]):
+            continue
+        before = v[max(0, i - 25):i]
+        if before.size and before.max() - v[i] >= min_drop:
+            if found and s[i] - found[-1][1] < min_gap:
+                if v[i] < found[-1][2]:
+                    found[-1] = (0, float(s[i]), float(v[i]))
+                continue
+            found.append((0, float(s[i]), float(v[i])))
+    return [(k + 1, si, 0.0) for k, (_, si, _) in enumerate(found)]
+
+
 def process(sk: int):
     session = load(sk, "session")
     laps = load(sk, "laps")
     circuit = load(sk, "circuit")
     drivers = {d["driver_number"]: d for d in load(sk, "drivers")}
-    if not laps or not circuit or not circuit.get("corners"):
-        print(f"skip {sk}: missing laps or circuit")
+    if not laps:
+        print(f"skip {sk}: no lap timing")
         return
+    if not isinstance(circuit, dict):
+        circuit = {}
     cl, ref = session_centreline(sk, laps)
     if cl is None:
         print(f"skip {sk}: no clean reference lap")
         return
-
-    corner_xy = np.array([[c["trackPosition"]["x"], c["trackPosition"]["y"]] for c in circuit["corners"]]) / 10
-    corner_s = cl.project2d(corner_xy)
-    zones = corner_zones([(c["number"], float(s), c["angle"]) for c, s in zip(circuit["corners"], corner_s)], cl.length)
 
     built = []
     cache = {}
@@ -45,6 +61,17 @@ def process(sk: int):
     if len(built) < 20:
         print(f"skip {sk}: only {len(built)} usable laps")
         return
+
+    if circuit.get("corners"):
+        corner_xy = np.array([[c["trackPosition"]["x"], c["trackPosition"]["y"]] for c in circuit["corners"]]) / 10
+        corner_s = cl.project2d(corner_xy)
+        marks = [(c["number"], float(s), c["angle"]) for c, s in zip(circuit["corners"], corner_s)]
+    else:
+        # New circuits may not have a published corner map yet: find corners from the fastest lap.
+        marks = detect_corners(min(built, key=lambda b: b.lap_time))
+        circuit["cornersDetected"] = True
+        print(f"  {sk}: no corner map, detected {len(marks)} corners from speed")
+    zones = corner_zones(marks, cl.length)
 
     raw = np.stack([[corner_features(b, z) for z in zones] for b in built])  # laps x corners x F
     z, med, scale, braked = normalise(raw)
