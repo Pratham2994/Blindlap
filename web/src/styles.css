@@ -282,7 +282,7 @@ body.playing .topbar nav {
 }
 
 .title h1 {
-  font-size: clamp(3.4rem, 11vw, 9.5rem);
+  font-size: clamp(3.4rem, 9vw, 6rem);
   max-width: 10ch;
 }
 
@@ -366,8 +366,10 @@ body.playing .topbar nav {
   display: flex;
   flex-direction: column;
   border-radius: 22px;
-  background: rgba(14, 14, 14, 0.8);
-  box-shadow: var(--deboss);
+  background:
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(255, 255, 255, 0.018) 3px 4px),
+    var(--rubber-2);
+  box-shadow: var(--deboss), 0 18px 40px -18px rgba(0, 0, 0, 0.9);
   padding: 14px 10px 10px;
 }
 
@@ -402,12 +404,18 @@ body.playing .topbar nav {
   border: 0;
   background: transparent;
   text-align: left;
-  transition: transform 0.6s var(--ease-out), background 0.2s;
+  transition: transform 0.32s var(--ease-out), background 0.2s;
+  background: var(--rubber-2);
   width: 100%;
 }
 
 .row:hover {
   background: var(--rubber-3);
+}
+
+.row.pick:hover,
+.row.truth:hover {
+  background-color: var(--rubber-2);
 }
 
 .row .chip {
@@ -452,7 +460,7 @@ body.playing .topbar nav {
 }
 
 .row.pick {
-  background: rgba(245, 197, 24, 0.12);
+  background: linear-gradient(rgba(245, 197, 24, 0.12), rgba(245, 197, 24, 0.12)), var(--rubber-2);
   box-shadow: inset 0 0 0 1.5px var(--medium);
 }
 
@@ -461,7 +469,7 @@ body.playing .topbar nav {
 }
 
 .row.truth {
-  background: rgba(63, 174, 73, 0.16);
+  background: linear-gradient(rgba(63, 174, 73, 0.16), rgba(63, 174, 73, 0.16)), var(--rubber-2);
   box-shadow: inset 0 0 0 1.5px var(--inter);
 }
 
@@ -623,7 +631,7 @@ body.playing .topbar nav {
 
 .lights i.on {
   background: var(--soft);
-  box-shadow: 0 0 28px 4px rgba(232, 49, 42, 0.55), inset 0 2px 4px rgba(255, 255, 255, 0.35);
+  box-shadow: 0 10px 24px -4px rgba(232, 49, 42, 0.6), inset 0 2px 4px rgba(255, 255, 255, 0.35);
 }
 
 /* ---------- Reveal ---------- */
@@ -695,8 +703,17 @@ body.playing .topbar nav {
 }
 
 .tag.half {
-  background: var(--medium);
-  color: #1d1600;
+  background: var(--rubber-3);
+  color: var(--ink);
+}
+
+.tag.half::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ink);
+  background: linear-gradient(90deg, var(--ink) 50%, transparent 50%);
 }
 
 .tag.miss {
@@ -710,10 +727,13 @@ body.playing .topbar nav {
   gap: 18px;
 }
 
-.reveal .who .chip {
-  width: 6px;
-  align-self: stretch;
-  border-radius: 3px;
+.reveal .team .chip {
+  display: inline-block;
+  width: 4px;
+  height: 14px;
+  border-radius: 2px;
+  margin-right: 10px;
+  vertical-align: -3px;
 }
 
 .reveal h2 {
@@ -973,7 +993,10 @@ body.playing .topbar nav {
 }
 
 .page.read {
-  background: var(--rubber);
+  background:
+    repeating-radial-gradient(circle at 50% -40%, transparent 0 5px, rgba(255, 255, 255, 0.016) 5px 6px),
+    var(--rubber);
+  padding-top: 132px;
 }
 
 .dna {
@@ -1136,42 +1159,6 @@ body.playing .topbar nav {
   color: var(--ink);
 }
 
-.scoreboard {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 2px;
-  margin: 28px 0;
-  border-radius: 18px;
-  overflow: hidden;
-  background: var(--groove);
-}
-
-.scoreboard div {
-  background: var(--rubber-2);
-  padding: 18px 18px 16px;
-}
-
-.scoreboard b {
-  display: block;
-  font-size: 2rem;
-  font-weight: 900;
-  font-variation-settings: "wdth" 125;
-}
-
-.scoreboard span {
-  color: var(--ink-3);
-  font-size: 0.8rem;
-  line-height: 1.4;
-  display: block;
-  margin-top: 6px;
-}
-
-.scoreboard .vs {
-  color: var(--ink-3);
-  font-weight: 600;
-  font-size: 0.85rem;
-}
-
 figure {
   margin: 28px 0;
 }
@@ -1191,6 +1178,24 @@ figcaption {
   padding: 4px 0;
   font-size: 0.82rem;
   color: var(--ink-2);
+}
+
+.chart-row.big {
+  grid-template-columns: 210px 1fr 56px;
+  padding: 8px 0;
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+
+.chart-row.big .track {
+  height: 18px;
+  border-radius: 9px;
+}
+
+.chart-row.big > span:last-child {
+  font-weight: 900;
+  font-variation-settings: "wdth" 125;
+  font-size: 1.15rem;
 }
 
 .chart-row .track {
@@ -1260,6 +1265,71 @@ figcaption {
   color: var(--ink-2);
 }
 
+@media (max-width: 860px) {
+  .lineup {
+    top: auto;
+    bottom: 96px;
+    right: var(--gutter);
+    left: var(--gutter);
+    width: auto;
+    height: 210px;
+  }
+  .tyre {
+    width: 230px;
+    left: -40px;
+    bottom: auto;
+    top: 120px;
+  }
+  .evidence {
+    left: var(--gutter);
+    right: var(--gutter);
+    bottom: 16px;
+    border-radius: 18px;
+    grid-template-columns: auto 1fr;
+  }
+  .evidence .who {
+    grid-column: 1 / -1;
+  }
+  .reveal {
+    width: auto;
+    right: var(--gutter);
+    top: 76px;
+    transform: none;
+    max-height: calc(100vh - 92px);
+    overflow-y: auto;
+  }
+  @keyframes rise {
+    from {
+      opacity: 0;
+      filter: blur(6px);
+    }
+  }
+  .dna-panel {
+    top: auto;
+    bottom: 16px;
+    left: var(--gutter);
+    width: auto;
+  }
+  .dna-legend {
+    display: none;
+  }
+  .dna-panel .axis,
+  .dna-panel .near,
+  .dna-panel label {
+    display: none;
+  }
+  .dna-panel h2 {
+    font-size: 1.5rem;
+  }
+  .pipeline li {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .title {
+    background: linear-gradient(0deg, rgba(14, 14, 14, 0.9) 0%, rgba(14, 14, 14, 0.5) 55%, rgba(14, 14, 14, 0) 100%);
+  }
+}
+
 @media (max-width: 520px) {
   .wordmark {
     white-space: nowrap;
@@ -1305,68 +1375,53 @@ figcaption {
   .dna-head p {
     display: none;
   }
+  .dna-head h1 {
+    font-size: 2rem;
+  }
+  .chart-row.big {
+    grid-template-columns: 1fr 52px;
+    row-gap: 6px;
+  }
+  .chart-row.big > span:first-child {
+    grid-column: 1 / -1;
+  }
+  .hud.revealed .hud-controls {
+    display: none;
+  }
+  .duel {
+    left: var(--gutter);
+    right: var(--gutter);
+    transform: none;
+    white-space: normal;
+    flex-wrap: wrap;
+    border-radius: 20px;
+    padding: 14px 14px 12px 18px;
+    row-gap: 8px;
+  }
+  .duel .where {
+    min-width: 0;
+    flex-basis: 100%;
+  }
+  .duel .btn {
+    flex-basis: 100%;
+    justify-content: center;
+  }
+  .radio {
+    flex-wrap: wrap;
+    border-radius: 18px;
+  }
+  .radio .wave {
+    min-width: 160px;
+  }
+  .radio .label {
+    flex-basis: 100%;
+    padding-left: 48px;
+  }
   .topbar nav a {
     padding: 8px 9px;
     font-size: 0.6rem;
     letter-spacing: 0.05em;
     white-space: nowrap;
-  }
-}
-
-@media (max-width: 860px) {
-  .lineup {
-    top: auto;
-    bottom: 96px;
-    right: var(--gutter);
-    left: var(--gutter);
-    width: auto;
-    height: 170px;
-  }
-  .tyre {
-    width: 230px;
-    left: -40px;
-    bottom: auto;
-    top: 120px;
-  }
-  .evidence {
-    left: var(--gutter);
-    right: var(--gutter);
-    bottom: 16px;
-    border-radius: 18px;
-    grid-template-columns: auto 1fr;
-  }
-  .evidence .who {
-    grid-column: 1 / -1;
-  }
-  .reveal {
-    width: auto;
-    right: var(--gutter);
-    top: 76px;
-    transform: none;
-    max-height: calc(100vh - 92px);
-    overflow-y: auto;
-  }
-  @keyframes rise {
-    from {
-      opacity: 0;
-      filter: blur(6px);
-    }
-  }
-  .dna-panel {
-    top: auto;
-    bottom: 16px;
-    left: var(--gutter);
-    width: auto;
-  }
-  .dna-legend {
-    display: none;
-  }
-  .pipeline li {
-    grid-template-columns: 1fr;
-    gap: 4px;
-  }
-  .title {
-    background: linear-gradient(0deg, rgba(14, 14, 14, 0.9) 0%, rgba(14, 14, 14, 0.5) 55%, rgba(14, 14, 14, 0) 100%);
   }
 }
 

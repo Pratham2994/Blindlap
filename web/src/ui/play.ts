@@ -333,7 +333,7 @@ export class PlayView {
     card.setAttribute("aria-live", "polite");
     card.innerHTML = `
       <div class="verdicts">${tag("You", you, this.lineup.pick)}${tag("Model", model, modelPick)}</div>
-      <div class="who"><span class="chip" style="background:${driver.colour}"></span><div><h2 class="display">${driver.name.replace(/\s(\S+)$/, " <br>$1")}</h2><p class="caps team">${driver.team} · lap ${this.lap.lapNumber}</p>${career ? `<p class="career num">${career} <span>career, ${careers.source}</span></p>` : ""}</div></div>
+      <div class="who"><div><h2 class="display">${driver.name.replace(/\s(\S+)$/, " <br>$1")}</h2><p class="caps team"><span class="chip" style="background:${driver.colour}"></span>${driver.team} · lap ${this.lap.lapNumber}</p>${career ? `<p class="career num">${career} <span>career, ${careers.source}</span></p>` : ""}</div></div>
       <div class="stats caps num">
         <span>Lap time<b>${formatLapTime(this.lap.lapTime)}</b></span>
         <span>Model ranked them<b>P${rank} of ${guesses.length}</b></span>

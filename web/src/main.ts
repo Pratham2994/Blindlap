@@ -47,6 +47,9 @@ async function titleView(): Promise<View> {
   world.revealLine(true);
   world.showCar(false);
   world.mode = "orbit";
+  // The title copy owns the left of the screen: no corner numbers, and the circuit slides right.
+  world.labelsOn = false;
+  world.setFrameShift(window.innerWidth > 860 ? 0.2 : 0);
 
   const lr = report?.logreg;
   const root = document.createElement("div");
@@ -72,6 +75,8 @@ async function route() {
   const [name, arg] = hash.split("/");
   setNav(name === "daily" ? "play" : name || "home");
   document.body.classList.toggle("reading", name === "how");
+  world.labelsOn = true;
+  world.setFrameShift(0);
   try {
     if (!index) index = await loadIndex();
     if (name === "play") {

@@ -6,20 +6,27 @@ import type { World } from "../scene/world";
 
 const SCALE = 60;
 
-function discTexture(code: string, colour: string): THREE.CanvasTexture {
+const discCache = new Map<string, THREE.CanvasTexture>();
+
+function discTexture(code: string, colour: string, lit = false): THREE.CanvasTexture {
+  const key = `${code}:${lit}`;
+  const hit = discCache.get(key);
+  if (hit) return hit;
   const c = document.createElement("canvas");
   c.width = c.height = 256;
   const g = c.getContext("2d")!;
-  // A wheel nut seen face-on: rubber disc, team-colour rim, raised code.
+  // A wheel nut seen face-on: rubber disc, moulded rim, raised code, team colour as a small chip.
   g.fillStyle = "#151515";
   g.beginPath();
   g.arc(128, 128, 118, 0, Math.PI * 2);
   g.fill();
-  g.lineWidth = 10;
-  g.strokeStyle = colour;
+  g.lineWidth = 8;
+  g.strokeStyle = lit ? "#f2f0ea" : "#3a3a3a";
   g.beginPath();
   g.arc(128, 128, 110, 0, Math.PI * 2);
   g.stroke();
+  g.fillStyle = colour;
+  g.fillRect(110, 176, 36, 8);
   g.font = `850 66px "Archivo Variable", sans-serif`;
   (g as CanvasRenderingContext2D & { fontStretch: string }).fontStretch = "expanded";
   g.textAlign = "center";
@@ -30,6 +37,7 @@ function discTexture(code: string, colour: string): THREE.CanvasTexture {
   g.fillText(code, 128, 130);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
+  discCache.set(key, t);
   return t;
 }
 
@@ -84,7 +92,7 @@ export class DnaView {
     for (const d of dna.drivers) {
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: discTexture(d.code, d.colour), transparent: true }));
       sprite.position.set(d.pos[0] * SCALE, d.pos[1] * SCALE, d.pos[2] * SCALE);
-      sprite.scale.setScalar(13);
+      sprite.scale.setScalar(10);
       this.group.add(sprite);
       this.sprites.push({ sprite, d });
       // Stalk down to the floor so depth reads.
@@ -149,7 +157,9 @@ export class DnaView {
     for (const s of this.sprites) {
       const on = s.d.code === code || d.neighbours.includes(s.d.code);
       (s.sprite.material as THREE.SpriteMaterial).opacity = on ? 1 : 0.35;
-      s.sprite.scale.setScalar(s.d.code === code ? 18 : 13);
+      s.sprite.scale.setScalar(s.d.code === code ? 15 : 10);
+      // The selected driver's rim lights in hard white; everyone else stays moulded grey.
+      (s.sprite.material as THREE.SpriteMaterial).map = discTexture(s.d.code, s.d.colour, s.d.code === code);
     }
     const axes = Object.entries(d.style)
       .map(([k, v]) => {

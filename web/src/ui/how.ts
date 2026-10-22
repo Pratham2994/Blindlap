@@ -15,12 +15,18 @@ export function howView(index: Index, report: Report): HTMLElement {
     <h1 class="display">How it<br>knows</h1>
     <p>Every lap in Blind Lap is a real push lap from ${index.seasons.join(" or ")} qualifying. The name, number and livery are gone. What is left is ${index.features.length} numbers per corner that describe how the car was driven through it, and the model has to find the driver in those.</p>
 
-    <div class="scoreboard num">
-      <div><b>${pct(lr.top1)}</b><span>laps where the model's first guess is the driver <span class="vs">· chance ${pct(lr.chance)}</span></span></div>
-      <div><b>${pct(lr.top3)}</b><span>laps where the driver is in its top three <span class="vs">· chance ${pct(lr.chance * 3)}</span></span></div>
-      <div><b>${pct(lr.team)}</b><span>laps where it names the right team <span class="vs">· chance ${pct(teamChance)}</span></span></div>
-      <div><b>${lr.laps}</b><span>laps scored, ${lr.sessions.length} circuits, ${lr.classes.length} drivers</span></div>
-    </div>
+    <figure>
+      ${[
+        ["First guess is the driver", lr.top1, lr.chance],
+        ["Driver in its top three", lr.top3, lr.chance * 3],
+        ["Names the right team", lr.team, teamChance],
+      ]
+        .map(
+          ([label, v, c]) => `<div class="chart-row num big"><span>${label}</span><span class="track"><i style="width:${(v as number) * 100}%"></i><span class="chance" style="left:${(c as number) * 100}%"></span></span><span>${pct(v as number)}</span></div>`,
+        )
+        .join("")}
+      <figcaption>${lr.laps} laps from ${lr.sessions.length} circuits, ${lr.classes.length} drivers. The red tick on each bar is what picking at random would score.</figcaption>
+    </figure>
     <p>Each number comes from a circuit the model never trained on. To guess laps at Monza, it was trained on the other ${lr.sessions.length - 1} circuits only. The game uses those same models, so the guesses you watch are made blind too.</p>
 
     <h2>From telemetry to corners</h2>

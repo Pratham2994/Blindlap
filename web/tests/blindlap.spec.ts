@@ -54,7 +54,7 @@ test("driver DNA lets you switch drivers", async ({ page }) => {
 
 test("how it works shows metrics against chance and draws the confusion matrix", async ({ page }) => {
   await page.goto("/#/how");
-  await expect(page.locator(".scoreboard b").first()).toHaveText(/\d+%/);
+  await expect(page.locator(".chart-row.big > span:last-child").first()).toHaveText(/\d+%/);
   await expect(page.locator(".chart-row").first()).toBeVisible();
   const painted = await page.locator(".confusion canvas").evaluate((c: HTMLCanvasElement) => {
     const d = c.getContext("2d")!.getImageData(0, 0, c.width, c.height).data;

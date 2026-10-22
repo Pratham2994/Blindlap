@@ -16,6 +16,9 @@ export const COMPOUND = {
   wet: new THREE.Color("#2f7fe0"),
 };
 
+// Haze colour in linear space, equal to the sky shader's horizon so ground and sky meet without a seam.
+const HAZE = new THREE.Color().setRGB(0.03, 0.028, 0.025, THREE.LinearSRGBColorSpace);
+
 const ELEVATION = 3; // vertical exaggeration so hills read from the chase camera
 const TRACK_WIDTH = 13;
 const STRIP_DEPTH = 2.2;
@@ -51,6 +54,8 @@ export class World {
   private lookOffset = new THREE.Vector3();
   private orbitAngle = 0;
   mode: CameraMode = "orbit";
+  labelsOn = true;
+  private shift = 0;
   carS = 0;
 
   constructor(private canvas: HTMLCanvasElement) {
@@ -61,7 +66,8 @@ export class World {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.scene.background = new THREE.Color("#0b0b0b");
-    this.scene.fog = new THREE.Fog("#0b0b0b", 1500, 6000);
+    this.scene.fog = new THREE.Fog(HAZE, 1500, 6000);
+    this.scene.add(this.makeSky());
 
     this.scene.add(new THREE.HemisphereLight("#d8d4cc", "#050505", 0.55));
     // One low raking light, like late sun across a moulded sidewall: it makes the relief read.
@@ -95,24 +101,75 @@ export class World {
     this.renderer.setSize(w, h, false);
     this.composer.setSize(w, h);
     this.camera.aspect = w / h;
+    this.applyShift(w, h);
     this.camera.updateProjectionMatrix();
+  }
+
+  /** Dark dome with a low warm haze at the horizon, where the raking light comes from. */
+  private makeSky(): THREE.Mesh {
+    const mat = new THREE.ShaderMaterial({
+      side: THREE.BackSide,
+      depthWrite: false,
+      fog: false,
+      uniforms: {},
+      vertexShader: /* glsl */ `
+        varying vec3 vDir;
+        void main() {
+          vDir = normalize(position);
+          vec4 p = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          gl_Position = p.xyww;
+        }`,
+      fragmentShader: /* glsl */ `
+        varying vec3 vDir;
+        void main() {
+          float h = vDir.y;
+          // Haze is warmer on the side the sun sits (+x), and thins quickly with height.
+          float sun = max(dot(normalize(vDir.xz), normalize(vec2(0.9, 0.35))), 0.0);
+          vec3 zenith = vec3(0.004, 0.004, 0.0045);
+          vec3 horizon = mix(vec3(0.03, 0.028, 0.025), vec3(0.085, 0.06, 0.04), pow(sun, 8.0));
+          float t = smoothstep(-0.02, 0.28, h);
+          vec3 c = mix(horizon, zenith, t);
+          if (h < -0.02) c = vec3(0.03, 0.028, 0.025);
+          gl_FragColor = vec4(c, 1.0);
+        }`,
+    });
+    const sky = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), mat);
+    sky.scale.setScalar(20000);
+    sky.frustumCulled = false;
+    sky.renderOrder = -1;
+    return sky;
+  }
+
+  /** Slide the rendered image sideways (fraction of width) so a text column can own one side. */
+  setFrameShift(fraction: number) {
+    this.shift = fraction;
+    const w = this.canvas.clientWidth || window.innerWidth;
+    const h = this.canvas.clientHeight || window.innerHeight;
+    this.applyShift(w, h);
+    this.camera.updateProjectionMatrix();
+  }
+
+  private applyShift(w: number, h: number) {
+    if (this.shift) this.camera.setViewOffset(w, h, -w * this.shift, 0, w, h);
+    else this.camera.clearViewOffset();
   }
 
   private makeCar(colour: THREE.Color = COMPOUND.hard): THREE.Group {
     const g = new THREE.Group();
-    // Abstract contact patch: a long white-hot lozenge with a soft red heat core.
+    // Abstract contact patch: a long lit lozenge riding on a band of rubber.
     const body = new THREE.Mesh(
       new THREE.CapsuleGeometry(0.7, 4.0, 6, 12).rotateZ(Math.PI / 2),
       new THREE.MeshStandardMaterial({ color: colour, emissive: colour, emissiveIntensity: 1.1 }),
     );
     body.position.y = 1.1;
     body.castShadow = true;
-    const heat = new THREE.Mesh(
-      new THREE.SphereGeometry(0.7, 16, 12),
-      new THREE.MeshBasicMaterial({ color: COMPOUND.soft }),
+    const tread = new THREE.Mesh(
+      new THREE.BoxGeometry(5.2, 0.35, 2.2),
+      new THREE.MeshStandardMaterial({ color: "#111111", roughness: 0.9 }),
     );
-    heat.position.set(-2.6, 1.1, 0);
-    g.add(body, heat);
+    tread.position.y = 0.25;
+    tread.receiveShadow = true;
+    g.add(body, tread);
     return g;
   }
 
@@ -163,7 +220,8 @@ export class World {
     sc.near = 10;
     sc.far = r * 4;
     sc.updateProjectionMatrix();
-    this.scene.fog = new THREE.Fog("#0b0b0b", r * 1.4, r * 5);
+    // Close enough that the far side of the circuit melts into the haze from the chase camera.
+    this.scene.fog = new THREE.Fog(HAZE, Math.min(r * 0.9, 900), Math.max(r * 2.6, 2600));
   }
 
   private buildGround(session: Session): THREE.Mesh {
@@ -368,7 +426,8 @@ export class World {
     const l = this.labels[cornerIndex];
     if (l) {
       const m = l.sprite.material as THREE.SpriteMaterial;
-      m.map = labelTexture(`T${l.n}`, "#e8312a", note);
+      // State is a mark, not a hue: a read corner gains a notch and, on board, a caption.
+      m.map = labelTexture(`T${l.n}`, "#f2f0ea", note, true);
       l.aspect = note ? 8 : 2;
       m.opacity = 1;
       m.needsUpdate = true;
@@ -482,17 +541,20 @@ export class World {
     this.composer.render();
   }
 
-  /** Overview shows every corner number; on board, only the next few corners ahead. */
+  /** Overview shows every corner number; on board, the corners just behind and ahead of the car.
+   * Evidence captions only show on board, beside the corner the car has just left. */
   private updateLabels() {
     const L = this.frame!.length;
     const overview = this.mode === "orbit";
-    const size = overview ? this.radius / 22 : this.mode === "heli" ? 26 : 9;
+    const size = overview ? this.radius / 34 : this.mode === "heli" ? 22 : 8;
     for (const l of this.labels) {
       const ahead = (((l.s - this.carS) % L) + L) % L;
-      l.sprite.visible = overview || ahead < (this.mode === "heli" ? 1400 : 650);
-      // Captioned labels are wider; anchor them on the corner number, not the middle. The overview
-      // shows only the number (the left quarter of a captioned texture) so the map stays readable.
-      const aspect = overview ? 2 : l.aspect;
+      const behind = L - ahead;
+      l.sprite.visible =
+        this.labelsOn && (overview || ahead < (this.mode === "heli" ? 1200 : 650) || behind < 260);
+      // Captioned labels are wider; anchor them on the corner number, not the middle. Elsewhere only
+      // the number shows (the left quarter of a captioned texture) so the map stays readable.
+      const aspect = this.mode === "chase" ? l.aspect : 2;
       const map = (l.sprite.material as THREE.SpriteMaterial).map;
       if (map) map.repeat.set(aspect / l.aspect, 1);
       l.sprite.scale.set(size * aspect, size, 1);

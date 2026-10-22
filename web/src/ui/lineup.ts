@@ -77,6 +77,8 @@ export class Lineup {
       const r = this.rows.get(g.code);
       if (!r) return;
       r.style.transform = `translateY(${i * this.row}px)`;
+      // Higher-ranked rows pass over lower ones while the grid re-sorts.
+      r.style.zIndex = String(guesses.length - i);
       r.classList.toggle("lead", i === 0 && corners > 0);
       (r.querySelector(".bar i") as HTMLElement).style.width = corners > 0 ? `${(g.p / top) * 100}%` : "0%";
       r.querySelector(".pct")!.textContent = corners > 0 ? `${Math.round(g.p * 100)}%` : "–";
