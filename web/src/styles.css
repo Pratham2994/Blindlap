@@ -914,7 +914,7 @@ body.playing .topbar nav {
 }
 
 .sq.half {
-  background: var(--medium);
+  background: linear-gradient(90deg, var(--ink) 50%, var(--rubber-3) 50%);
 }
 
 .sq.miss {

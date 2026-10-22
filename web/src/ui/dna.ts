@@ -188,7 +188,7 @@ export class DnaView {
   }
 
   frame(dt: number) {
-    if (this.auto) this.yaw += dt * 0.08;
+    if (this.auto && !matchMedia("(prefers-reduced-motion: reduce)").matches) this.yaw += dt * 0.08;
     const r = 210;
     this.camera.position.set(Math.sin(this.yaw) * Math.cos(this.pitch) * r, Math.sin(this.pitch) * r, Math.cos(this.yaw) * Math.cos(this.pitch) * r);
     this.camera.lookAt(0, -8, 0);

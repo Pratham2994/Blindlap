@@ -15,6 +15,8 @@ OPENF1 = "https://api.openf1.org/v1/"
 MULTIVIEWER = "https://api.multiviewer.app/api/v1/circuits/{key}/{year}"
 RAW = Path(__file__).parent / "raw"
 YEAR = int(os.environ.get("BLINDLAP_YEAR", "2025"))
+# Qualifying feeds the game; practice sessions (BLINDLAP_SESSION="Practice 3") only add training laps.
+SESSION_NAME = os.environ.get("BLINDLAP_SESSION", "Qualifying")
 
 session = requests.Session()
 session.headers["User-Agent"] = "blindlap-pipeline/0.1"
@@ -83,7 +85,7 @@ def fetch_session(s):
 
 
 def main():
-    sessions = get_json(OPENF1 + "sessions", {"year": YEAR, "session_name": "Qualifying"})
+    sessions = get_json(OPENF1 + "sessions", {"year": YEAR, "session_name": SESSION_NAME})
     now = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())
     sessions = [s for s in sessions if not s.get("is_cancelled") and s["date_end"][:19] < now]
     only = set(sys.argv[1:])

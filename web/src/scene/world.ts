@@ -19,6 +19,8 @@ export const COMPOUND = {
 // Haze colour in linear space, equal to the sky shader's horizon so ground and sky meet without a seam.
 const HAZE = new THREE.Color().setRGB(0.022, 0.022, 0.023, THREE.LinearSRGBColorSpace);
 
+const REDUCED_MOTION = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+
 const ELEVATION = 3; // vertical exaggeration so hills read from the chase camera
 const TRACK_WIDTH = 13;
 const STRIP_DEPTH = 2.2;
@@ -517,7 +519,7 @@ export class World {
       want = p.clone().addScaledVector(t, -120).add(new THREE.Vector3(0, 230, 0));
       look = this.pointAt(this.carS + 60);
     } else {
-      this.orbitAngle += dt * 0.05;
+      if (!REDUCED_MOTION) this.orbitAngle += dt * 0.05;
       const r = this.radius * 1.35;
       want = new THREE.Vector3(Math.cos(this.orbitAngle) * r, this.radius * 0.95, Math.sin(this.orbitAngle) * r);
       look = new THREE.Vector3(0, 0, 0);

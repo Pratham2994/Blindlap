@@ -84,7 +84,8 @@ def evaluate(sessions, labels, make_model, name):
         model = make_model()
         model.fit(np.vstack(Xtr), np.concatenate(ytr))
         models[c] = model
-    for held in sessions:
+    # Practice sessions only add training laps; every score is on qualifying.
+    for held in [s for s in sessions if is_quali(s)]:
         model = models[circuit(held)]
         folds[held["session"]["session_key"]] = model
 
@@ -144,6 +145,10 @@ def evaluate(sessions, labels, make_model, name):
                 chance=1 / len(classes), classes=classes, sessions=sess_acc, confusion=conf.tolist()), folds
 
 
+def is_quali(sess) -> bool:
+    return sess["session"]["session_name"] == "Qualifying"
+
+
 def year(sess) -> int:
     return int(sess["session"]["date_start"][:4])
 
@@ -153,7 +158,7 @@ def cross_season(sessions, labels, tau):
     new rules? Only drivers who raced both seasons can be scored; candidates are the drivers of each
     session the model knows."""
     train = [s for s in sessions if year(s) == 2025]
-    test = [s for s in sessions if year(s) == 2026]
+    test = [s for s in sessions if year(s) == 2026 and is_quali(s)]
     if not train or not test:
         return None
     X, y = [], []

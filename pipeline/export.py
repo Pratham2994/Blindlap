@@ -194,7 +194,7 @@ def main():
     index = []
     for s in sessions:
         sk = str(s["session"]["session_key"])
-        if sk not in folds["weights"]:
+        if s["session"]["session_name"] != "Qualifying" or sk not in folds["weights"]:
             continue
         out = export_session(s, folds["weights"][sk], labels)
         index.append({k: out[k] for k in ("key", "circuit", "country", "location", "date", "meeting", "length")}
