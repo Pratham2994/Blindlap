@@ -44,6 +44,17 @@ export class EngineSynth {
     }
     const ctx = new AudioContext();
     this.ctx = ctx;
+    // Opened straight from a link there has been no gesture yet, so the browser starts audio
+    // suspended. Resume on the first tap or key press anywhere.
+    if (ctx.state === "suspended") {
+      const resume = () => {
+        void ctx.resume();
+        window.removeEventListener("pointerdown", resume);
+        window.removeEventListener("keydown", resume);
+      };
+      window.addEventListener("pointerdown", resume);
+      window.addEventListener("keydown", resume);
+    }
     this.noise = noiseBuffer(ctx);
 
     const comp = ctx.createDynamicsCompressor();
