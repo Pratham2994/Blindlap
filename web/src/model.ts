@@ -26,6 +26,9 @@ const FEATURE_TEXT: Record<string, (d: number) => string | null> = {
   throttle_point: (d) => (Math.abs(d) < 3 ? null : `went to full throttle ${Math.abs(d).toFixed(0)} m ${d > 0 ? "later" : "earlier"}`),
   min_throttle: (d) => (Math.abs(d) < 3 ? null : d > 0 ? `lifted ${Math.abs(d).toFixed(0)}% less` : `lifted ${Math.abs(d).toFixed(0)}% more`),
   coast: (d) => (Math.abs(d) < 3 ? null : `coasted ${Math.abs(d).toFixed(0)} m ${d > 0 ? "more" : "less"}`),
+  throttle_ramp: (d) =>
+    Math.abs(d) < 4 ? null : d > 0 ? `squeezed the throttle on over ${Math.abs(d).toFixed(0)} m more` : `opened the throttle ${Math.abs(d).toFixed(0)} m quicker`,
+  partial_throttle: (d) => (Math.abs(d) < 4 ? null : `held part-throttle for ${Math.abs(d).toFixed(0)} m ${d > 0 ? "more" : "less"}`),
 };
 
 const FEATURE_SHORT: Record<string, (d: number) => string> = {
@@ -37,6 +40,8 @@ const FEATURE_SHORT: Record<string, (d: number) => string> = {
   throttle_point: (d) => `throttle ${Math.abs(d).toFixed(0)} m ${d > 0 ? "later" : "earlier"}`,
   min_throttle: (d) => `lifts ${Math.abs(d).toFixed(0)}% ${d > 0 ? "less" : "more"}`,
   coast: (d) => `coasts ${Math.abs(d).toFixed(0)} m ${d > 0 ? "more" : "less"}`,
+  throttle_ramp: (d) => `throttle ${d > 0 ? "slower" : "quicker"} by ${Math.abs(d).toFixed(0)} m`,
+  partial_throttle: (d) => `${Math.abs(d).toFixed(0)} m ${d > 0 ? "more" : "less"} part-throttle`,
 };
 
 export class Guesser {

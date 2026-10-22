@@ -105,6 +105,8 @@ TELL_TEXT = {
     "throttle_point": ("waits longer for full throttle", "gets to full throttle sooner"),
     "min_throttle": ("lifts less", "lifts more"),
     "coast": ("coasts more", "coasts less"),
+    "throttle_ramp": ("squeezes the throttle on more gradually", "snaps the throttle open"),
+    "partial_throttle": ("modulates the throttle more", "uses less part-throttle"),
 }
 
 
@@ -169,10 +171,11 @@ def driver_dna(sessions, labels):
         "Early throttle": -avg[:, F["throttle_point"]],
         "Low coasting": -avg[:, F["coast"]],
         "Commitment": avg[:, F["min_throttle"]],
+        "Throttle snap": -avg[:, F["throttle_ramp"]],
     }
     # Scale each axis so the most extreme driver sits at +-1; the raw z-score stays in "raw".
     axes_scaled = {k: v / max(np.abs(v).max(), 1e-9) for k, v in axes.items()}
-    loadings = [{"feature": f"{FEATURES[j % 8]}:{CORNER_CLASSES[j // 8]}", "pc": r(Vt[:3, j], 3)} for j in range(Vt.shape[1])]
+    loadings = [{"feature": f"{FEATURES[j % len(FEATURES)]}:{CORNER_CLASSES[j // len(FEATURES)]}", "pc": r(Vt[:3, j], 3)} for j in range(Vt.shape[1])]
     return {
         "explained": r(explained, 3),
         "loadings": loadings,

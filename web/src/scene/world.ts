@@ -59,6 +59,8 @@ export class World {
   mode: CameraMode = "orbit";
   labelsOn = true;
   private shift = 0;
+  private dip = 0;
+  private fov = 52;
   carS = 0;
 
   constructor(private canvas: HTMLCanvasElement) {
@@ -502,7 +504,7 @@ export class World {
   }
 
   /** Move the camera toward the mode's target; dt in seconds. */
-  update(dt: number, speedKmh = 0) {
+  update(dt: number, speedKmh = 0, braking = false) {
     if (!this.frame) {
       this.composer.render();
       return;
@@ -515,7 +517,9 @@ export class World {
       const ahead = this.pointAt(this.carS + 45);
       const back = 30 + speedKmh * 0.04;
       want = p.clone().addScaledVector(t, -back).setY(p.y + 11 + speedKmh * 0.012);
-      look = ahead.setY(ahead.y + 2);
+      // Under braking the nose dips and the view tips forward a little.
+      this.dip += ((braking ? 1 : 0) - this.dip) * Math.min(dt * 6, 1);
+      look = ahead.setY(ahead.y + 2 - this.dip * 3.5);
     } else if (this.mode === "heli") {
       want = p.clone().addScaledVector(t, -120).add(new THREE.Vector3(0, 230, 0));
       look = this.pointAt(this.carS + 60);
@@ -542,6 +546,13 @@ export class World {
     }
     this.camera.position.copy(this.camPos);
     this.camera.lookAt(this.camLook);
+    // The view widens with speed on board, so 330 km/h feels faster than 80.
+    const wantFov = this.mode === "chase" && !REDUCED_MOTION ? 50 + Math.min(speedKmh, 340) * 0.05 : 52;
+    this.fov += (wantFov - this.fov) * Math.min(dt * 3, 1);
+    if (Math.abs(this.camera.fov - this.fov) > 0.01) {
+      this.camera.fov = this.fov;
+      this.camera.updateProjectionMatrix();
+    }
     this.composer.render();
   }
 

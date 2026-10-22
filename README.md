@@ -33,7 +33,7 @@ OpenF1 API ──► fetch.py ──► raw/<session>/*.json          (2025 + 20
 MultiViewer ─┘                    │
 F1DB release ─► careers.py        ▼
                 track.py     one centreline per circuit; every sample projected to metres along it
-                features.py  8 style features per corner, z-scored against the field
+                features.py  10 style features per corner, z-scored against the field
                 build.py     build/<session>.pkl   (corners detected from speed where no map exists)
                                   │
                                   ▼
@@ -53,7 +53,8 @@ web/  Vite + TypeScript + Three.js + Web Audio
    place on track for every driver. Laps that go backwards, lose data or disagree with the official
    lap time are dropped.
 3. **Corner features.** Each corner zone yields braking point, braking length, entry speed, apex speed,
-   apex position, throttle pickup, deepest lift and coasting distance, each turned into a robust
+   apex position, throttle pickup, how sharply and how smoothly the throttle opens, deepest lift and
+   coasting distance, each turned into a robust
    z-score against every push lap at that corner in that session: "brakes 9 m later than the field"
    survives a change of circuit.
 4. **Model.** Features go into one block per corner type (slow, medium, fast). A multinomial logistic
@@ -67,25 +68,26 @@ web/  Vite + TypeScript + Three.js + Web Audio
 
 ## Results
 
-Leave-one-circuit-out over 39 qualifying sessions (23 from 2025, 16 from 2026), 3,565 laps, 24
+Leave-one-circuit-out over 40 qualifying sessions (23 from 2025, 17 from 2026), 3,673 laps, 24
 drivers. Read live from `pipeline/model_out/report.json` and shown on the How it knows page.
 
 | Model | Top-1 driver | Top-3 driver | Right team |
 |---|---|---|---|
 | Chance | 4.2% | 12.6% | about 9% |
-| Logistic regression (ships) | **31.7%** | **60.7%** | **45.5%** |
-| Gradient-boosted trees | 40.7% | 69.9% | 56.3% |
-| Cross-season: trained on 2025 only, tested on 2026 laps | 23.0% | 51.6% | 36.9% |
+| Logistic regression (ships) | **34.4%** | **64.1%** | **49.2%** |
+| Gradient-boosted trees | 43.0% | 72.2% | 59.1% |
+| Cross-season: trained on 2025 only, tested on 2026 laps | 25.3% | 55.6% | 40.3% |
 
-- The shipped model is right about 7.5 times as often as picking at random, on circuits it never saw.
-- **Style survives new cars.** Trained only on 2025, it still names the driver of a 2026 lap 23% of the
+- The shipped model is right about 8 times as often as picking at random, on circuits it never saw.
+- **Style survives new cars.** Trained only on 2025, it still names the driver of a 2026 lap 25% of the
   time against 5% chance, under new regulations and, for some drivers, a new team.
 - **Teammates are the hard case.** The confusion matrix shows the model often finds the car before the
   driver; the easiest drivers to spot include those in the most unusual cars.
 - The linear model ships because each corner's push toward a driver is a readable sum, which is what
   the game's evidence line shows, and its weights are a few KB that run in the browser. Adding 18
-  practice sessions as training data left it flat (31.9% to 31.7% top-1) while the tree model gained
-  a point: the linear model is limited by its features, not by data.
+  practice sessions as training data left it flat while the tree model gained a point; two new
+  throttle features (how sharply and how smoothly the driver opens up) added 2.7 points. The linear
+  model was limited by its features, not by data.
 
 ## Run it
 

@@ -14,6 +14,8 @@ const PHRASE: Record<string, (a: string, b: string, d: number) => string | null>
   throttle_point: (a, _b, d) => (Math.abs(d) < 4 ? null : `${a} is back on full throttle ${Math.abs(d).toFixed(0)} m ${d > 0 ? "later" : "earlier"}`),
   coast: (a, b, d) => (Math.abs(d) < 4 ? null : `${a} coasts ${Math.abs(d).toFixed(0)} m ${d > 0 ? "more" : "less"} than ${b}`),
   entry_speed: (a, _b, d) => (Math.abs(d) < 3 ? null : `${a} arrives ${Math.abs(d).toFixed(0)} km/h ${d > 0 ? "faster" : "slower"}`),
+  throttle_ramp: (a, _b, d) => (Math.abs(d) < 5 ? null : `${a} ${d > 0 ? "squeezes the throttle on more gently" : "opens the throttle more sharply"} (${Math.abs(d).toFixed(0)} m)`),
+  partial_throttle: (a, _b, d) => (Math.abs(d) < 5 ? null : `${a} spends ${Math.abs(d).toFixed(0)} m ${d > 0 ? "more" : "less"} on part-throttle`),
   min_throttle: (a, b, d) => (Math.abs(d) < 5 ? null : `${a} lifts ${Math.abs(d).toFixed(0)}% ${d > 0 ? "less" : "more"} than ${b}`),
 };
 
@@ -26,8 +28,10 @@ export class LabView {
   private session: Session | null = null;
   private a = "";
   private b = "";
+  private features: string[];
 
   constructor(index: Index) {
+    this.features = index.features;
     this.root = document.createElement("div");
     this.root.className = "page read lab";
     const options = [...index.sessions]
@@ -123,7 +127,7 @@ export class LabView {
     this.root.querySelector(".lab-legend")!.innerHTML = `<span class="swatch a"></span><b>${A.code}</b> ${formatLapTime(A.lapTime)} <span class="swatch b"></span><b>${B.code}</b> ${formatLapTime(B.lapTime)} · ${A.code} ${gap >= 0 ? "faster" : "slower"} by ${Math.abs(gap).toFixed(3)} s`;
 
     // Per corner: the biggest difference between the two, in plain words.
-    const feats = ["brake_point", "brake_length", "entry_speed", "apex_speed", "apex_offset", "throttle_point", "min_throttle", "coast"];
+    const feats = this.features;
     const items = s.corners.map((c, k) => {
       let best: { text: string; size: number } | null = null;
       feats.forEach((f, j) => {

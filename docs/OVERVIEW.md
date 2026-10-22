@@ -24,7 +24,7 @@ the driver's real team radio.
 | Duel | Replays the lap against the fastest lap of the driver the model picked (or its runner-up when it was right), as a red ghost car, with a live time gap at the white car's position. |
 | Daily five | The same five laps for every visitor on a given date (seeded), saved per day, with a result grid and a copy-to-clipboard share text. |
 | Challenge link | "Copy challenge link" on the reveal gives a URL (`#/play/<session>.<lap index>`) that opens that exact lap for a friend. The link uses the lap's position in the session file, so it does not reveal the driver. |
-| Driver DNA | Every driver's average corner style as a 3D point (PCA of 24 style dimensions). Drag to turn, click or pick a driver to see six plain-language style traits, closest matches and career totals. |
+| Driver DNA | Every driver's average corner style as a 3D point (PCA of 30 style dimensions). Drag to turn, click or pick a driver to see seven plain-language style traits, the three habits that give them away, closest matches and career totals. |
 | Telemetry lab | Any session, any two drivers: their fastest laps' speed traces overlaid against distance, braking as blue marks under the trace, and for each corner the single biggest difference between them in words ("VER brakes 15 m earlier than LEC"). |
 | How it knows | The method and the honest numbers: top-1, top-3 and team accuracy as bars against chance, the cross-season result, accuracy per session, the easiest and hardest drivers to spot, a confusion matrix, what the data cannot see, and the GBM comparison. All read from the evaluation report. |
 
@@ -76,7 +76,7 @@ any static host with no server.
 - **F1DB** (GitHub release `v2026.17.0`, checksum verified): career totals (starts, wins, poles,
   podiums, titles). Used for the reveal card and the DNA panel.
 
-Downloaded: every 2025 qualifying session (24), every 2026 qualifying session held so far (18, up to
+Downloaded: every 2025 qualifying session (24), every 2026 qualifying session held so far (17, up to
 Singapore on 10 October 2026), and every 2025 Practice 3 (18; sprint weekends have none). About 6 GB
 of raw JSON, kept out of git.
 
@@ -123,6 +123,13 @@ Each corner gets a zone from halfway after the previous corner to halfway before
 | throttle_point | metres after the apex until throttle first reaches 95% |
 | min_throttle | deepest throttle in the zone (lift depth on corners taken without braking) |
 | coast | metres with throttle under 5% and no brake before the apex |
+| throttle_ramp | metres from the first throttle (over 20%) after the apex to full throttle: how sharply the driver opens up |
+| partial_throttle | metres between 20% and 95% throttle in the zone: how much the driver modulates |
+
+The last two were added late in the night after an ablation: together they raised top-1 accuracy by
+about 3 points. Gear at the apex was tried in the same experiment and added about 4 more points, but
+it also raised team accuracy by as much, which says it mostly identifies the car's gearing. It was
+left out, because the product's claim is "style, not car".
 
 Then every value becomes a **robust z-score** against every push lap at that corner in that session:
 (value − median) / max(1.4826 × MAD, noise floor). The floors (6 m for distances, 2 km/h for speeds,
@@ -135,7 +142,7 @@ later than the field" carries over. It also removes most of the session-wide eff
 evolution, wind) that hit everyone.
 
 Each corner is also classed slow (field apex speed under 140 km/h), medium (under 220) or fast. The
-8 features are placed into one of three blocks of a 24-dimensional vector, so the model can learn
+10 features are placed into one of three blocks of a 30-dimensional vector, so the model can learn
 that a driver brakes late for hairpins but lifts early in sweepers.
 
 ### 4.4 The model (`model.py`)
@@ -167,21 +174,21 @@ Per session: the centreline every 4 m, corners with zones and classes, the field
 scales, driver names and team colours, the fold weights for that session (trained without it), and
 the two fastest laps per driver with time, distance, speed, throttle, brake, gear, RPM, DRS, the
 corner z-scores and the raw corner values (for sentences like "11 m later"), plus the team radio
-clip nearest after the lap. The DNA file averages each driver's 24-dimensional vector over every lap
+clip nearest after the lap. The DNA file averages each driver's 30-dimensional vector over every lap
 of the season, runs PCA to 3D, finds each driver's three closest matches by cosine similarity, and
-computes six plain-language traits scaled so the most extreme driver reaches ±1.
+computes seven plain-language traits scaled so the most extreme driver reaches ±1.
 
 ### 4.6 Final numbers
 
-Leave-one-circuit-out on 39 qualifying sessions (23 from 2025, 16 from 2026), 3,565 laps, 24 drivers.
+Leave-one-circuit-out on 40 qualifying sessions (23 from 2025, 17 from 2026), 3,673 laps, 24 drivers.
 18 practice 3 sessions from 2025 are used as extra training laps only.
 
 | Model | Top-1 driver | Top-3 driver | Right team | Log loss |
 |---|---|---|---|---|
 | Chance | 4.2% | 12.6% | about 9% | 3.18 |
-| Logistic regression (ships) | **31.7%** | **60.7%** | **45.5%** | 2.20 |
-| Gradient-boosted trees | 40.7% | 69.9% | 56.3% | 1.84 |
-| Cross-season (train 2025, test 2026) | 23.0% | 51.6% | 36.9% | |
+| Logistic regression (ships) | **34.4%** | **64.1%** | **49.2%** | 2.08 |
+| Gradient-boosted trees | 43.0% | 72.2% | 59.1% | 1.75 |
+| Cross-season (train 2025, test 2026) | 25.3% | 55.6% | 40.3% | |
 
 How the number moved during the night, and why:
 
@@ -191,12 +198,13 @@ How the number moved during the night, and why:
 | 23 sessions of 2025 | 37.3% |
 | + 16 sessions of 2026, leave-one-circuit-out, fair lap filter, 24 drivers | 31.9% |
 | + 18 practice sessions as training data | 31.7% |
+| + throttle ramp and partial-throttle features | 34.4% |
 
 The drop from 37% to 32% is the test getting harder, not the model getting worse: more drivers
 (24 instead of 21), a stricter holdout (the same circuit's other season is also held out), two very
 different generations of car, and the slower teams back in the data.
 
-Per session, Hungaroring is easiest (49% in 2026, 46% in 2025) and Melbourne 2026 hardest (14%, the
+Per session, Hungaroring is easiest (52% in 2026, 49% in 2025) and Melbourne 2026 hardest (13%, the
 first qualifying under the new rules; why it is so low was not investigated). Per driver, the easiest to
 spot include drivers in the most unusual cars (Pérez and Bottas at Cadillac), which is the car-vs-driver
 caveat again; the hardest are midfield drivers whose cars and styles sit near the field average.
@@ -258,7 +266,7 @@ over a quarter of a second; computing it from the held gear makes each shift ins
 
 ### 5.4 The model in the browser (`model.ts`)
 
-For each corner: build the 24-dimensional vector from the lap's stored z-scores, compute logits with
+For each corner: build the 30-dimensional vector from the lap's stored z-scores, compute logits with
 the session's fold weights, log-softmax over every class the model knows, keep the drivers in this
 session, add to a running log-probability per driver. The display divides by the temperature and
 normalises. Each step also yields: the drivers this corner pushed up most (relative to the average
@@ -352,7 +360,10 @@ listed in section 8. DESIGN.md records the shipped system.
    and needed corner detection for two circuits without published maps.
 8. Added the cross-season test, practice sessions as training data, driver "tells", challenge links,
    the telemetry lab, the floating track strip and HUD-aware labels.
-9. Recorded the demo video and screenshots with Playwright, checked the production build served
+9. Ran a feature ablation and added two throttle features. The first version reused a variable
+   name and silently overwrote the braking point; it was caught because the gain in the pipeline
+   (0.9 points) did not match the experiment (3.2 points), and fixed before shipping.
+10. Recorded the demo video and screenshots with Playwright, checked the production build served
    statically, ran the full test suite, and wrote this document.
 
 ## 8. Honest limits

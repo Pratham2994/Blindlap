@@ -47,7 +47,7 @@ test("driver DNA lets you switch drivers", async ({ page }) => {
   await page.goto("/#/dna/VER");
   const panel = page.locator(".dna-panel");
   await expect(panel.locator("h2")).toHaveText("VER");
-  await expect(panel.locator(".axis")).toHaveCount(6);
+  await expect(panel.locator(".axis")).toHaveCount(7);
   await panel.locator("select").selectOption("LEC");
   await expect(panel.locator("h2")).toHaveText("LEC");
 });

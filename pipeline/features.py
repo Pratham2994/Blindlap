@@ -21,7 +21,11 @@ FEATURES = [
     "throttle_point", # m after apex until throttle >= 95 %. + is later
     "min_throttle",   # lowest throttle in the zone (lift depth on flat corners)
     "coast",          # m with no throttle and no brake before the apex
+    "throttle_ramp",  # m from first throttle (>20 %) after the apex to full throttle. + is a slower squeeze
+    "partial_throttle",  # m spent between 20 % and 95 % throttle in the zone (modulation)
 ]
+# Gear at the apex was tried too: it adds about 4 points of accuracy, but it mostly identifies the
+# car's gearing rather than the driver, so it is left out.
 CORNER_CLASSES = ["slow", "medium", "fast"]
 
 
@@ -89,7 +93,13 @@ def corner_features(lap: Lap, c: Corner) -> np.ndarray:
     throttle_point = full - apex_s
 
     coast_mask = before & (thr < 5) & ~brk
-    coast = float(np.sum(np.diff(s, prepend=s[0])[coast_mask]))
+    ds = np.diff(s, prepend=s[0])
+    coast = float(np.sum(ds[coast_mask]))
+
+    pick_up = next((s_ for s_, t_ in zip(s[after], thr[after]) if t_ > 20), np.nan)
+    full_on = next((s_ for s_, t_ in zip(s[after], thr[after]) if t_ >= 95), np.nan)
+    ramp = full_on - pick_up if not (np.isnan(pick_up) or np.isnan(full_on)) else np.nan
+    partial = float(np.sum(ds[(thr > 20) & (thr < 95)]))
 
     return np.array([
         (on - c.s) if not np.isnan(on) else np.nan,
@@ -100,6 +110,8 @@ def corner_features(lap: Lap, c: Corner) -> np.ndarray:
         throttle_point,
         float(thr.min()),
         coast,
+        ramp,
+        partial,
     ])
 
 
@@ -119,7 +131,7 @@ def normalise(raw: np.ndarray):
     """
     med = np.nanmedian(raw, axis=0)
     mad = np.nanmedian(np.abs(raw - med), axis=0) * 1.4826
-    floors = np.array([6.0, 6.0, 2.0, 2.0, 6.0, 8.0, 3.0, 4.0])  # measurement noise floor per feature
+    floors = np.array([6.0, 6.0, 2.0, 2.0, 6.0, 8.0, 3.0, 4.0, 6.0, 8.0])  # measurement noise floor per feature
     scale = np.maximum(np.nan_to_num(mad, nan=0.0), floors)
     z = (raw - med) / scale
     braked = np.mean(~np.isnan(raw[:, :, 0]), axis=0) >= 0.5

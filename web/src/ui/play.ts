@@ -109,6 +109,7 @@ export class PlayView {
   private async newRound() {
     this.phase = "loading";
     this.radio?.pause();
+    this.radio = null;
     this.root.innerHTML = `<div class="countdown"><p class="caps load-note">Loading a lap…</p></div>`;
     const sessions = this.index.sessions;
     // A challenge link plays its lap first; after that the rounds are random again.
@@ -267,7 +268,7 @@ export class PlayView {
         while (this.nextCorner < corners.length) this.readCorner(this.nextCorner++);
         this.reveal();
       }
-      this.world.update(dt, smp.speed);
+      this.world.update(dt, smp.speed, smp.brake);
       return;
     }
     if (this.phase === "duel" && this.duel && !this.paused) {
@@ -372,6 +373,7 @@ export class PlayView {
   private showDailySummary() {
     const d = this.daily!;
     this.radio?.pause();
+    this.radio = null;
     this.phase = "reveal";
     this.engine.setVolume(false);
     this.root.classList.remove("revealed", "dueling");
@@ -491,7 +493,8 @@ export class PlayView {
     paint();
     // The reveal is the moment for the radio: play it after the engine fades.
     setTimeout(() => {
-      if (!this.disposed && this.radio === audio) void audio.play().catch(() => {});
+      // Only if the player is still looking at this reveal (not a new lap or the duel).
+      if (!this.disposed && this.radio === audio && this.phase === "reveal" && !this.duel) void audio.play().catch(() => {});
     }, 1400);
   }
 }
