@@ -91,3 +91,14 @@ test("a challenge link opens that exact lap without naming the driver", async ({
   await expect(page.locator(".hud-session .where")).toHaveText("Monza");
   expect(page.url()).not.toMatch(/[A-Z]{3}/);
 });
+
+test("telemetry lab overlays two drivers and explains each corner", async ({ page }) => {
+  await page.goto("/#/lab");
+  await expect(page.locator(".lab-chart .trace")).toHaveCount(2);
+  const corners = page.locator(".lab-corners li");
+  await expect(corners.first()).toContainText(/^T\d+/);
+  const a = page.locator("[data-k=a]");
+  const before = await page.locator(".lab-legend").innerText();
+  await a.selectOption({ index: 3 });
+  await expect(page.locator(".lab-legend")).not.toHaveText(before);
+});

@@ -986,6 +986,115 @@ body.playing .topbar nav {
   min-width: 18ch;
 }
 
+/* ---------- Telemetry lab ---------- */
+
+.prose.wide {
+  max-width: 1080px;
+}
+
+.lab-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 28px 0 8px;
+}
+
+.lab-controls label {
+  display: grid;
+  gap: 8px;
+  color: var(--ink-3);
+}
+
+.lab-controls select {
+  min-width: 200px;
+  padding: 11px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--rubber-3);
+  box-shadow: var(--deboss);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.lab-chart svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  background: var(--rubber-2);
+  border-radius: 18px;
+  box-shadow: var(--deboss);
+}
+
+.lab-chart .grid {
+  stroke: var(--groove);
+  stroke-width: 1;
+}
+
+.lab-chart .corner {
+  stroke: #232323;
+  stroke-width: 1;
+}
+
+.lab-chart .tick {
+  fill: var(--ink-3);
+  font-family: var(--face);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.lab-chart .trace {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.lab-chart .trace.a {
+  stroke: var(--hard);
+}
+
+.lab-chart .trace.b {
+  stroke: var(--ink-3);
+  stroke-dasharray: 5 4;
+}
+
+.lab-chart .brake.a {
+  fill: var(--wet);
+}
+
+.lab-chart .brake.b {
+  fill: var(--wet);
+  opacity: 0.5;
+}
+
+.lab-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.lab-legend b {
+  color: var(--ink);
+}
+
+.swatch {
+  display: inline-block;
+  width: 22px;
+  height: 3px;
+  margin-left: 8px;
+}
+
+.swatch.a {
+  background: var(--hard);
+}
+
+.swatch.b {
+  background: repeating-linear-gradient(90deg, var(--ink-3) 0 5px, transparent 5px 9px);
+}
+
 /* ---------- Pages (DNA, How) ---------- */
 
 .page {

@@ -7,6 +7,7 @@ import { dailyPlan, todayKey } from "./ui/daily";
 import { DnaView } from "./ui/dna";
 import { howView } from "./ui/how";
 import { icons } from "./ui/icons";
+import { LabView } from "./ui/lab";
 import { PlayView } from "./ui/play";
 
 interface View {
@@ -74,7 +75,7 @@ async function route() {
   const hash = location.hash.replace(/^#\/?/, "");
   const [name, arg] = hash.split("/");
   setNav(name === "daily" ? "play" : name || "home");
-  document.body.classList.toggle("reading", name === "how");
+  document.body.classList.toggle("reading", name === "how" || name === "lab");
   world.labelsOn = true;
   world.setFrameShift(0);
   try {
@@ -93,6 +94,8 @@ async function route() {
     } else if (name === "dna") {
       const [dna, careers] = await Promise.all([loadDna(), loadCareers()]);
       mount(new DnaView(world, dna, arg ?? null, careers));
+    } else if (name === "lab") {
+      mount(new LabView(index));
     } else if (name === "how") {
       const r = howView(index, await loadReport());
       mount({ root: r, frame: () => {} });
