@@ -10,10 +10,11 @@ export interface SessionSummary {
   length: number;
   corners: number;
   laps: number;
+  year: number;
 }
 
 export interface Index {
-  season: number;
+  seasons: number[];
   session: string;
   tau: number;
   features: string[];
@@ -80,8 +81,18 @@ export interface Session {
   laps: LapData[];
 }
 
-export interface Report {
-  [model: string]: {
+export interface CrossSeason {
+  train: number;
+  test: number;
+  laps: number;
+  drivers: number;
+  top1: number;
+  top3: number;
+  team: number;
+  chance: number;
+}
+
+export interface ModelReport {
     name: string;
     top1: number;
     top3: number;
@@ -93,7 +104,12 @@ export interface Report {
     classes: string[];
     sessions: { circuit: string; top1: number; laps: number }[];
     confusion: number[][];
-  };
+}
+
+export interface Report {
+  logreg: ModelReport;
+  gbm: ModelReport;
+  crossSeason?: CrossSeason;
 }
 
 export interface DnaDriver {
@@ -106,6 +122,7 @@ export interface DnaDriver {
   neighbours: string[];
   style: Record<string, number>;
   styleRaw?: Record<string, number>;
+  tells?: string[];
 }
 
 export interface Dna {

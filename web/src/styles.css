@@ -1058,6 +1058,24 @@ body.playing .topbar nav {
   transition: left 0.6s var(--ease-out), width 0.6s var(--ease-out);
 }
 
+.dna-panel .tells-h {
+  margin: 16px 0 6px;
+  color: var(--ink-3);
+}
+
+.tells {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tells li {
+  padding: 6px 0;
+  border-top: 1px solid var(--groove);
+  font-size: 0.85rem;
+  color: var(--ink);
+}
+
 .dna-panel .near {
   margin-top: 16px;
   color: var(--ink-3);
@@ -1272,6 +1290,19 @@ figcaption {
     height: 210px;
   }
   .lineup .hint {
+    display: none;
+  }
+  .hud.revealed .lineup {
+    display: none;
+  }
+  .reveal {
+    background: rgba(14, 14, 14, 0.97);
+  }
+  .reveal .stats {
+    flex-wrap: wrap;
+    gap: 14px 22px;
+  }
+  .dna-head p {
     display: none;
   }
   .topbar nav a {

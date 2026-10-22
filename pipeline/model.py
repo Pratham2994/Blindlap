@@ -135,6 +135,57 @@ def evaluate(sessions, labels, make_model, name):
                 chance=1 / len(classes), classes=classes, sessions=sess_acc, confusion=conf.tolist()), folds
 
 
+def year(sess) -> int:
+    return int(sess["session"]["date_start"][:4])
+
+
+def cross_season(sessions, labels, tau):
+    """Train on every 2025 session, guess every 2026 lap: does a driver's style survive new cars and
+    new rules? Only drivers who raced both seasons can be scored; candidates are the drivers of each
+    session the model knows."""
+    train = [s for s in sessions if year(s) == 2025]
+    test = [s for s in sessions if year(s) == 2026]
+    if not train or not test:
+        return None
+    X, y = [], []
+    for s in train:
+        Xs, _, ys = corner_rows(s)
+        m = np.isin(ys, labels)
+        X.append(Xs[m]); y.append(ys[m])
+    model = LogisticRegression(C=0.1, max_iter=3000, class_weight="balanced").fit(np.vstack(X), np.concatenate(y))
+    classes = list(model.classes_)
+    hits1 = hits3 = team_hits = n = 0
+    chance = 0.0
+    drivers = set()
+    for s in test:
+        Xs, li, _ = corner_rows(s)
+        scores = lap_scores(model.predict_proba(Xs), li, len(s["laps"]))
+        present = [c for c in classes if c in {acronym(s, d) for d in s["drivers"]}]
+        cols = [classes.index(c) for c in present]
+        tmap = {acronym(s, d): team(s, d) for d in s["drivers"]}
+        for i, lap in enumerate(s["laps"]):
+            truth = acronym(s, lap.driver)
+            if truth not in present:
+                continue
+            p = softmax(scores[i:i + 1, cols], tau)[0]
+            order = [present[j] for j in np.argsort(-p)]
+            hits1 += order[0] == truth
+            hits3 += truth in order[:3]
+            agg = defaultdict(float)
+            for c, pc in zip(present, p):
+                agg[tmap[c]] += pc
+            team_hits += max(agg, key=lambda k: agg[k]) == tmap[truth]
+            n += 1
+            chance += 1 / len(present)
+            drivers.add(truth)
+    if not n:
+        return None
+    out = {"train": len(train), "test": len(test), "laps": n, "drivers": len(drivers),
+           "top1": hits1 / n, "top3": hits3 / n, "team": team_hits / n, "chance": chance / n}
+    print(f"   cross: 2025 -> 2026 laps={n} top1={out['top1']:.3f} top3={out['top3']:.3f} team={out['team']:.3f}")
+    return out
+
+
 def main():
     sessions = load_sessions()
     counts = Counter()
@@ -153,6 +204,9 @@ def main():
         lambda: HistGradientBoostingClassifier(max_iter=150, learning_rate=0.06, max_leaf_nodes=15,
                                                class_weight="balanced", random_state=0), "gbm")
     results["gbm"] = gb_report
+    cross = cross_season(sessions, labels, lr_report["tau"])
+    if cross:
+        results["crossSeason"] = cross
 
     out = Path(__file__).parent / "model_out"
     out.mkdir(exist_ok=True)

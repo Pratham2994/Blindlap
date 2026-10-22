@@ -13,7 +13,7 @@ export function howView(index: Index, report: Report): HTMLElement {
   root.innerHTML = `
   <article class="prose">
     <h1 class="display">How it<br>knows</h1>
-    <p>Every lap in Blind Lap is a real push lap from 2025 qualifying. The name, number and livery are gone. What is left is ${index.features.length} numbers per corner that describe how the car was driven through it, and the model has to find the driver in those.</p>
+    <p>Every lap in Blind Lap is a real push lap from ${index.seasons.join(" or ")} qualifying. The name, number and livery are gone. What is left is ${index.features.length} numbers per corner that describe how the car was driven through it, and the model has to find the driver in those.</p>
 
     <div class="scoreboard num">
       <div><b>${pct(lr.top1)}</b><span>laps where the model's first guess is the driver <span class="vs">· chance ${pct(lr.chance)}</span></span></div>
@@ -32,6 +32,17 @@ export function howView(index: Index, report: Report): HTMLElement {
       <li><b>Corner type</b><span>Corners are sorted into slow, medium and fast by the field's apex speed, and features go into a separate block per type. Drivers do not brake for a hairpin the way they lift for a sweeper.</span></li>
       <li><b>Model</b><span>A multinomial logistic regression gives P(driver | corner). A lap's guess adds up the log-probabilities of its corners, divided by a temperature of ${lr.tau.toFixed(1)} learnt on held-out laps, because the corners of one lap are not independent witnesses.</span></li>
     </ol>
+
+    ${
+      report.crossSeason
+        ? `<h2>New cars, same drivers</h2>
+    <p>2026 brought new cars and new rules. A model trained only on ${report.crossSeason.train} sessions of 2025 was asked to name the driver of ${report.crossSeason.laps} push laps from ${report.crossSeason.test} sessions of 2026, ${report.crossSeason.drivers} drivers who raced both years. It named the right driver on <strong>${pct(report.crossSeason.top1)}</strong> of laps and had them in its top three on <strong>${pct(report.crossSeason.top3)}</strong> (chance ${pct(report.crossSeason.chance)}). ${
+            report.crossSeason.top1 > 2 * report.crossSeason.chance
+              ? "Part of a driver's style survives a change of car."
+              : "Style learnt in one car carries over to the next only weakly."
+          }</p>`
+        : ""
+    }
 
     <h2>Why a simple model</h2>
     <p>A gradient-boosted tree model on the same features scores <strong>${pct(gb.top1)}</strong> top-1 and <strong>${pct(gb.top3)}</strong> top-3, against <strong>${pct(lr.top1)}</strong> and <strong>${pct(lr.top3)}</strong> for logistic regression. The linear model is ${gb.top1 > lr.top1 ? "slightly behind" : "as good or better"}, and it can say why: every corner's push toward a driver is a sum of weight × feature, which is exactly what the evidence line in the game shows. It is also a few kilobytes of weights, so it runs in your browser.</p>

@@ -490,9 +490,13 @@ export class World {
     for (const l of this.labels) {
       const ahead = (((l.s - this.carS) % L) + L) % L;
       l.sprite.visible = overview || ahead < (this.mode === "heli" ? 1400 : 650);
-      // Captioned labels are wider; anchor them on the corner number, not the middle.
-      l.sprite.scale.set(size * l.aspect, size, 1);
-      l.sprite.center.set(1 / l.aspect, 0.5);
+      // Captioned labels are wider; anchor them on the corner number, not the middle. The overview
+      // shows only the number (the left quarter of a captioned texture) so the map stays readable.
+      const aspect = overview ? 2 : l.aspect;
+      const map = (l.sprite.material as THREE.SpriteMaterial).map;
+      if (map) map.repeat.set(aspect / l.aspect, 1);
+      l.sprite.scale.set(size * aspect, size, 1);
+      l.sprite.center.set(1 / aspect, 0.5);
     }
   }
 

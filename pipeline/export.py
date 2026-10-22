@@ -7,7 +7,9 @@ from pathlib import Path
 import numpy as np
 
 from features import CORNER_CLASSES, FEATURES
-from model import acronym, load_sessions
+from sklearn.linear_model import LogisticRegression
+
+from model import acronym, corner_rows, load_sessions
 from track import ts
 
 ROOT = Path(__file__).parent
@@ -94,6 +96,43 @@ def export_session(sess, fold, labels):
     return out
 
 
+TELL_TEXT = {
+    "brake_point": ("brakes later", "brakes earlier"),
+    "brake_length": ("brakes for longer", "brakes for less distance"),
+    "entry_speed": ("arrives faster", "arrives slower"),
+    "apex_speed": ("carries more apex speed", "carries less apex speed"),
+    "apex_offset": ("takes a later apex", "takes an earlier apex"),
+    "throttle_point": ("waits longer for full throttle", "gets to full throttle sooner"),
+    "min_throttle": ("lifts less", "lifts more"),
+    "coast": ("coasts more", "coasts less"),
+}
+
+
+def driver_tells(sessions, labels):
+    """The three weights that most raise each driver's probability in a model trained on every lap,
+    turned into phrases like "brakes later in slow corners"."""
+    X, y = [], []
+    for s in sessions:
+        Xs, _, ys = corner_rows(s)
+        m = np.isin(ys, sorted(labels))
+        X.append(Xs[m]); y.append(ys[m])
+    model = LogisticRegression(C=0.1, max_iter=3000, class_weight="balanced").fit(np.vstack(X), np.concatenate(y))
+    W = model.coef_ - model.coef_.mean(axis=0)  # relative to the average driver
+    tells = {}
+    for k, code in enumerate(model.classes_):
+        out = []
+        for j in np.argsort(-np.abs(W[k])):
+            f, cls = FEATURES[j % len(FEATURES)], CORNER_CLASSES[j // len(FEATURES)]
+            phrase = TELL_TEXT[f][0 if W[k, j] > 0 else 1]
+            text = f"{phrase} in {cls} corners"
+            if text not in out:
+                out.append(text)
+            if len(out) == 3:
+                break
+        tells[code] = out
+    return tells
+
+
 def driver_dna(sessions, labels):
     """Average style vector per driver (24 dims: 8 features x 3 corner classes), PCA to 3D."""
     sums = defaultdict(lambda: np.zeros((3, len(FEATURES))))
@@ -110,6 +149,7 @@ def driver_dna(sessions, labels):
                 sums[code][cls] += s["z"][i, c]
                 counts[code][cls] += 1
     codes = sorted(sums)
+    tells = driver_tells(sessions, labels)
     M = np.stack([(sums[c] / np.maximum(counts[c], 1)).ravel() for c in codes])
     Mc = M - M.mean(axis=0)
     _, S, Vt = np.linalg.svd(Mc, full_matrices=False)
@@ -138,7 +178,7 @@ def driver_dna(sessions, labels):
         "loadings": loadings,
         "drivers": [
             {"code": c, "name": teams[c][2], "team": teams[c][0], "colour": teams[c][1], "pos": r(P[i], 3),
-             "vector": r(M[i], 3), "neighbours": neighbours[c],
+             "vector": r(M[i], 3), "neighbours": neighbours[c], "tells": tells.get(c, []),
              "style": {k: round(float(v[i]), 3) for k, v in axes_scaled.items()},
              "styleRaw": {k: round(float(v[i]), 3) for k, v in axes.items()}}
             for i, c in enumerate(codes)
@@ -158,11 +198,11 @@ def main():
             continue
         out = export_session(s, folds["weights"][sk], labels)
         index.append({k: out[k] for k in ("key", "circuit", "country", "location", "date", "meeting", "length")}
-                     | {"corners": len(out["corners"]), "laps": len(out["laps"])})
+                     | {"corners": len(out["corners"]), "laps": len(out["laps"]), "year": int(out["date"][:4])})
         print(f"exported {sk} {out['circuit']}: {len(out['laps'])} laps")
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "index.json").write_text(json.dumps({
-        "season": 2025, "session": "Qualifying", "tau": folds["tau"], "features": FEATURES,
+        "seasons": sorted({e["year"] for e in index}), "session": "Qualifying", "tau": folds["tau"], "features": FEATURES,
         "cornerClasses": CORNER_CLASSES, "classes": folds["weights"][next(iter(folds["weights"]))]["classes"],
         "sessions": index,
     }, separators=(",", ":")))

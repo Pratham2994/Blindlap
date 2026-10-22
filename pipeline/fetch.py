@@ -1,9 +1,10 @@
-"""Download raw 2025 qualifying data from OpenF1 and corner maps from MultiViewer.
+"""Download raw qualifying data (2025 by default, BLINDLAP_YEAR=2026 for the current season) from OpenF1 and corner maps from MultiViewer.
 
 Everything lands in raw/<session_key>/ as plain JSON so later steps never touch the network.
 Re-running skips files that already exist.
 """
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -13,7 +14,7 @@ import requests
 OPENF1 = "https://api.openf1.org/v1/"
 MULTIVIEWER = "https://api.multiviewer.app/api/v1/circuits/{key}/{year}"
 RAW = Path(__file__).parent / "raw"
-YEAR = 2025
+YEAR = int(os.environ.get("BLINDLAP_YEAR", "2025"))
 
 session = requests.Session()
 session.headers["User-Agent"] = "blindlap-pipeline/0.1"
@@ -46,8 +47,11 @@ def get_json(url, params=None, tries=6):
 
 
 def save(path: Path, data):
+    """Write via a temp file so an interrupted run never leaves a truncated JSON behind."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, separators=(",", ":")))
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, separators=(",", ":")))
+    tmp.replace(path)
 
 
 def fetch_session(s):
@@ -80,6 +84,8 @@ def fetch_session(s):
 
 def main():
     sessions = get_json(OPENF1 + "sessions", {"year": YEAR, "session_name": "Qualifying"})
+    now = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime())
+    sessions = [s for s in sessions if not s.get("is_cancelled") and s["date_end"][:19] < now]
     only = set(sys.argv[1:])
     for s in sessions:
         if only and s["circuit_short_name"] not in only:

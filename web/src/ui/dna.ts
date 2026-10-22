@@ -63,7 +63,7 @@ export class DnaView {
         <p>Every driver's average corner, scored against the field: where they brake, how much speed they carry, when they get back on the power. Drivers who sit close together attack corners alike.</p>
       </div>
       <aside class="dna-panel" aria-live="polite"></aside>
-      <p class="dna-legend">Drag to turn. Select a driver to read their style. The three directions shown hold ${pct}% of the differences between drivers; lines join each driver to their closest match. Built from 2025 qualifying, push laps only.</p>`;
+      <p class="dna-legend">Drag to turn. Select a driver to read their style. The three directions shown hold ${pct}% of the differences between drivers; lines join each driver to their closest match. Built from qualifying push laps.</p>`;
     this.panel = this.root.querySelector(".dna-panel")!;
 
     this.scene.background = new THREE.Color("#0e0e0e");
@@ -168,6 +168,7 @@ export class DnaView {
       <p class="caps team">${d.name} · ${d.team}</p>
       ${this.careers.drivers[code] ? `<p class="career num">${careerLine(this.careers.drivers[code])}</p>` : ""}
       ${axes}
+      ${d.tells?.length ? `<p class="caps tells-h">What gives ${d.code} away</p><ul class="tells">${d.tells.map((t) => `<li>${t.charAt(0).toUpperCase() + t.slice(1)}</li>`).join("")}</ul>` : ""}
       <p class="near">Drives most like <b>${d.neighbours.join("</b>, <b>")}</b>. The centre line is the field average; bars are scaled so the most extreme driver on each trait reaches the edge.</p>
       <label class="caps" style="display:block;margin-top:14px;color:var(--ink-3)">Jump to
         <select style="margin-top:6px;width:100%;padding:10px;border-radius:12px;background:var(--rubber-3);color:var(--ink);border:0;font:inherit;text-transform:none;letter-spacing:0">${options}</select>

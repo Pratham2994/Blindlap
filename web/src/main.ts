@@ -53,7 +53,7 @@ async function titleView(): Promise<View> {
   root.className = "title";
   root.innerHTML = `
     <h1 class="display">Blind<br>Lap</h1>
-    <p class="lede">A real 2025 qualifying lap with the name taken off. A model reads how the car takes each corner and guesses who is driving. So do you.</p>
+    <p class="lede">A real ${index.seasons.join(" or ")} qualifying lap with the name taken off. A model reads how the car takes each corner and guesses who is driving. So do you.</p>
     <div class="actions">
       <a class="btn primary" href="#/play">${icons.play} Start a lap</a>
       <a class="btn" href="#/daily">Daily five</a>

@@ -58,7 +58,7 @@ export class TyreGauge {
     const text = el("text", { class: "ring-text" }, svg);
     const tp = el("textPath", { href: "#ringPath", startOffset: "0" }, text);
     const km = (session.length / 1000).toFixed(3);
-    tp.textContent = `BLIND LAP · ${session.circuit.toUpperCase()} · 2025 QUALIFYING · ${km} KM · ${session.corners.length} CORNERS · WHO IS DRIVING ·`;
+    tp.textContent = `BLIND LAP · ${session.circuit.toUpperCase()} · ${session.date.slice(0, 4)} QUALIFYING · ${km} KM · ${session.corners.length} CORNERS · WHO IS DRIVING ·`;
 
     // The lap band.
     el("circle", { cx: C, cy: C, r: BAND, fill: "none", stroke: "#070707", "stroke-width": 13 }, svg);

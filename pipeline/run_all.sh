@@ -4,7 +4,7 @@ set -e
 cd "$(dirname "$0")"
 PY=.venv/Scripts/python.exe
 [ -x "$PY" ] || PY=.venv/bin/python
-KEYS=$(grep '^done' fetch.log | awk '{print $2}' | sort -u)
+KEYS=$(cat fetch*.log | grep '^done' | awk '{print $2}' | sort -u)
 $PY build.py $KEYS 2>&1 | grep -v -e RuntimeWarning -e nanmedian
 $PY model.py
 $PY export.py
