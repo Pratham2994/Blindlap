@@ -1,0 +1,104 @@
+// The in-browser half of the model. pipeline/model.py trains one logistic regression per held-out
+// session; this file runs it corner by corner and turns each step into a sentence a fan can read.
+import type { Index, LapData, Session } from "./data";
+
+export interface Guess {
+  code: string;
+  p: number;
+}
+
+export interface Evidence {
+  corner: number; // index into session.corners
+  label: string; // "T7"
+  sentence: string; // "braked 11 m later than the field"
+  movers: string[]; // drivers this corner pushed up the most
+  deltas: Record<string, number>; // how much this corner moved each driver, vs the average driver
+  feature: string;
+}
+
+const FEATURE_TEXT: Record<string, (d: number) => string | null> = {
+  brake_point: (d) => (Math.abs(d) < 3 ? null : `braked ${Math.abs(d).toFixed(0)} m ${d > 0 ? "later" : "earlier"} than the field`),
+  brake_length: (d) => (Math.abs(d) < 3 ? null : `stayed on the brake ${Math.abs(d).toFixed(0)} m ${d > 0 ? "longer" : "less"}`),
+  entry_speed: (d) => (Math.abs(d) < 1 ? null : `arrived ${Math.abs(d).toFixed(0)} km/h ${d > 0 ? "faster" : "slower"}`),
+  apex_speed: (d) => (Math.abs(d) < 1 ? null : `carried ${Math.abs(d).toFixed(0)} km/h ${d > 0 ? "more" : "less"} through the apex`),
+  apex_offset: (d) => (Math.abs(d) < 3 ? null : `hit the slowest point ${Math.abs(d).toFixed(0)} m ${d > 0 ? "later" : "earlier"}`),
+  throttle_point: (d) => (Math.abs(d) < 3 ? null : `went to full throttle ${Math.abs(d).toFixed(0)} m ${d > 0 ? "later" : "earlier"}`),
+  min_throttle: (d) => (Math.abs(d) < 3 ? null : d > 0 ? `lifted ${Math.abs(d).toFixed(0)}% less` : `lifted ${Math.abs(d).toFixed(0)}% more`),
+  coast: (d) => (Math.abs(d) < 3 ? null : `coasted ${Math.abs(d).toFixed(0)} m ${d > 0 ? "more" : "less"}`),
+};
+
+export class Guesser {
+  readonly codes: string[]; // candidates: drivers in this session the model knows
+  private cls: number[]; // index of each candidate in the model's classes
+  private logp: Float64Array;
+  seen = 0;
+
+  constructor(
+    private session: Session,
+    private index: Index,
+  ) {
+    const inSession = new Set(Object.values(session.drivers).map((d) => d.code));
+    this.codes = session.model.classes.filter((c) => inSession.has(c));
+    this.cls = this.codes.map((c) => session.model.classes.indexOf(c));
+    this.logp = new Float64Array(this.codes.length);
+  }
+
+  reset() {
+    this.logp.fill(0);
+    this.seen = 0;
+  }
+
+  /** Feed one corner of the lap; returns what it said. */
+  ingest(lap: LapData, c: number): Evidence {
+    const { W, b } = this.session.model;
+    const nf = this.index.features.length;
+    const corner = this.session.corners[c];
+    const z = lap.z[c];
+    const x = new Float64Array(nf * this.index.cornerClasses.length);
+    for (let f = 0; f < nf; f++) x[corner.cls * nf + f] = z[f];
+
+    // Softmax over every class the model knows, then keep candidates only.
+    const logits = W.map((row, k) => row.reduce((acc, w, j) => acc + w * x[j], b[k]));
+    const m = Math.max(...logits);
+    const lse = m + Math.log(logits.reduce((acc, l) => acc + Math.exp(l - m), 0));
+    const step = this.cls.map((k) => logits[k] - lse);
+    const mean = step.reduce((a, v) => a + v, 0) / step.length;
+    step.forEach((v, i) => (this.logp[i] += v));
+    this.seen++;
+
+    const deltas: Record<string, number> = {};
+    step.forEach((v, i) => (deltas[this.codes[i]] = v - mean));
+    const movers = Object.keys(deltas)
+      .sort((a, b) => deltas[b] - deltas[a])
+      .slice(0, 3);
+
+    return { corner: c, label: `T${corner.n}`, movers, deltas, ...this.describe(lap, c) };
+  }
+
+  /** The single most unusual thing the driver did at this corner, in words. */
+  describe(lap: LapData, c: number): { sentence: string; feature: string } {
+    const feats = this.index.features;
+    const corner = this.session.corners[c];
+    const order = feats
+      .map((f, k) => ({ f, k, z: Math.abs(lap.z[c][k]) }))
+      .filter((o) => corner.braked || o.k > 2)
+      .sort((a, b) => b.z - a.z);
+    for (const o of order) {
+      const raw = lap.raw[c][o.k];
+      const med = this.session.field.med[c][o.k];
+      if (raw == null || med == null) continue;
+      const text = FEATURE_TEXT[o.f]?.(raw - med);
+      if (text) return { sentence: text, feature: o.f };
+    }
+    return { sentence: "took it exactly like the field", feature: "" };
+  }
+
+  guesses(): Guess[] {
+    const tau = this.index.tau;
+    const a = Array.from(this.logp, (v) => v / tau);
+    const m = Math.max(...a);
+    const e = a.map((v) => Math.exp(v - m));
+    const sum = e.reduce((acc, v) => acc + v, 0);
+    return this.codes.map((code, i) => ({ code, p: e[i] / sum })).sort((x, y) => y.p - x.p);
+  }
+}

@@ -1,0 +1,17 @@
+# Python
+pipeline/.venv/
+pipeline/raw/
+pipeline/build/
+pipeline/model_out/folds.pkl
+pipeline/fetch.log
+__pycache__/
+pipeline/_t.py
+
+# Web
+web/node_modules/
+web/dist/
+
+# Tooling
+.impeccable/review/
+.impeccable/mocks/
+*.log

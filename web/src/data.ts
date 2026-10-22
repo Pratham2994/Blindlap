@@ -1,0 +1,135 @@
+// Shapes of the JSON written by pipeline/export.py, and cached loaders for them.
+
+export interface SessionSummary {
+  key: number;
+  circuit: string;
+  country: string;
+  location: string;
+  date: string;
+  meeting: string | null;
+  length: number;
+  corners: number;
+  laps: number;
+}
+
+export interface Index {
+  season: number;
+  session: string;
+  tau: number;
+  features: string[];
+  cornerClasses: string[];
+  classes: string[];
+  sessions: SessionSummary[];
+}
+
+export interface CornerZone {
+  n: number;
+  s: number;
+  lo: number;
+  hi: number;
+  cls: number;
+  braked: boolean;
+}
+
+export interface DriverInfo {
+  code: string;
+  name: string;
+  team: string;
+  colour: string;
+}
+
+export interface LapData {
+  id: string;
+  driver: number;
+  code: string;
+  lapNumber: number;
+  lapTime: number;
+  t: number[];
+  s: number[];
+  v: number[];
+  thr: number[];
+  brk: number[];
+  gear: number[];
+  rpm: number[];
+  drs: number[];
+  z: number[][];
+  raw: (number | null)[][];
+  radio: string | null;
+}
+
+export interface FoldModel {
+  W: number[][];
+  b: number[];
+  classes: string[];
+}
+
+export interface Session {
+  key: number;
+  circuit: string;
+  country: string;
+  location: string;
+  date: string;
+  meeting: string | null;
+  rotation: number;
+  length: number;
+  track: { step: number; x: number[]; y: number[]; z: number[] };
+  corners: CornerZone[];
+  field: { med: (number | null)[][]; scale: number[][] };
+  drivers: Record<string, DriverInfo>;
+  model: FoldModel;
+  laps: LapData[];
+}
+
+export interface Report {
+  [model: string]: {
+    name: string;
+    top1: number;
+    top3: number;
+    team: number;
+    tau: number;
+    nll: number;
+    laps: number;
+    chance: number;
+    classes: string[];
+    sessions: { circuit: string; top1: number; laps: number }[];
+    confusion: number[][];
+  };
+}
+
+export interface DnaDriver {
+  code: string;
+  name: string;
+  team: string;
+  colour: string;
+  pos: [number, number, number];
+  vector: number[];
+  neighbours: string[];
+  style: Record<string, number>;
+}
+
+export interface Dna {
+  explained: number[];
+  loadings: { feature: string; pc: number[] }[];
+  drivers: DnaDriver[];
+}
+
+const base = `${import.meta.env.BASE_URL}data/`;
+const cache = new Map<string, Promise<unknown>>();
+
+function get<T>(path: string): Promise<T> {
+  if (!cache.has(path)) {
+    cache.set(
+      path,
+      fetch(base + path).then((r) => {
+        if (!r.ok) throw new Error(`Could not load ${path} (${r.status})`);
+        return r.json();
+      }),
+    );
+  }
+  return cache.get(path) as Promise<T>;
+}
+
+export const loadIndex = () => get<Index>("index.json");
+export const loadSession = (key: number) => get<Session>(`sessions/${key}.json`);
+export const loadReport = () => get<Report>("report.json");
+export const loadDna = () => get<Dna>("dna.json");

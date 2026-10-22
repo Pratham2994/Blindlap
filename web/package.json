@@ -1,0 +1,22 @@
+{
+  "name": "blindlap",
+  "version": "1.0.0",
+  "description": "Guess the F1 driver from telemetry alone",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "type": "module",
+  "dependencies": {
+    "@fontsource-variable/archivo": "^5.3.0",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.170.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5"
+  },
+  "private": true
+}

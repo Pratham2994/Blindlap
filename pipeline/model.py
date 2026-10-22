@@ -1,0 +1,169 @@
+"""Train and honestly evaluate the "who is driving?" model.
+
+Each corner of a lap is one sample. A multinomial logistic regression turns a corner's style
+features into P(driver | corner). A lap's guess is the product over corners (naive Bayes over
+corners), softened by a temperature because corners of one lap are not independent.
+
+Evaluation is leave-one-session-out: the model that guesses laps at Monza never saw Monza. The
+browser uses exactly these per-session folds, so the game is as honest as the report.
+"""
+import json
+import pickle
+from collections import Counter, defaultdict
+from pathlib import Path
+
+import numpy as np
+from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.linear_model import LogisticRegression
+
+from features import CORNER_CLASSES, FEATURES, expand
+
+BUILD = Path(__file__).parent / "build"
+MIN_SESSIONS = 4
+
+
+def load_sessions():
+    out = []
+    for p in sorted(BUILD.glob("*.pkl")):
+        out.append(pickle.loads(p.read_bytes()))
+    out.sort(key=lambda d: d["session"]["date_start"])
+    return out
+
+
+def acronym(sess, num):
+    return sess["drivers"][num]["name_acronym"]
+
+
+def team(sess, num):
+    return sess["drivers"][num]["team_name"]
+
+
+def corner_rows(sess):
+    """Rows for every (lap, corner): X (n x 24), lap index, label."""
+    X, lap_idx, y = [], [], []
+    for i, lap in enumerate(sess["laps"]):
+        for c, cls in enumerate(sess["classes"]):
+            X.append(expand(sess["z"][i, c], cls))
+            lap_idx.append(i)
+            y.append(acronym(sess, lap.driver))
+    return np.array(X), np.array(lap_idx), np.array(y)
+
+
+def lap_scores(proba_rows, lap_idx, n_laps):
+    """Sum of log P(driver | corner) for each lap."""
+    logp = np.log(np.clip(proba_rows, 1e-6, 1))
+    out = np.zeros((n_laps, proba_rows.shape[1]))
+    np.add.at(out, lap_idx, logp)
+    return out
+
+
+def softmax(a, tau):
+    a = a / tau
+    a = a - a.max(axis=1, keepdims=True)
+    e = np.exp(a)
+    return e / e.sum(axis=1, keepdims=True)
+
+
+def evaluate(sessions, labels, make_model, name):
+    per_session = []
+    all_scores, all_truth, all_team_truth, all_team_maps = [], [], [], []
+    folds = {}
+    for k, held in enumerate(sessions):
+        Xtr, ytr = [], []
+        for j, s in enumerate(sessions):
+            if j == k:
+                continue
+            X, _, y = corner_rows(s)
+            m = np.isin(y, labels)
+            Xtr.append(X[m]); ytr.append(y[m])
+        model = make_model()
+        model.fit(np.vstack(Xtr), np.concatenate(ytr))
+        folds[held["session"]["session_key"]] = model
+
+        X, li, y = corner_rows(held)
+        scores = lap_scores(model.predict_proba(X), li, len(held["laps"]))
+        truth = [acronym(held, l.driver) for l in held["laps"]]
+        keep = np.array([t in labels for t in truth])
+        all_scores.append(scores[keep])
+        all_truth += [t for t, kk in zip(truth, keep) if kk]
+        # Team of each candidate driver in this session (drivers can change team mid-season).
+        tmap = {acronym(held, n): team(held, n) for n in held["drivers"]}
+        all_team_maps += [tmap] * int(keep.sum())
+        all_team_truth += [team(held, l.driver) for l, kk in zip(held["laps"], keep) if kk]
+        per_session.append((held["session"]["circuit_short_name"], scores[keep], [t for t, kk in zip(truth, keep) if kk]))
+
+    classes = list(folds[next(iter(folds))].classes_)
+    S = np.vstack(all_scores)
+    truth_idx = np.array([classes.index(t) for t in all_truth])
+
+    # Temperature that minimises held-out log loss.
+    best_tau, best_nll = 1.0, 1e9
+    for tau in np.geomspace(0.5, 40, 60):
+        P = softmax(S, tau)
+        nll = -np.mean(np.log(P[np.arange(len(P)), truth_idx] + 1e-12))
+        if nll < best_nll:
+            best_tau, best_nll = float(tau), float(nll)
+    P = softmax(S, best_tau)
+    rank = (-P).argsort(axis=1)
+    top1 = float(np.mean(rank[:, 0] == truth_idx))
+    top3 = float(np.mean([t in r[:3] for t, r in zip(truth_idx, rank)]))
+
+    # Team accuracy: sum driver probabilities by the team they drove for in that session.
+    team_hits = 0
+    for p, tmap, tt in zip(P, all_team_maps, all_team_truth):
+        agg = defaultdict(float)
+        for ci, c in enumerate(classes):
+            if c in tmap:
+                agg[tmap[c]] += p[ci]
+        team_hits += max(agg, key=lambda k: agg[k]) == tt
+    team_acc = team_hits / len(P)
+
+    sess_acc = []
+    for name_, sc, tr in per_session:
+        if not tr:
+            continue
+        pr = softmax(sc, best_tau).argmax(axis=1)
+        sess_acc.append({"circuit": name_, "top1": float(np.mean([classes[i] == t for i, t in zip(pr, tr)])), "laps": len(tr)})
+
+    # Confusion between drivers (row = truth, column = top guess).
+    conf = np.zeros((len(classes), len(classes)), dtype=int)
+    for t, r in zip(truth_idx, rank[:, 0]):
+        conf[t, r] += 1
+
+    print(f"{name:>8}: laps={len(P)} top1={top1:.3f} top3={top3:.3f} team={team_acc:.3f} tau={best_tau:.2f} nll={best_nll:.3f}")
+    return dict(name=name, top1=top1, top3=top3, team=team_acc, tau=best_tau, nll=best_nll, laps=len(P),
+                chance=1 / len(classes), classes=classes, sessions=sess_acc, confusion=conf.tolist()), folds
+
+
+def main():
+    sessions = load_sessions()
+    counts = Counter()
+    for s in sessions:
+        counts.update({acronym(s, l.driver) for l in s["laps"]})
+    labels = sorted(d for d, c in counts.items() if c >= MIN_SESSIONS)
+    print(f"{len(sessions)} sessions, {len(labels)} drivers: {' '.join(labels)}")
+
+    results = {}
+    lr_report, lr_folds = evaluate(
+        sessions, labels,
+        lambda: LogisticRegression(C=0.05, max_iter=3000, class_weight="balanced"), "logreg")
+    results["logreg"] = lr_report
+    gb_report, _ = evaluate(
+        sessions, labels,
+        lambda: HistGradientBoostingClassifier(max_iter=150, learning_rate=0.06, max_leaf_nodes=15,
+                                               class_weight="balanced", random_state=0), "gbm")
+    results["gbm"] = gb_report
+
+    out = Path(__file__).parent / "model_out"
+    out.mkdir(exist_ok=True)
+    (out / "report.json").write_text(json.dumps(results, indent=1))
+    weights = {
+        str(sk): {"W": np.round(m.coef_, 4).tolist(), "b": np.round(m.intercept_, 4).tolist(), "classes": list(m.classes_)}
+        for sk, m in lr_folds.items()
+    }
+    (out / "folds.pkl").write_bytes(pickle.dumps({"weights": weights, "tau": lr_report["tau"], "labels": labels,
+                                                 "features": FEATURES, "corner_classes": CORNER_CLASSES}))
+
+
+if __name__ == "__main__":
+    main()
