@@ -258,7 +258,7 @@ export class PlayView {
       .join("");
     switcher.addEventListener("click", (e) => {
       const b = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-model]");
-      if (!b || this.phase === "reveal" || this.phase === "duel") return;
+      if (!b || this.phase === "loading" || this.phase === "lights") return;
       PlayView.model = b.dataset.model!;
       this.guesser.useModel(PlayView.model, this.lap);
       this.lineup.update(this.guesser.guesses(), this.guesser.seen);

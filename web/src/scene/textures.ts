@@ -136,3 +136,25 @@ export function labelTexture(text: string, colour = "#f2f2f2", note?: string, ma
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
+
+/** A trackside distance board: black numerals on white, like the real 150/100/50 boards. */
+export function boardTexture(text: string): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 256;
+  c.height = 168;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#f4f4f2";
+  g.fillRect(0, 0, 256, 168);
+  g.lineWidth = 10;
+  g.strokeStyle = "#111";
+  g.strokeRect(5, 5, 246, 158);
+  g.fillStyle = "#111";
+  g.font = `900 104px "Archivo Variable", sans-serif`;
+  (g as CanvasRenderingContext2D & { fontStretch: string }).fontStretch = "expanded";
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  g.fillText(text, 128, 90);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}

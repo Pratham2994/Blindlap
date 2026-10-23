@@ -133,4 +133,9 @@ test("three models: switch mid-lap and compare them on the reveal", async ({ pag
   await expect.poll(async () => (await page.locator(".lineup .row .pct").allTextContents()).join()).not.toBe(before.join());
   await expect(page.locator(".reveal")).toBeVisible({ timeout: 90_000 });
   await expect(page.locator(".model-table tbody tr")).toHaveCount(3);
+  // Switching still works after the reveal, and the real driver stays marked.
+  const atReveal = (await page.locator(".lineup .row .pct").allTextContents()).join();
+  await switcher.filter({ hasText: "Forest" }).click();
+  await expect.poll(async () => (await page.locator(".lineup .row .pct").allTextContents()).join()).not.toBe(atReveal);
+  await expect(page.locator(".lineup .row.truth")).toHaveCount(1);
 });

@@ -7,7 +7,7 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import type { LapData, Session } from "../data";
 import { makeF1Car } from "./car";
-import { asphaltTexture, labelTexture, sidewallTextures } from "./textures";
+import { asphaltTexture, boardTexture, labelTexture, sidewallTextures } from "./textures";
 
 export const COMPOUND = {
   soft: new THREE.Color("#e8312a"),
@@ -21,6 +21,9 @@ export const COMPOUND = {
 const HAZE = new THREE.Color().setRGB(0.022, 0.022, 0.023, THREE.LinearSRGBColorSpace);
 
 const REDUCED_MOTION = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+
+const BARRIER_LIGHT = "#e9e7e2";
+const BARRIER_DARK = "#1c1c1c";
 
 const ELEVATION = 2; // vertical exaggeration so hills read from the chase camera
 const TRACK_WIDTH = 13;
@@ -64,6 +67,8 @@ export class World {
   private shift = 0;
   private dip = 0;
   private ghostS = 0;
+  private lastSpeed: number | null = null;
+  private accel = 0; // smoothed km/h per second
   private fov = 52;
   carS = 0;
 
@@ -212,7 +217,13 @@ export class World {
     this.frame = { pos, tan, side, s, length: session.length };
     this.radius = Math.max(...pos.map((p) => Math.hypot(p.x, p.z)));
 
-    this.trackGroup.add(this.buildGround(session), this.buildStrip(), this.buildKerbs(session));
+    this.trackGroup.add(
+      this.buildGround(session),
+      this.buildStrip(),
+      this.buildKerbs(session),
+      this.buildBarriers(),
+      this.buildBrakeBoards(session),
+    );
     for (const [k, c] of session.corners.entries()) {
       const sprite = new THREE.Sprite(
         new THREE.SpriteMaterial({ map: labelTexture(`T${c.n}`), transparent: true, opacity: 0.55, depthWrite: false }),
@@ -339,6 +350,72 @@ export class World {
   }
 
   /** Striped kerbs on the inside of every corner, hard white and rubber grey. */
+  /** Low barrier blocks along both sides of the whole lap, alternating colour. They are what the
+   * eye reads speed from: at 300 km/h one passes every 70 ms. */
+  private buildBarriers(): THREE.Group {
+    const f = this.frame!;
+    const g = new THREE.Group();
+    const spacing = 6;
+    const count = Math.floor(f.length / spacing);
+    const geo = new THREE.BoxGeometry(spacing - 0.4, 0.9, 0.5);
+    const makeSet = (colour: THREE.ColorRepresentation) => {
+      const mesh = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ color: colour, roughness: 0.6 }), count);
+      mesh.castShadow = false;
+      mesh.receiveShadow = true;
+      return mesh;
+    };
+    const light = makeSet(BARRIER_LIGHT);
+    const dark = makeSet(BARRIER_DARK);
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const up = new THREE.Vector3(0, 1, 0);
+    let nl = 0;
+    let nd = 0;
+    for (let k = 0; k < count; k++) {
+      const s = k * spacing + spacing / 2;
+      const p = this.pointAt(s);
+      const t = this.headingAt(s);
+      q.setFromAxisAngle(up, Math.atan2(-t.z, t.x));
+      for (const sign of [1, -1]) {
+        const at = p.clone().addScaledVector(this.sideAt(s), sign * (TRACK_WIDTH / 2 + 3.2)).setY(p.y + 0.45);
+        m.compose(at, q, new THREE.Vector3(1, 1, 1));
+        if (k % 2 === 0) light.setMatrixAt(nl++, m);
+        else dark.setMatrixAt(nd++, m);
+      }
+    }
+    light.count = nl;
+    dark.count = nd;
+    g.add(light, dark);
+    return g;
+  }
+
+  /** 150, 100 and 50 m boards before every heavy-braking corner, on the outside. The numbers are
+   * the true distance to the corner marker. */
+  private buildBrakeBoards(session: Session): THREE.Group {
+    const g = new THREE.Group();
+    const textures = new Map<number, THREE.CanvasTexture>();
+    for (const [k, c] of session.corners.entries()) {
+      const brakePoint = session.field.med[k]?.[0];
+      if (!c.braked || brakePoint == null || brakePoint > -60) continue;
+      const turn = this.turnSign(c.s);
+      for (const d of [150, 100, 50]) {
+        const s = c.s - d;
+        if (!textures.has(d)) textures.set(d, boardTexture(String(d)));
+        const board = new THREE.Mesh(
+          new THREE.PlaneGeometry(2.6, 1.7),
+          new THREE.MeshStandardMaterial({ map: textures.get(d), roughness: 0.7 }),
+        );
+        const p = this.pointAt(s);
+        const t = this.headingAt(s);
+        board.position.copy(p).addScaledVector(this.sideAt(s), -turn * (TRACK_WIDTH / 2 + 5)).setY(p.y + 2.2);
+        // Face the cars coming towards it.
+        board.rotation.y = Math.atan2(-t.z, t.x) - Math.PI / 2;
+        g.add(board);
+      }
+    }
+    return g;
+  }
+
   private buildKerbs(session: Session): THREE.Group {
     const g = new THREE.Group();
     const mats = [
@@ -545,7 +622,12 @@ export class World {
     if (this.mode === "chase") {
       // Look further ahead the faster the car goes, so slow hairpins keep the car in frame.
       const ahead = this.pointAt(this.carS + 10 + speedKmh * 0.08);
-      const back = 16 + speedKmh * 0.02;
+      // The camera falls back as the car accelerates and surges in under braking, so changes in
+      // speed are felt, not only read off the gauge.
+      const accel = this.lastSpeed === null ? 0 : (speedKmh - this.lastSpeed) / Math.max(dt, 1e-3);
+      this.accel += (accel - this.accel) * Math.min(dt * 4, 1);
+      this.lastSpeed = speedKmh;
+      const back = 16 + speedKmh * 0.02 + Math.max(-6, Math.min(5, this.accel * 0.05));
       want = p.clone().addScaledVector(t, -back).setY(p.y + 5 + speedKmh * 0.006);
       // Under braking the nose dips and the view tips forward a little.
       this.dip += ((braking ? 1 : 0) - this.dip) * Math.min(dt * 6, 1);
@@ -598,7 +680,7 @@ export class World {
     this.camera.position.copy(this.camPos);
     this.camera.lookAt(this.camLook);
     // The view widens with speed on board, so 330 km/h feels faster than 80.
-    const wantFov = this.mode === "chase" && !REDUCED_MOTION ? 52 + Math.min(speedKmh, 340) * 0.03 : 52;
+    const wantFov = this.mode === "chase" && !REDUCED_MOTION ? 50 + Math.min(speedKmh, 340) * 0.055 : 52;
     this.fov += (wantFov - this.fov) * Math.min(dt * 3, 1);
     if (Math.abs(this.camera.fov - this.fov) > 0.01) {
       this.camera.fov = this.fov;

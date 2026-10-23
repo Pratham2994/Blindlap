@@ -888,8 +888,8 @@ body.playing .topbar nav {
   overflow-wrap: anywhere;
 }
 
-.hud.revealed [data-pause] {
-  visibility: hidden;
+.hud.revealed .seg:has([data-pause]) {
+  display: none;
 }
 
 .reveal .team {
