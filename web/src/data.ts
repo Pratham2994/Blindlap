@@ -169,6 +169,13 @@ export const loadIndex = () => get<Index>("index.json");
 export const loadSession = (key: number) => get<Session>(`sessions/${key}.json`);
 export const loadReport = () => get<Report>("report.json");
 export const loadDna = () => get<Dna>("dna.json");
+/** Where speech starts in each team radio clip (they often open with seconds of silence). */
+export interface RadioClip {
+  start: number;
+  duration: number;
+  lines?: { t0: number; t1: number; text: string }[];
+}
+export const loadRadio = () => get<Record<string, RadioClip>>("radio.json").catch(() => ({}) as Record<string, RadioClip>);
 // Optional second dataset: an empty set keeps the game working if the file is missing.
 export const loadCareers = () => get<Careers>("careers.json").catch((): Careers => ({ source: "", drivers: {} }));
 

@@ -700,6 +700,24 @@ body.playing .topbar nav {
   border-radius: 2px;
 }
 
+.hud.paused::after {
+  content: "Paused  B7  Space to resume";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 14px 22px;
+  border-radius: 999px;
+  background: rgba(14, 14, 14, 0.9);
+  box-shadow: var(--lift);
+  font-weight: 800;
+  font-variation-settings: "wdth" 120;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.8rem;
+  pointer-events: none;
+}
+
 /* ---------- Reveal ---------- */
 
 .hud .tyre,
@@ -930,6 +948,23 @@ body.playing .topbar nav {
   border-radius: 50%;
   box-shadow: var(--deboss);
   flex: none;
+}
+
+.radio-caption {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  margin: 10px 4px 0;
+  min-height: 1.4em;
+  color: var(--ink-2);
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.radio-caption .caps {
+  flex: none;
+  color: var(--ink-3);
+  font-size: 0.62rem;
 }
 
 .radio .label {
@@ -1667,6 +1702,23 @@ figcaption {
   border-radius: 50%;
   box-shadow: var(--deboss);
   flex: none;
+}
+
+.radio-caption {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  margin: 10px 4px 0;
+  min-height: 1.4em;
+  color: var(--ink-2);
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.radio-caption .caps {
+  flex: none;
+  color: var(--ink-3);
+  font-size: 0.62rem;
 }
 
 .radio .label {
