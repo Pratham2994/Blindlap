@@ -62,10 +62,12 @@ web/  Vite + TypeScript + Three.js + Web Audio
    survives a change of circuit.
 4. **Models.** Features go into one block per corner type (slow, medium, fast). Three classifiers each
    give P(driver | corner): gradient-boosted trees, a random forest and a multinomial logistic
-   regression. A lap sums log-probabilities over its corners with a temperature fitted on held-out
-   laps. Evaluation is leave-one-circuit-out across both seasons: the model that guesses at Monza
-   never saw Monza in any year. All three are computed offline and their per-corner scores are
-   exported, so in the game you can switch model mid-lap or after the reveal and compare them.
+   regression; a blend averages the three in log space, each on its own fitted temperature. A lap
+   sums log-probabilities over its corners with a temperature fitted on held-out laps. Evaluation is
+   leave-one-circuit-out across both seasons: the model that guesses at Monza never saw Monza in any
+   year. The game offers the blend, the boosted trees and logistic regression (the forest only feeds
+   the blend); their per-corner scores are computed offline, so you can switch model mid-lap or after
+   the reveal. `compare_models.py` tested more candidates the same way (see docs/OVERVIEW.md).
 5. **Front end.** A bold race-poster design: paper, heavy black type, one F1-red block, and the
    3D circuit as a framed picture. On track, red and white barriers and brake boards give a sense of
    speed, and the chase camera pulls back under acceleration and closes in under braking. The car's
@@ -82,12 +84,13 @@ drivers. Read live from `pipeline/model_out/report.json` and shown on the How it
 | Model | Top-1 driver | Top-3 driver | Right team | Right teammate |
 |---|---|---|---|---|
 | Chance | 4.2% | 12.6% | about 9% | 50% |
-| Gradient-boosted trees | **42.9%** | **72.6%** | **58.7%** | **73.5%** |
-| Random forest | 40.3% | 68.6% | 56.4% | 69.6% |
+| Blend of the three below | **44.4%** | **74.1%** | **59.8%** | **74.2%** |
+| Gradient-boosted trees | 42.9% | 72.6% | 58.7% | 73.5% |
+| Random forest (in the blend only) | 40.3% | 68.6% | 56.4% | 69.6% |
 | Logistic regression | 34.7% | 64.2% | 49.1% | 71.4% |
 | Cross-season (logistic): trained on 2025 only, tested on 2026 laps | 25.4% | 55.6% | 40.3% | |
 
-- The best model is right about 10 times as often as picking at random, on circuits it never saw.
+- The blend is right about 10 times as often as picking at random, on circuits it never saw.
 - **Style survives new cars.** Trained only on 2025, it still names the driver of a 2026 lap 25% of the
   time against 5% chance, under new regulations and, for some drivers, a new team.
 - **It is not just recognising the car.** Given the car, the models pick the right one of the two

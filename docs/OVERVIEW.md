@@ -457,6 +457,7 @@ captures; they were not re-scored by the reviewer.
 | A better car | The car is now "( FREE ) Formula One LP-830 SDC" by SDC PERFORMANCE (CC BY 4.0, credited in the README and on the How page), a fictional modern F1 car. Its textures (a logo livery and a branded tyre wall) are dropped by `web/scripts/prep-car.mjs`; the paint is recoloured in the game. The built car stays as a fallback while it loads or if it fails. |
 | The car bobs as if the road were bumpy | The recorded heights jump by up to 1.2 m between 4 m samples, and the 2x exaggeration doubled that. Heights are now smoothed over about 85 m and exaggerated 1.25x. |
 | Braking and throttle feel stop-start; 300 km/h does not feel fast | Measured: the chase camera moved up to 11 m against the car when braking began (a relative speed of 74 km/h), so the car looked as if it stopped dead. The camera distance now depends on speed only: low and close (about 13 m back, 3.3 m up at 300 km/h), with a wider field of view at speed and catch-fence posts every 12 m. Measured again: at most 6 km/h relative movement. |
+| Volume, and moving back and forward in the lap | A volume slider beside the Sound button sets the engine and the team radio, and is remembered. The lap bar is a slider: drag it, use the −5 s / +5 s buttons, or the arrow keys. Going forward, the corners passed are read as if driven. Going back, corners after the new place are forgotten (the model's guess, the marks on the track, the ticks on the bar), so the model is never ahead of the car. |
 | Show when and where the lap was set | `pipeline/results.py` downloads each session's result from OpenF1 and works out the Q1/Q2/Q3 boundaries (a vote over every driver's best segment laps and the laps of drivers already knocked out, so a red flag inside Q1 is not taken for the break). The reveal shows, for example, "Saturday 5 April 2025 · Qualifying Q3 · their best Q3 lap · took pole". |
 
 ### Model comparison (`pipeline/compare_models.py`)
@@ -480,3 +481,9 @@ Differences under about 1.5 points are within noise: laps from one session are n
 Tuning the boosted trees did not help. The neural net does no better than logistic regression on
 30 features. Lap-level models lose because they get one training row per lap instead of one per
 corner, 15 to 20 times fewer. The best result is an average of the three models already in the game.
+
+The owner chose what the game shows: the blend, the boosted trees and logistic regression (the
+readable one, which matches the evidence sentences). The random forest stays in training because the
+blend needs it, but it left the switch. `model.py` builds the blend the same way as here: each base
+model's per-corner log-probabilities divided by its fitted temperature, averaged, renormalised per
+corner, then scored and temperature-fitted like any other model (44.4% top-1).

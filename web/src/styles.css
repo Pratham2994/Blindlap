@@ -930,6 +930,7 @@ a.mode.quick:hover p {
 .tm-lap-head {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   color: var(--ink-3);
   margin-bottom: 8px;
 }
@@ -960,6 +961,103 @@ a.mode.quick:hover p {
   height: 6px;
   margin-left: -1px;
   background: var(--ink-3);
+}
+
+/* The lap bar is also a slider: a transparent range input over it, with a red handle. */
+.tm-seek {
+  position: absolute;
+  left: 0;
+  top: -9px;
+  width: 100%;
+  height: 30px;
+  margin: 0;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.tm-seek::-webkit-slider-runnable-track {
+  height: 30px;
+  background: transparent;
+}
+
+.tm-seek::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 6px;
+  height: 30px;
+  background: var(--red);
+  border: 0;
+}
+
+.tm-seek::-moz-range-track {
+  background: transparent;
+}
+
+.tm-seek::-moz-range-thumb {
+  width: 6px;
+  height: 30px;
+  background: var(--red);
+  border: 0;
+  border-radius: 0;
+}
+
+.tm-seek:disabled {
+  cursor: default;
+}
+
+.tm-seek:disabled::-webkit-slider-thumb {
+  background: transparent;
+}
+
+.tm-seek:disabled::-moz-range-thumb {
+  background: transparent;
+}
+
+.tm-jump {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: auto;
+  margin-right: 12px;
+}
+
+.tm-jump button {
+  border: 2px solid var(--ink);
+  background: var(--paper);
+  padding: 2px 7px;
+  font-weight: 800;
+  font-variation-settings: "wdth" 112;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+}
+
+.tm-jump button:hover:not(:disabled) {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.tm-jump button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.volume {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: var(--rule);
+  background: var(--paper);
+}
+
+.volume span {
+  font-size: 0.66rem;
+  color: var(--ink-2);
+}
+
+.volume input {
+  width: 90px;
+  accent-color: var(--ink);
 }
 
 .tm-rule .tick.read {

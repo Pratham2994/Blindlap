@@ -1,7 +1,7 @@
 // One round: lights out, an anonymous lap, the model reading corners, your guess, the reveal.
 // Layout: a bar with the way back, the framed stage, the ranking column, and a band underneath
 // that carries the telemetry during the lap and becomes the reveal afterwards.
-import { gearRatios, EngineSynth } from "../audio/engine";
+import { gearRatios, EngineSynth, VOLUME_KEY } from "../audio/engine";
 import type { DriverInfo, Index, LapData, Session, SessionResult } from "../data";
 import { careerLine, loadCareers, loadRadio, loadResults, loadSession } from "../data";
 import { formatLapTime, LapPlayer } from "../lap";
@@ -25,7 +25,7 @@ interface Score {
 
 const SCORE_KEY = "blindlap.score.v1";
 const SPEED_KEY = "blindlap.speed.v1";
-const SHORT_MODEL: Record<string, string> = { gbm: "Boosted trees", forest: "Random forest", logreg: "Logistic" };
+const SHORT_MODEL: Record<string, string> = { blend: "Blend", gbm: "Boosted trees", forest: "Random forest", logreg: "Logistic" };
 
 function readScore(key = SCORE_KEY): Score {
   try {
@@ -244,7 +244,19 @@ export class PlayView {
           <button type="button" data-cam="heli" aria-pressed="false" title="From above (C)">${icons.heli}<span>Above</span></button>
         </div>
         <button type="button" class="ctl" data-sound aria-pressed="${!this.engine.muted}" aria-label="Engine sound">${this.engine.muted ? icons.soundOff : icons.soundOn}<span>Sound</span></button>
+        <label class="volume"><span class="caps">Vol</span><input type="range" min="0" max="100" step="1" value="${Math.round(this.engine.volume * 100)}" aria-label="Volume"></label>
       </div>`;
+    // One level for the engine and the team radio, remembered between visits.
+    bar.querySelector<HTMLInputElement>(".volume input")!.addEventListener("input", (e) => {
+      const v = Number((e.target as HTMLInputElement).value) / 100;
+      this.engine.setVolume(v);
+      if (this.radio) this.radio.volume = v;
+      try {
+        localStorage.setItem(VOLUME_KEY, String(v));
+      } catch {
+        /* ignore */
+      }
+    });
     bar.querySelector(".controls")!.addEventListener("click", (e) => {
       const b = (e.target as HTMLElement).closest("button");
       if (!b) return;
@@ -302,12 +314,13 @@ export class PlayView {
 
     this.band = document.createElement("section");
     this.band.className = "band";
-    this.telemetry = new Telemetry(s);
+    this.telemetry = new Telemetry(s, this.player.duration, (t) => this.seekTo(t));
+    this.telemetry.setSeekable(false);
     const ev = document.createElement("div");
     ev.className = "evidence";
     ev.setAttribute("aria-live", "polite");
-    ev.innerHTML = `<span class="t">${icons.flag}</span><span class="what">The models read every corner as the car leaves it.</span><span class="who"></span>`;
     this.band.append(this.telemetry.root, ev);
+    this.showEvidence(null);
 
     this.root.append(bar, stage, side, this.band);
     dockStage(stage.querySelector(".stage-slot"));
@@ -321,7 +334,10 @@ export class PlayView {
   }
 
   private onKey(e: KeyboardEvent) {
-    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+    // Keys typed into a field belong to it; sliders (lap bar, volume) still let Space and the arrows
+    // control the lap, or Space could not resume after a seek.
+    const t = e.target;
+    if (t instanceof HTMLSelectElement || (t instanceof HTMLInputElement && t.type !== "range")) return;
     if (e.key === " ") {
       // Space always means pause here: stop the browser from also "pressing" whatever button
       // has focus (a driver row, a speed button), which used to change the guess or the speed.
@@ -332,12 +348,14 @@ export class PlayView {
       this.setCamera(this.world.mode === "chase" ? "heli" : "chase");
     } else if (e.key === "Escape") {
       location.hash = "#/";
+    } else if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && this.phase === "lap") {
+      e.preventDefault();
+      this.seekTo(this.t + (e.key === "ArrowLeft" ? -5 : 5));
     } else if (e.key === "Enter" && this.phase === "reveal") {
       void this.newRound();
     }
   }
 
-  /** How each of the three models ranked the real driver after the whole lap. */
   /** "Saturday 5 April 2025 · Q3 · their best Q3 lap · qualified P1": when and where in qualifying
    * the lap was set, and how the driver's session ended. Parts without data are left out. */
   private sessionLine(result: SessionResult | undefined): string {
@@ -361,6 +379,7 @@ export class PlayView {
     return parts.map((p) => `<span>${p}</span>`).join(" · ");
   }
 
+  /** How each of the three models ranked the real driver after the whole lap. */
   private modelTable(truth: string): string {
     const only = this.mates ? this.guesser.codes : undefined;
     const rows = this.index.models.map((m) => {
@@ -396,6 +415,7 @@ export class PlayView {
       this.engine.update(lit >= 5 ? 9000 + Math.random() * 1500 : 4200 + lit * 300, lit >= 5 ? 40 : 4, 0, 1);
       if (now >= this.goAt) {
         this.root.querySelector(".countdown")?.remove();
+        this.telemetry.setSeekable(true);
         this.phase = "lap";
         this.root.dataset.phase = "lap";
       }
@@ -433,13 +453,46 @@ export class PlayView {
     this.world.markEvidence(i, c.lo, c.hi, ev.short);
     this.telemetry.markCorner(i);
     this.lineup.update(this.guesser.guesses(), this.guesser.seen);
+    this.showEvidence(ev, true);
+  }
+
+  private showEvidence(ev: Evidence | null, flash = false) {
     const box = this.root.querySelector(".evidence") as HTMLElement | null;
-    if (box) {
-      box.innerHTML = `<span class="t">${ev.label}</span><span class="what">${capitalise(ev.sentence)}</span><span class="who caps">points to ${ev.movers.map((m) => `<b>${m}</b>`).join(" ")}</span>`;
+    if (!box) return;
+    box.innerHTML = ev
+      ? `<span class="t">${ev.label}</span><span class="what">${capitalise(ev.sentence)}</span><span class="who caps">points to ${ev.movers.map((m) => `<b>${m}</b>`).join(" ")}</span>`
+      : `<span class="t">${icons.flag}</span><span class="what">The models read every corner as the car leaves it.</span><span class="who"></span>`;
+    if (flash) {
       box.classList.remove("flash");
       void box.offsetWidth;
       box.classList.add("flash");
     }
+  }
+
+  /** Jump to time t in the lap. Going forward, the frame loop reads the corners passed, as if the
+   * car had driven them. Going back, corners after the new place are forgotten (the guess, the
+   * marks on track and the ticks), so the model is never ahead of the car. */
+  private seekTo(t: number) {
+    if (this.phase !== "lap") return;
+    this.t = Math.max(0, Math.min(t, this.player.duration - 0.05));
+    const smp = this.player.at(this.t);
+    const corners = this.session.corners;
+    let n = 0;
+    while (n < corners.length && smp.s > corners[n].hi) n++;
+    if (n < this.nextCorner) {
+      for (let i = n; i < this.nextCorner; i++) {
+        this.world.unmarkEvidence(i, corners[i].lo, corners[i].hi);
+        this.telemetry.unmarkCorner(i);
+      }
+      this.guesser.rewind(n, this.lap);
+      this.evidence = this.evidence.filter((e) => e.corner < n);
+      this.nextCorner = n;
+      this.lineup.update(this.guesser.guesses(), this.guesser.seen);
+      this.showEvidence(this.evidence[this.evidence.length - 1] ?? null);
+    }
+    // While paused the loop does not move the car, so place it here.
+    this.world.setCarS(smp.s);
+    this.telemetry.update(smp.s, this.t, smp.speed, smp.gear, smp.throttle, smp.brake);
   }
 
   private driverOf(code: string): DriverInfo {
@@ -647,6 +700,7 @@ export class PlayView {
 
   private async setupRadio(box: HTMLElement, url: string) {
     const audio = new Audio(url);
+    audio.volume = this.engine.volume;
     audio.preload = "auto";
     this.radio = audio;
     // Start where the speech starts; many clips open with seconds of silence.

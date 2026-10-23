@@ -12,8 +12,14 @@ export class Telemetry {
   private progress: HTMLElement;
   private clock: HTMLElement;
   private ticks: HTMLElement[] = [];
+  private seek: HTMLInputElement;
 
-  constructor(private session: Session) {
+  /** onSeek(t) is called when the visitor drags the lap bar or jumps 5 s back or forward. */
+  constructor(
+    private session: Session,
+    duration: number,
+    onSeek: (t: number) => void,
+  ) {
     this.root = document.createElement("div");
     this.root.className = "telemetry";
     this.root.innerHTML = `
@@ -24,10 +30,17 @@ export class Telemetry {
         <span class="caps">Brake</span><i class="meter brk"><em data-k="brk"></em></i>
       </div>
       <div class="tm-lap">
-        <div class="tm-lap-head caps"><span>Lap</span><span class="num" data-k="clock">0:00.000</span></div>
+        <div class="tm-lap-head caps">
+          <span>Lap</span>
+          <span class="tm-jump">
+            <button type="button" data-jump="-5" aria-label="Back 5 seconds">−5 s</button>
+            <button type="button" data-jump="5" aria-label="Forward 5 seconds">+5 s</button>
+          </span>
+          <span class="num" data-k="clock">0:00.000</span>
+        </div>
         <div class="tm-rule"><em data-k="progress"></em>${session.corners
           .map((c) => `<span class="tick" style="left:${(c.s / session.length) * 100}%" title="Turn ${c.n}"></span>`)
-          .join("")}</div>
+          .join("")}<input class="tm-seek" type="range" min="0" max="${duration}" step="0.05" value="0" aria-label="Position in the lap"></div>
       </div>`;
     const q = (k: string) => this.root.querySelector<HTMLElement>(`[data-k=${k}]`)!;
     this.speed = q("speed");
@@ -37,6 +50,17 @@ export class Telemetry {
     this.progress = q("progress");
     this.clock = q("clock");
     this.ticks = [...this.root.querySelectorAll<HTMLElement>(".tick")];
+    this.seek = this.root.querySelector<HTMLInputElement>(".tm-seek")!;
+    this.seek.addEventListener("input", () => onSeek(Number(this.seek.value)));
+    this.root.querySelectorAll<HTMLButtonElement>("[data-jump]").forEach((b) =>
+      b.addEventListener("click", () => onSeek(Number(this.seek.value) + Number(b.dataset.jump))),
+    );
+  }
+
+  /** The bar is a slider only during the lap; after the flag it is a plain record of it. */
+  setSeekable(on: boolean) {
+    this.seek.disabled = !on;
+    this.root.querySelectorAll<HTMLButtonElement>("[data-jump]").forEach((b) => (b.disabled = !on));
   }
 
   update(s: number, t: number, speed: number, gear: number, throttle: number, brake: boolean) {
@@ -46,9 +70,15 @@ export class Telemetry {
     this.brk.style.width = brake ? "100%" : "0%";
     this.progress.style.width = `${Math.max(0, Math.min(1, s / this.session.length)) * 100}%`;
     this.clock.textContent = formatLapTime(Math.max(0, t));
+    // Follow the lap, except while the visitor is holding the slider.
+    if (!this.seek.matches(":active")) this.seek.value = String(t);
   }
 
   markCorner(i: number) {
     this.ticks[i]?.classList.add("read");
+  }
+
+  unmarkCorner(i: number) {
+    this.ticks[i]?.classList.remove("read");
   }
 }

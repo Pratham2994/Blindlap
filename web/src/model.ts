@@ -79,6 +79,13 @@ export class Guesser {
     for (const c of corners) this.step(lap, c);
   }
 
+  /** Seeking back: forget every corner after the first n read, as if the car had not reached them. */
+  rewind(n: number, lap: LapData) {
+    const keep = this.read.slice(0, n);
+    this.reset();
+    for (const c of keep) this.step(lap, c);
+  }
+
   /** Add one corner's held-out log-probabilities; returns each candidate's change vs the average. */
   private step(lap: LapData, c: number): number[] {
     const row = lap.steps[this.model][c];

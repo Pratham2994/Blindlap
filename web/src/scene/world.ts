@@ -635,6 +635,30 @@ export class World {
     }
   }
 
+  /** Seeking back: undo markEvidence for a corner the car has not reached again. */
+  unmarkEvidence(cornerIndex: number, lo: number, hi: number) {
+    if (this.line) {
+      const a = this.line.geometry.getAttribute("aKeep") as THREE.BufferAttribute;
+      const s = this.line.geometry.getAttribute("aS") as THREE.BufferAttribute;
+      for (let i = 0; i < a.count; i++) {
+        const v = s.getX(i);
+        if (v >= lo && v <= hi) a.setX(i, 0);
+      }
+      a.needsUpdate = true;
+    }
+    const l = this.labels[cornerIndex];
+    if (l && l.read) {
+      const m = l.sprite.material as THREE.SpriteMaterial;
+      l.read = false;
+      l.note = undefined;
+      l.aspect = 2;
+      m.map?.dispose();
+      m.map = labelTexture(`T${l.n}`, this.labelInk);
+      m.opacity = 0.55;
+      m.needsUpdate = true;
+    }
+  }
+
   revealLine(on: boolean) {
     if (this.line) this.line.material.uniforms.uReveal.value = on ? 1 : 0;
   }

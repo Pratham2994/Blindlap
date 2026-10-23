@@ -30,7 +30,8 @@ def pick_radio(radios, lap_end):
     return min(pool, key=lambda x: abs(x[0] - lap_end))[1]
 
 
-MODELS = {"gbm": "Gradient-boosted trees", "forest": "Random forest", "logreg": "Logistic regression"}
+# The models the game offers. Random forest is trained too, but only feeds the blend.
+MODELS = {"blend": "Blend of three", "gbm": "Gradient-boosted trees", "logreg": "Logistic regression"}
 
 
 def export_session(sess, classes, held, labels):

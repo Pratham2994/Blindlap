@@ -59,6 +59,34 @@ test("dark mode switches the page and is remembered", async ({ page }) => {
   await expect(page.getByRole("button", { name: /switch to light mode/i })).toHaveText("Light");
 });
 
+test("the lap bar seeks, the model forgets corners behind it, and volume is remembered", async ({ page }) => {
+  await page.goto("/#/play/9908");
+  const count = page.locator("[data-k=count]");
+  const read = async () => Number((await count.textContent())!.split(" ")[0]);
+  await expect.poll(read, { timeout: 40_000 }).toBeGreaterThanOrEqual(4);
+  await page.keyboard.press("Space");
+  const seek = page.locator(".tm-seek");
+
+  // Back to the start: every corner is un-read, on the grid and on the lap bar.
+  await seek.fill("0.5");
+  await expect(count).toHaveText("0 corners read");
+  await expect(page.locator(".tm-rule .tick.read")).toHaveCount(0);
+
+  // Forward again: the corners passed are read once the lap runs.
+  await seek.fill((Number(await seek.getAttribute("max")) * 0.6).toFixed(1));
+  await page.keyboard.press("Space");
+  await expect.poll(read).toBeGreaterThanOrEqual(5);
+  const before = Number(await seek.inputValue());
+  await page.getByRole("button", { name: "Back 5 seconds" }).click();
+  expect(Number(await seek.inputValue())).toBeLessThan(before);
+
+  const volume = page.getByRole("slider", { name: "Volume" });
+  await volume.fill("30");
+  expect(await page.evaluate(() => localStorage.getItem("blindlap.volume.v1"))).toBe("0.3");
+  await page.reload();
+  await expect(page.getByRole("slider", { name: "Volume" })).toHaveValue("30");
+});
+
 test("driver DNA lets you switch drivers", async ({ page }) => {
   await page.goto("/#/dna/VER");
   const panel = page.locator(".dna-panel");
@@ -151,7 +179,7 @@ test("three models: switch mid-lap and compare them on the reveal", async ({ pag
   await expect(page.locator(".model-table tbody tr")).toHaveCount(3);
   // Switching still works after the reveal, and the real driver stays marked.
   const atReveal = (await page.locator(".lineup .row .pct").allTextContents()).join();
-  await switcher.filter({ hasText: "Forest" }).click();
+  await switcher.filter({ hasText: "Boosted" }).click();
   await expect.poll(async () => (await page.locator(".lineup .row .pct").allTextContents()).join()).not.toBe(atReveal);
   await expect(page.locator(".lineup .row.truth")).toHaveCount(1);
 });

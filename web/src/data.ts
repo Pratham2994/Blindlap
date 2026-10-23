@@ -14,7 +14,7 @@ export interface SessionSummary {
 }
 
 export interface ModelInfo {
-  id: string; // "gbm" | "forest" | "logreg"
+  id: string; // "blend" | "gbm" | "logreg"
   name: string;
   tau: number;
   top1: number;
@@ -115,6 +115,7 @@ export interface ModelReport {
 }
 
 export interface Report {
+  blend: ModelReport;
   logreg: ModelReport;
   forest: ModelReport;
   gbm: ModelReport;

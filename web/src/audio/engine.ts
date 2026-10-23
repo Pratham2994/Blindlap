@@ -21,6 +21,17 @@ function softClip(amount: number): Float32Array<ArrayBuffer> {
   return curve;
 }
 
+export const VOLUME_KEY = "blindlap.volume.v1";
+
+function storedVolume(): number {
+  try {
+    const v = Number(localStorage.getItem(VOLUME_KEY));
+    return localStorage.getItem(VOLUME_KEY) !== null && v >= 0 && v <= 1 ? v : 0.8;
+  } catch {
+    return 0.8;
+  }
+}
+
 export class EngineSynth {
   private ctx: AudioContext | null = null;
   private master!: GainNode;
@@ -35,6 +46,8 @@ export class EngineSynth {
   private lastThrottle = 0;
   private lastGear = 0;
   muted = false;
+  /** The player's volume, 0 to 1. Separate from mute and from whether a lap is running. */
+  volume = storedVolume();
 
   /** Must be called from a user gesture. */
   start() {
@@ -129,11 +142,16 @@ export class EngineSynth {
     this.apply(0.15);
   }
 
+  setVolume(v: number) {
+    this.volume = Math.max(0, Math.min(1, v));
+    this.apply(0.05);
+  }
+
   private apply(fade: number) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
     this.master.gain.cancelScheduledValues(t);
-    this.master.gain.setTargetAtTime(this.active && !this.muted ? 0.55 : 0, t, fade / 3);
+    this.master.gain.setTargetAtTime(this.active && !this.muted ? 0.7 * this.volume : 0, t, fade / 3);
   }
 
   /** Stop all audio processing while the tab is hidden; the browser stops drawing frames then,

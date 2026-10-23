@@ -64,17 +64,18 @@ def softmax(a, tau):
     return e / e.sum(axis=1, keepdims=True)
 
 
+def circuit(s):
+    return s["session"]["circuit_short_name"]
+
+
 def evaluate(sessions, labels, make_model, name, keep_models=False):
     """Leave-one-circuit-out evaluation. Returns the report, the fitted fold models (only when
     keep_models, since tree ensembles are large) and every held-out probability, per session, as
     an array of laps x corners x classes, which the game replays instead of running the model."""
-    per_session = []
     probs = {}
-    all_scores, all_truth, all_team_truth, all_team_maps = [], [], [], []
     folds = {}
     # Leave one circuit out: every year of the held-out circuit leaves training together, so the
     # model never saw the track it is guessing on.
-    circuit = lambda s: s["session"]["circuit_short_name"]
     rows = {s["session"]["session_key"]: corner_rows(s) for s in sessions}
     classes = None
     for c in sorted({circuit(s) for s in sessions}):
@@ -93,10 +94,32 @@ def evaluate(sessions, labels, make_model, name, keep_models=False):
             sk = held["session"]["session_key"]
             if keep_models:
                 folds[sk] = model
-            X, li, y = rows[sk]
-            proba = model.predict_proba(X)
-            probs[sk] = proba.reshape(len(held["laps"]), len(held["classes"]), -1).astype(np.float32)
-            scores = lap_scores(proba, li, len(held["laps"]))
+            X, _, _ = rows[sk]
+            probs[sk] = model.predict_proba(X).reshape(len(held["laps"]), len(held["classes"]), -1).astype(np.float32)
+    return summarize(sessions, labels, probs, classes, name), folds, probs
+
+
+def blend(probs, taus):
+    """Average several models in log space, each on its own fitted temperature, and renormalise
+    every corner. A lap's score is then the blend's sum over corners, exactly as for one model."""
+    out = {}
+    for sk in probs[next(iter(probs))]:
+        logp = sum(np.log(np.clip(probs[m][sk], 1e-6, 1)) / taus[m] for m in probs) / len(probs)
+        logp -= logp.max(axis=2, keepdims=True)
+        p = np.exp(logp)
+        out[sk] = (p / p.sum(axis=2, keepdims=True)).astype(np.float32)
+    return out
+
+
+def summarize(sessions, labels, probs, classes, name):
+    """Every metric in the report, from held-out probabilities per qualifying session."""
+    per_session = []
+    all_scores, all_truth, all_team_truth, all_team_maps = [], [], [], []
+    for c in sorted({circuit(s) for s in sessions}):
+        for held in [s for s in sessions if is_quali(s) and circuit(s) == c]:
+            pr = probs[held["session"]["session_key"]]
+            n_laps, n_c, k = pr.shape
+            scores = lap_scores(pr.reshape(-1, k), np.repeat(np.arange(n_laps), n_c), n_laps)
             truth = [acronym(held, l.driver) for l in held["laps"]]
             keep = np.array([t in labels for t in truth])
             all_scores.append(scores[keep])
@@ -162,7 +185,7 @@ def evaluate(sessions, labels, make_model, name, keep_models=False):
     report = dict(name=name, top1=top1, top3=top3, team=team_acc, teammate=teammate, teammateLaps=mate_n,
                 tau=best_tau, nll=best_nll, laps=len(P),
                   chance=1 / len(classes), classes=classes, sessions=sess_acc, confusion=conf.tolist())
-    return report, folds, probs
+    return report
 
 
 def is_quali(sess) -> bool:
@@ -228,9 +251,10 @@ def main():
     labels = sorted(d for d, c in counts.items() if c >= MIN_SESSIONS)
     print(f"{len(sessions)} sessions, {len(labels)} drivers: {' '.join(labels)}")
 
-    # Three models, same features, same held-out test. Logistic regression is the readable
-    # baseline; random forest and gradient-boosted trees were the strongest of the tree ensembles
-    # tried (extra-trees ran out of memory at a size that could match them).
+    # Three base models, same features, same held-out test, then their blend. compare_models.py
+    # tried more (tuned trees, a neural net, lap-level models); the blend of these three won on
+    # every metric. The game shows the blend, the trees and logistic regression (the readable one);
+    # the forest only feeds the blend.
     candidates = {
         "logreg": lambda: LogisticRegression(C=0.1, max_iter=3000, class_weight="balanced"),
         "forest": lambda: RandomForestClassifier(n_estimators=300, min_samples_leaf=3, max_features="sqrt",
@@ -246,6 +270,8 @@ def main():
         if name == "logreg":
             lr_folds = folds
             lr_report = report
+    probs["blend"] = blend(probs, {m: results[m]["tau"] for m in candidates})
+    results["blend"] = summarize(sessions, labels, probs["blend"], results["logreg"]["classes"], "blend")
     cross = cross_season(sessions, labels, lr_report["tau"])
     if cross:
         results["crossSeason"] = cross
@@ -259,7 +285,7 @@ def main():
     }
     (out / "probs.pkl").write_bytes(pickle.dumps({
         "probs": probs, "classes": results["logreg"]["classes"],
-        "tau": {k: v["tau"] for k, v in results.items() if k in candidates},
+        "tau": {k: v["tau"] for k, v in results.items() if k in probs},
     }))
     (out / "folds.pkl").write_bytes(pickle.dumps({"weights": weights, "tau": lr_report["tau"], "labels": labels,
                                                  "features": FEATURES, "corner_classes": CORNER_CLASSES}))

@@ -182,6 +182,9 @@ Rows stacked absolutely and re-sorted by transform (0.26s, out-curve): a 6px tea
 ### Telemetry band
 Huge speed numeral with km/h, gear, two 12px meters (throttle ink, brake red) in 2px ink borders, and a lap rule: a 14px bordered bar that fills ink with the lap, with a tick above for every corner that turns red once read.
 
+### Lap bar and volume
+The lap rule doubles as a slider: a transparent range input over it, with a 6px red handle, and small bordered −5 s / +5 s buttons beside the clock (disabled until the lights go out). Volume is a 90px range input in a 3px-bordered box beside the Sound button, accent ink.
+
 ### Evidence line
 An ink tag with the corner ("T7"), the sentence, and "points to" codes. The tag flashes red when new evidence lands.
 
