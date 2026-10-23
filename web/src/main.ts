@@ -83,7 +83,9 @@ async function titleView(): Promise<View> {
     </label>
     ${
       lr
-        ? `<p class="honest">On circuits it never trained on, the model names the driver <strong>${Math.round(lr.top1 * 100)}%</strong> of the time and has them in its top three <strong>${Math.round(lr.top3 * 100)}%</strong> of the time. Picking at random gets ${Math.round(lr.chance * 100)}%. Sound on: the engine is synthesised from the telemetry. Behind this text: ${session.circuit}, the session's fastest lap.</p>`
+        ? `<p class="honest">On circuits it never trained on, the model names the driver <strong>${Math.round(lr.top1 * 100)}%</strong> of the time and has them in its top three <strong>${Math.round(lr.top3 * 100)}%</strong> of the time. Picking at random gets ${Math.round(lr.chance * 100)}%.${
+            lr.teammate != null ? ` Given the car, it picks the right one of two teammates <strong>${Math.round(lr.teammate * 100)}%</strong> of the time, where chance is 50%.` : ""
+          } Sound on: the engine is synthesised from the telemetry. Behind this text: ${session.circuit}, the session's fastest lap.</p>`
         : ""
     }`;
   root.querySelector("select")!.addEventListener("change", (e) => {
