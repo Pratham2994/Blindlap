@@ -6,6 +6,7 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import type { LapData, Session } from "../data";
+import { makeF1Car } from "./car";
 import { asphaltTexture, labelTexture, sidewallTextures } from "./textures";
 
 export const COMPOUND = {
@@ -45,6 +46,8 @@ export class World {
   private trackGroup = new THREE.Group();
   private frame: TrackFrame | null = null;
   private car: THREE.Group;
+  private wheels: THREE.Mesh[] = [];
+  private pulses: { mesh: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>; age: number }[] = [];
   private ghost: THREE.Group;
   private carLight: THREE.PointLight;
   private sun: THREE.DirectionalLight;
@@ -60,6 +63,7 @@ export class World {
   labelsOn = true;
   private shift = 0;
   private dip = 0;
+  private ghostS = 0;
   private fov = 52;
   carS = 0;
 
@@ -86,7 +90,7 @@ export class World {
     this.ghost = this.makeCar(COMPOUND.soft);
     this.ghost.visible = false;
     this.scene.add(this.ghost);
-    this.carLight = new THREE.PointLight("#fff2dc", 40, 45, 1.8);
+    this.carLight = new THREE.PointLight("#fff2dc", 14, 30, 1.8);
     this.car.add(this.carLight);
     this.carLight.position.set(0, 6, 0);
     this.scene.add(this.trackGroup, this.car);
@@ -160,22 +164,9 @@ export class World {
   }
 
   private makeCar(colour: THREE.Color = COMPOUND.hard): THREE.Group {
-    const g = new THREE.Group();
-    // Abstract contact patch: a long lit lozenge riding on a band of rubber.
-    const body = new THREE.Mesh(
-      new THREE.CapsuleGeometry(0.7, 4.0, 6, 12).rotateZ(Math.PI / 2),
-      new THREE.MeshStandardMaterial({ color: colour, emissive: colour, emissiveIntensity: 1.1 }),
-    );
-    body.position.y = 1.1;
-    body.castShadow = true;
-    const tread = new THREE.Mesh(
-      new THREE.BoxGeometry(5.2, 0.35, 2.2),
-      new THREE.MeshStandardMaterial({ color: "#111111", roughness: 0.9 }),
-    );
-    tread.position.y = 0.25;
-    tread.receiveShadow = true;
-    g.add(body, tread);
-    return g;
+    const car = makeF1Car(colour);
+    this.wheels.push(...car.wheels);
+    return car.group;
   }
 
   /** Build the circuit for a session. The lap paints the rubber line. */
@@ -364,7 +355,7 @@ export class World {
     const col: number[] = [];
     const sAttr: number[] = [];
     const idx: number[] = [];
-    const w = 0.7;
+    const w = 0.4;
     let j = 0;
     for (let i = 0; i <= n; i++) {
       const k = i % n;
@@ -407,7 +398,7 @@ export class World {
           // The line fades behind the car like a wake, except where the model took evidence.
           float wake = max(exp(-max(behind, 0.0) / uFade), 0.12);
           float a = max(max(wake, vKeep * 0.95), uReveal * 0.8);
-          vec3 c = vColor * (1.0 + vKeep * 0.5) * mix(1.15, 0.9, 1.0 - wake);
+          vec3 c = vColor * (1.0 + vKeep * 0.5) * mix(0.85, 0.75, 1.0 - wake);
           gl_FragColor = vec4(c, a);
         }`,
     });
@@ -428,6 +419,15 @@ export class World {
       }
       a.needsUpdate = true;
     }
+    // A ring of light spreads from the corner the model just read.
+    const at = this.pointAt((lo + hi) / 2);
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.9, 1, 64).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: COMPOUND.hard, transparent: true, opacity: 0.8, depthWrite: false }),
+    );
+    ring.position.copy(at).setY(at.y + 0.3);
+    this.trackGroup.add(ring);
+    this.pulses.push({ mesh: ring, age: 0 });
     const l = this.labels[cornerIndex];
     if (l) {
       const m = l.sprite.material as THREE.SpriteMaterial;
@@ -479,6 +479,9 @@ export class World {
   }
 
   setCarS(s: number) {
+    // Spin the wheels by the distance travelled (radius about 0.37 m).
+    const ds = s - this.carS;
+    if (Math.abs(ds) < 50) for (const w of this.wheels.slice(0, 4)) w.rotation.z -= ds / 0.37;
     this.carS = s;
     if (!this.frame) return;
     const p = this.pointAt(s);
@@ -492,6 +495,9 @@ export class World {
   setGhostS(s: number | null) {
     this.ghost.visible = s !== null && !!this.frame;
     if (s === null || !this.frame) return;
+    const ds = s - this.ghostS;
+    if (Math.abs(ds) < 50) for (const w of this.wheels.slice(4)) w.rotation.z -= ds / 0.37;
+    this.ghostS = s;
     const p = this.pointAt(s);
     const t = this.tangentAt(s);
     // Offset sideways a little so two cars on the same line never sit inside each other.
@@ -514,12 +520,12 @@ export class World {
     let want: THREE.Vector3;
     let look: THREE.Vector3;
     if (this.mode === "chase") {
-      const ahead = this.pointAt(this.carS + 45);
-      const back = 30 + speedKmh * 0.04;
-      want = p.clone().addScaledVector(t, -back).setY(p.y + 11 + speedKmh * 0.012);
+      const ahead = this.pointAt(this.carS + 32);
+      const back = 13 + speedKmh * 0.02;
+      want = p.clone().addScaledVector(t, -back).setY(p.y + 4.2 + speedKmh * 0.006);
       // Under braking the nose dips and the view tips forward a little.
       this.dip += ((braking ? 1 : 0) - this.dip) * Math.min(dt * 6, 1);
-      look = ahead.setY(ahead.y + 2 - this.dip * 3.5);
+      look = ahead.setY(ahead.y + 1 - this.dip * 2);
     } else if (this.mode === "heli") {
       want = p.clone().addScaledVector(t, -120).add(new THREE.Vector3(0, 230, 0));
       look = this.pointAt(this.carS + 60);
@@ -531,6 +537,18 @@ export class World {
     }
     this.updateLabels();
     this.updateFog();
+    for (const p of this.pulses) {
+      p.age += dt;
+      const k = Math.min(p.age / 1.4, 1);
+      p.mesh.scale.setScalar(4 + k * 60);
+      p.mesh.material.opacity = 0.8 * (1 - k) * (1 - k);
+      if (k >= 1) {
+        this.trackGroup.remove(p.mesh);
+        p.mesh.geometry.dispose();
+        p.mesh.material.dispose();
+      }
+    }
+    this.pulses = this.pulses.filter((p) => p.age < 1.4);
     if (this.mode === "orbit") {
       const k = 1 - Math.exp(-dt * 1.2);
       this.camPos.lerp(want, k);
@@ -547,7 +565,7 @@ export class World {
     this.camera.position.copy(this.camPos);
     this.camera.lookAt(this.camLook);
     // The view widens with speed on board, so 330 km/h feels faster than 80.
-    const wantFov = this.mode === "chase" && !REDUCED_MOTION ? 50 + Math.min(speedKmh, 340) * 0.05 : 52;
+    const wantFov = this.mode === "chase" && !REDUCED_MOTION ? 52 + Math.min(speedKmh, 340) * 0.03 : 52;
     this.fov += (wantFov - this.fov) * Math.min(dt * 3, 1);
     if (Math.abs(this.camera.fov - this.fov) > 0.01) {
       this.camera.fov = this.fov;
