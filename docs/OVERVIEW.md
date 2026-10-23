@@ -236,8 +236,13 @@ condensed for labels. Playwright for end-to-end tests.
   wet blue under braking, hard white at full throttle, grey otherwise. A custom shader hides what the
   car has not reached, fades what is behind it like a wake, and keeps corners at full strength once
   the model has read them (a per-vertex `aKeep` attribute). At the reveal the whole line lights.
-- **Cameras**: chase (behind and above, distance and height grow with speed, looking 45 m ahead),
-  overhead, and an orbit for title and reveal. On-board cameras smooth their offset from the car
+- **Car**: a stylised low-poly F1 car built from primitives (`scene/car.ts`): floor, tub, nose,
+  sidepods, engine cover, airbox, halo, front and rear wings, and four wheels with a painted sidewall
+  band that spin by the real distance travelled. The duel's rival is the same car in soft red.
+- **Corner pulses**: when the model reads a corner, a ring of light spreads across the track from it.
+- **Cameras**: chase (about 13 to 19 m behind and 4 to 6 m up, growing with speed, looking 32 m
+  ahead; the field of view widens with speed and the view tips forward under braking), overhead,
+  and an orbit for title and reveal. On-board cameras smooth their offset from the car
   rather than their absolute position, so they never fall behind at 4× playback.
 - **Post**: ACES tone mapping, a restrained bloom pass for the car and the line, 4096 shadow map.
 - **Sky and fog**: a dome shader with a low neutral haze, a touch brighter on the side the light
@@ -332,6 +337,7 @@ listed in section 8. DESIGN.md records the shipped system.
 | `web/src/model.ts` | In-browser inference, evidence sentences and captions. |
 | `web/src/audio/engine.ts` | The engine synthesiser and per-gear ratio estimation. |
 | `web/src/scene/world.ts` | Three.js scene: track, ground, kerbs, rubber-line shader, car, ghost car, labels, cameras, post-processing. |
+| `web/src/scene/car.ts` | The low-poly F1 car and its spinning wheels. |
 | `web/src/scene/textures.ts` | Generated textures: asphalt, sidewall relief and lettering, corner labels with captions. |
 | `web/src/ui/play.ts` | Round state machine, HUD, reveal, team radio, duel, daily integration. |
 | `web/src/ui/lineup.ts` | The model's grid: rows that re-sort with transforms, your pick, the truth. |
@@ -394,6 +400,8 @@ listed in section 8. DESIGN.md records the shipped system.
 - The engine sound was recorded from the app and its spectrogram checked (it follows RPM, shifts and
   braking, and does not clip), but no person has listened to it yet: this build ran overnight with
   nobody at the speakers. Treat its character as a first draft and tune it by ear.
+- Split corners keep their letter (Hungaroring has 1 and 1A, 12 and 12A); an early export dropped
+  the letter and showed two corners numbered 1 on the tyre gauge.
 - Corners at Madring and Kuala Lumpur are detected, not mapped, so they are numbered 1 to 7 by
   braking zone, not by the official turn numbers.
 

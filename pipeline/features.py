@@ -31,14 +31,14 @@ CORNER_CLASSES = ["slow", "medium", "fast"]
 
 @dataclass
 class Corner:
-    number: int
+    number: int | str
     s: float
     lo: float  # zone start
     hi: float  # zone end
     angle: float
 
 
-def corner_zones(corner_s: list[tuple[int, float, float]], length: float) -> list[Corner]:
+def corner_zones(corner_s: list[tuple[int | str, float, float]], length: float) -> list[Corner]:
     """Split the lap into one zone per corner: from halfway after the previous corner to halfway before the next."""
     cs = sorted(corner_s, key=lambda c: c[1])
     out = []

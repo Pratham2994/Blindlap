@@ -24,7 +24,7 @@ export interface Index {
 }
 
 export interface CornerZone {
-  n: number;
+  n: number | string; // "12A" where a corner is split
   s: number;
   lo: number;
   hi: number;

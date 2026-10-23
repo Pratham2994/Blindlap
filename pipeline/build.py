@@ -65,7 +65,8 @@ def process(sk: int):
     if circuit.get("corners"):
         corner_xy = np.array([[c["trackPosition"]["x"], c["trackPosition"]["y"]] for c in circuit["corners"]]) / 10
         corner_s = cl.project2d(corner_xy)
-        marks = [(c["number"], float(s), c["angle"]) for c, s in zip(circuit["corners"], corner_s)]
+        # Keep the letter of split corners (1 and 1A at Hungaroring) so labels stay unique.
+        marks = [(f'{c["number"]}{c.get("letter") or ""}', float(s), c["angle"]) for c, s in zip(circuit["corners"], corner_s)]
     else:
         # New circuits may not have a published corner map yet: find corners from the fastest lap.
         marks = detect_corners(min(built, key=lambda b: b.lap_time))

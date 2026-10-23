@@ -52,7 +52,7 @@ export class World {
   private carLight: THREE.PointLight;
   private sun: THREE.DirectionalLight;
   private line: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial> | null = null;
-  private labels: { sprite: THREE.Sprite; n: number; s: number; aspect: number }[] = [];
+  private labels: { sprite: THREE.Sprite; n: number | string; s: number; aspect: number }[] = [];
   private radius = 1000;
   private camPos = new THREE.Vector3(0, 800, 800);
   private camLook = new THREE.Vector3();
@@ -527,8 +527,8 @@ export class World {
       this.dip += ((braking ? 1 : 0) - this.dip) * Math.min(dt * 6, 1);
       look = ahead.setY(ahead.y + 1 - this.dip * 2);
     } else if (this.mode === "heli") {
-      want = p.clone().addScaledVector(t, -120).add(new THREE.Vector3(0, 230, 0));
-      look = this.pointAt(this.carS + 60);
+      want = p.clone().addScaledVector(t, -70).add(new THREE.Vector3(0, 125, 0));
+      look = this.pointAt(this.carS + 40);
     } else {
       if (!REDUCED_MOTION) this.orbitAngle += dt * 0.05;
       const r = this.radius * 1.35;
