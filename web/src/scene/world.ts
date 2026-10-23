@@ -6,7 +6,7 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import type { LapData, Session } from "../data";
-import { fitF1Model, loadF1Model, makeF1Car } from "./car";
+import { contactShadow, fitF1Model, loadF1Model, makeF1Car } from "./car";
 import { asphaltTexture, boardTexture, labelTexture, posterGround } from "./textures";
 
 // The poster palette in the scene: ink, paper, F1 red.
@@ -15,6 +15,8 @@ const PAPER = new THREE.Color("#f3f2ee");
 const RED = new THREE.Color("#e10600");
 
 // Haze colour in linear space, equal to the sky shader's horizon so ground and sky meet without a seam.
+// The sun's direction: low and to one side, so the relief of the scene reads.
+const SUN_DIR = new THREE.Vector3(0.9, 0.55, 0.35).normalize();
 const HAZE = new THREE.Color().setRGB(0.62, 0.61, 0.58, THREE.LinearSRGBColorSpace);
 // Dark mode: the same scene at night-print values. Sky and fog meet at the horizon colour.
 const NIGHT = {
@@ -41,6 +43,113 @@ const STRIP_DEPTH = 3; // the track is a thick strip floating over the sidewall,
 const FLOAT = 10;
 const CLEARANCE = 13; // where the track crosses itself (Suzuka), the upper road clears the lower by this much
 const RAMP = 260; // metres either side of a crossing over which the upper road is lifted
+
+/** For each point, each side (index 0 = +side, 1 = -side): the road's half-width, where the barrier
+ * goes, whether this point draws that barrier, and whether there is room for kerbs and a fence. */
+interface TrackEdges {
+  half: [Float64Array, Float64Array];
+  wall: [Float64Array, Float64Array];
+  drawWall: [Uint8Array, Uint8Array];
+  open: [Uint8Array, Uint8Array]; // 1 = nothing alongside: kerbs, fence and boards fit
+}
+
+/** Where another part of the circuit runs alongside (Baku: centre lines 9 m apart for 250 m), a
+ * 13 m road with barriers 3 m beyond it lands on the other road. On that side the road narrows to
+ * share the space, one wall stands in the middle (drawn by one of the two sections only), and the
+ * kerbs, fence and boards are left out. Sections far apart in height (Suzuka's bridge) are not
+ * alongside each other. */
+function trackEdges(pos: THREE.Vector3[], tan: THREE.Vector3[], side: THREE.Vector3[], step: number): TrackEdges {
+  const n = pos.length;
+  const apart = Math.ceil(300 / step);
+  const full = TRACK_WIDTH / 2;
+  const gap = [new Float64Array(n).fill(Infinity), new Float64Array(n).fill(Infinity)];
+  const mine = [new Uint8Array(n), new Uint8Array(n)];
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      const sep = Math.abs(i - j);
+      if (Math.min(sep, n - sep) < apart) continue;
+      const dx = pos[j].x - pos[i].x;
+      const dz = pos[j].z - pos[i].z;
+      if (dx * dx + dz * dz > 900 || Math.abs(pos[j].y - pos[i].y) > 6) continue;
+      if (Math.abs(dx * tan[i].x + dz * tan[i].z) > 10) continue; // ahead or behind, not beside
+      const lat = dx * side[i].x + dz * side[i].z;
+      const k = lat > 0 ? 0 : 1;
+      if (Math.abs(lat) < gap[k][i]) {
+        gap[k][i] = Math.abs(lat);
+        mine[k][i] = j > i ? 1 : 0;
+      }
+    }
+  }
+  const out: TrackEdges = {
+    half: [new Float64Array(n), new Float64Array(n)],
+    wall: [new Float64Array(n), new Float64Array(n)],
+    drawWall: [new Uint8Array(n), new Uint8Array(n)],
+    open: [new Uint8Array(n), new Uint8Array(n)],
+  };
+  const reach = Math.ceil(24 / step); // start narrowing this far before the sections meet
+  for (const k of [0, 1] as const) {
+    for (let i = 0; i < n; i++) {
+      let m = Infinity;
+      let own = 1;
+      for (let d = -reach; d <= reach; d++) {
+        const q = (i + d + n) % n;
+        if (gap[k][q] < m) {
+          m = gap[k][q];
+          own = mine[k][q];
+        }
+      }
+      const shared = m < 2 * (full + 5);
+      out.open[k][i] = shared ? 0 : 1;
+      out.wall[k][i] = shared ? m / 2 : full + 3.2;
+      out.drawWall[k][i] = shared ? own : 1;
+      out.half[k][i] = Number.isFinite(m) ? THREE.MathUtils.clamp(m / 2 - 0.5, 3.6, full) : full;
+    }
+    // Ease the narrowing in and out so the road edge never steps.
+    const h = Float64Array.from(out.half[k]);
+    for (let i = 0; i < n; i++) {
+      let sum = 0;
+      for (let d = -reach; d <= reach; d++) sum += h[(i + d + n) % n];
+      out.half[k][i] = Math.min(h[i], sum / (2 * reach + 1));
+    }
+  }
+  return out;
+}
+
+/** A racing line, since the data has none per driver (positions are snapped to one line): the
+ * line of least curvature that fits inside the track, the same idea as the minimum-curvature lines
+ * race engineers compute. The gentler the bend, the higher the speed it allows, so the line swings
+ * to the outside before a corner, cuts to the apex on the inside and runs out wide again.
+ * (Minimising length instead, like a taut string, hugged the inside of every corner.)
+ *
+ * Each point moves to where the curve through its two neighbours on each side is smoothest
+ * (the minimum of the squared second difference), updated in place and held inside the track
+ * edges; coarse spans first so whole corners settle, then finer. Returns the sideways offset
+ * from the centre line. */
+function racingLine(pos: THREE.Vector3[], side: THREE.Vector3[], step: number, edges: TrackEdges): Float64Array {
+  const n = pos.length;
+  // Keep the 2 m wide car a little inside the white line, on each side.
+  const lo = Float64Array.from(edges.half[1], (h) => -Math.max(0.3, h - 1.6));
+  const hi = Float64Array.from(edges.half[0], (h) => Math.max(0.3, h - 1.6));
+  const a = new Float64Array(n);
+  const qx = (i: number) => pos[i].x + side[i].x * a[i];
+  const qz = (i: number) => pos[i].z + side[i].z * a[i];
+  for (const span of [64, 32, 16, 8, 4]) {
+    const k = Math.max(1, Math.round(span / step));
+    for (let it = 0; it < 250; it++) {
+      for (let i = 0; i < n; i++) {
+        const m1 = (i - k + n) % n;
+        const p1 = (i + k) % n;
+        const m2 = (i - 2 * k + 2 * n) % n;
+        const p2 = (i + 2 * k) % n;
+        // The point that makes the curvature here smallest, given its neighbours.
+        const tx = (4 * (qx(m1) + qx(p1)) - qx(m2) - qx(p2)) / 6 - pos[i].x;
+        const tz = (4 * (qz(m1) + qz(p1)) - qz(m2) - qz(p2)) / 6 - pos[i].z;
+        a[i] = THREE.MathUtils.clamp(tx * side[i].x + tz * side[i].z, lo[i], hi[i]);
+      }
+    }
+  }
+  return a;
+}
 
 /** Find where the circuit passes over itself and lift the upper road on a smooth ramp. The recorded
  * heights put Suzuka's bridge only 1 to 2 m above the road under it, so the strips would touch. */
@@ -84,6 +193,8 @@ interface TrackFrame {
   side: THREE.Vector3[];
   s: number[];
   length: number;
+  line: Float64Array; // racing line: sideways offset from the centre line at each point
+  edges: TrackEdges;
 }
 
 export class World {
@@ -120,9 +231,13 @@ export class World {
   // The visitor's own angle, set by dragging the stage: added to whichever camera is on.
   private userYaw = 0;
   private userPitch = 0;
+  // 0 right after a camera switch, 1 once the new camera has settled.
+  private blend = 1;
   // A new circuit: put the camera in place at once instead of flying it from where the car was
   // on the last circuit (which showed a second or two of bare ground, grey or black).
   private snap = true;
+  // Which shadow the sun casts: near the car (sharp, for the close cameras) or the whole circuit.
+  private shadowNear: boolean | null = null;
 
   get mode(): CameraMode {
     return this._mode;
@@ -130,7 +245,10 @@ export class World {
 
   /** Changing camera starts from that camera's own angle. */
   set mode(m: CameraMode) {
-    if (m !== this._mode) this.resetView();
+    if (m !== this._mode) {
+      this.resetView();
+      this.blend = 0;
+    }
     this._mode = m;
   }
 
@@ -170,12 +288,13 @@ export class World {
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(4096, 4096);
     this.sun.shadow.bias = -0.0004;
+    this.sun.shadow.normalBias = 0.02;
     this.scene.add(this.sun, this.sun.target);
 
     const built = makeF1Car(INK);
     const builtGhost = makeF1Car(RED);
-    this.car = new THREE.Group().add(built.group);
-    this.ghost = new THREE.Group().add(builtGhost.group);
+    this.car = new THREE.Group().add(built.group, contactShadow());
+    this.ghost = new THREE.Group().add(builtGhost.group, contactShadow());
     this.carWheels = built.wheels;
     this.ghostWheels = builtGhost.wheels;
     // Swap in the modelled car when it arrives; keep the built one if it never does.
@@ -324,7 +443,8 @@ export class World {
     const tan = pos.map((_, i) => pos[(i + 3) % n].clone().sub(pos[(i - 3 + n) % n]).setY(0).normalize());
     const side = tan.map((t) => new THREE.Vector3(-t.z, 0, t.x));
     const s = pos.map((_, i) => i * step);
-    this.frame = { pos, tan, side, s, length: session.length };
+    const edges = trackEdges(pos, tan, side, step);
+    this.frame = { pos, tan, side, s, length: session.length, line: racingLine(pos, side, step, edges), edges };
     this.radius = Math.max(...pos.map((p) => Math.hypot(p.x, p.z)));
 
     this.trackGroup.add(
@@ -347,13 +467,7 @@ export class World {
     }
 
     const r = this.radius;
-    this.sun.position.set(r * 0.9, r * 0.55, r * 0.35);
-    const sc = this.sun.shadow.camera;
-    sc.left = sc.bottom = -r * 1.15;
-    sc.right = sc.top = r * 1.15;
-    sc.near = 10;
-    sc.far = r * 4;
-    sc.updateProjectionMatrix();
+    this.shadowNear = null; // set up again for this circuit on the next frame
     // Close enough that the far side of the circuit melts into the haze from the chase camera.
     this.scene.fog = new THREE.Fog((this.dark ? NIGHT : DAY).haze, Math.min(r * 0.9, 900), Math.max(r * 2.6, 2600));
   }
@@ -375,13 +489,13 @@ export class World {
     const top: number[] = [];
     const uv: number[] = [];
     const idx: number[] = [];
-    const half = TRACK_WIDTH / 2;
     for (let i = 0; i <= n; i++) {
       const k = i % n;
       const p = f.pos[k];
       const sd = f.side[k];
       const sv = i === n ? f.length : f.s[k];
-      top.push(p.x + sd.x * half, p.y, p.z + sd.z * half, p.x - sd.x * half, p.y, p.z - sd.z * half);
+      const [h0, h1] = [f.edges.half[0][k], f.edges.half[1][k]];
+      top.push(p.x + sd.x * h0, p.y, p.z + sd.z * h0, p.x - sd.x * h1, p.y, p.z - sd.z * h1);
       uv.push(0, sv / 14, 1, sv / 14);
       if (i < n) {
         const a = i * 2;
@@ -410,8 +524,9 @@ export class World {
       const p = f.pos[k];
       const sd = f.side[k];
       for (const sign of [1, -1]) {
-        const ex = p.x + sd.x * half * sign;
-        const ez = p.z + sd.z * half * sign;
+        const h = f.edges.half[sign > 0 ? 0 : 1][k];
+        const ex = p.x + sd.x * h * sign;
+        const ez = p.z + sd.z * h * sign;
         wall.push(ex, p.y, ez, ex, p.y - STRIP_DEPTH, ez);
       }
       if (i < n) {
@@ -425,7 +540,9 @@ export class World {
     wgeo.computeVertexNormals();
     const walls = new THREE.Mesh(
       wgeo,
-      new THREE.MeshStandardMaterial({ color: "#151515", roughness: 0.7, side: THREE.DoubleSide }),
+      // Concrete, not black: where two sections run side by side at different heights (Baku), this
+      // side is what the camera sees, and black read as a hole in the world.
+      new THREE.MeshStandardMaterial({ color: "#8f8c86", roughness: 0.9, side: THREE.DoubleSide }),
     );
     walls.castShadow = true;
 
@@ -434,7 +551,8 @@ export class World {
     for (const sign of [1, -1]) {
       const pts = [...f.pos, f.pos[0]].map((p, i) => {
         const sd = f.side[i % n];
-        return new THREE.Vector3(p.x + sd.x * (half - 0.6) * sign, p.y + 0.05, p.z + sd.z * (half - 0.6) * sign);
+        const h = f.edges.half[sign > 0 ? 0 : 1][i % n] - 0.6;
+        return new THREE.Vector3(p.x + sd.x * h * sign, p.y + 0.05, p.z + sd.z * h * sign);
       });
       edges.add(
         new THREE.Line(
@@ -475,8 +593,11 @@ export class World {
       const p = this.pointAt(s);
       const t = this.headingAt(s);
       q.setFromAxisAngle(up, Math.atan2(-t.z, t.x));
+      const i = this.nearestIndex(s);
       for (const sign of [1, -1]) {
-        const at = p.clone().addScaledVector(this.sideAt(s), sign * (TRACK_WIDTH / 2 + 3.2)).setY(p.y + 0.45);
+        const e = sign > 0 ? 0 : 1;
+        if (!f.edges.drawWall[e][i]) continue;
+        const at = p.clone().addScaledVector(this.sideAt(s), sign * f.edges.wall[e][i]).setY(p.y + 0.45);
         m.compose(at, q, new THREE.Vector3(1, 1, 1));
         if (k % 2 === 0) light.setMatrixAt(nl++, m);
         else dark.setMatrixAt(nd++, m);
@@ -497,23 +618,32 @@ export class World {
     );
     const offset = TRACK_WIDTH / 2 + 4.6;
     let np = 0;
-    const rails: THREE.Vector3[][] = [[], []];
-    for (let k = 0; k < postCount; k++) {
-      const s = k * postSpacing;
+    // Rails run between consecutive posts on each side; another road alongside breaks them.
+    const rails: THREE.Vector3[][][] = [[[]], [[]]];
+    for (let k = 0; k <= postCount; k++) {
+      const s = (k % postCount) * postSpacing;
       const p = this.pointAt(s);
       const sd = this.sideAt(s);
+      const i = this.nearestIndex(s);
       [1, -1].forEach((sign, r) => {
+        const runs = rails[r];
+        if (!f.edges.open[r][i]) {
+          if (runs[runs.length - 1].length) runs.push([]);
+          return;
+        }
         const at = p.clone().addScaledVector(sd, sign * offset);
-        m.makeTranslation(at.x, p.y + 2, at.z);
-        posts.setMatrixAt(np++, m);
-        rails[r].push(at.setY(p.y + 4));
+        if (k < postCount) {
+          m.makeTranslation(at.x, p.y + 2, at.z);
+          posts.setMatrixAt(np++, m);
+        }
+        runs[runs.length - 1].push(at.setY(p.y + 4));
       });
     }
+    posts.count = np;
     g.add(posts);
-    for (const pts of rails) {
-      pts.push(pts[0]);
-      g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: "#6b6a66" })));
-    }
+    const railMat = new THREE.LineBasicMaterial({ color: "#6b6a66" });
+    for (const runs of rails)
+      for (const pts of runs) if (pts.length > 1) g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), railMat));
     return g;
   }
 
@@ -535,6 +665,7 @@ export class World {
         );
         const p = this.pointAt(s);
         const t = this.headingAt(s);
+        if (!this.frame!.edges.open[-turn > 0 ? 0 : 1][this.nearestIndex(s)]) continue;
         board.position.copy(p).addScaledVector(this.sideAt(s), -turn * (TRACK_WIDTH / 2 + 5)).setY(p.y + 2.2);
         // Face the cars coming towards it.
         board.rotation.y = Math.atan2(-t.z, t.x) - Math.PI / 2;
@@ -558,8 +689,11 @@ export class World {
         const p = this.pointAt(s);
         const t = this.tangentAt(s);
         const sd = this.sideAt(s);
+        const e = turn > 0 ? 0 : 1;
+        const i = this.nearestIndex(s);
+        if (!this.frame!.edges.open[e][i]) continue;
         const m = new THREE.Mesh(box, mats[k % 2]);
-        m.position.copy(p).addScaledVector(sd, turn * (TRACK_WIDTH / 2 + 0.6)).setY(p.y + 0.1);
+        m.position.copy(p).addScaledVector(sd, turn * (this.frame!.edges.half[e][i] + 0.6)).setY(p.y + 0.1);
         m.rotation.y = Math.atan2(-t.z, t.x);
         m.receiveShadow = true;
         g.add(m);
@@ -588,7 +722,8 @@ export class World {
       const c = brake ? RED : thr >= 95 ? PAPER : new THREE.Color("#8a8780");
       const p = f.pos[k];
       const sd = f.side[k];
-      pos.push(p.x + sd.x * w, p.y + 0.08, p.z + sd.z * w, p.x - sd.x * w, p.y + 0.08, p.z - sd.z * w);
+      const o = f.line[k]; // drawn on the racing line, where the car drives
+      pos.push(p.x + sd.x * (o + w), p.y + 0.08, p.z + sd.z * (o + w), p.x + sd.x * (o - w), p.y + 0.08, p.z + sd.z * (o - w));
       col.push(c.r, c.g, c.b, c.r, c.g, c.b);
       sAttr.push(sv, sv);
       if (i < n) {
@@ -703,6 +838,12 @@ export class World {
     return [i, j, Math.min((sv - f.s[i]) / segLen, 1)];
   }
 
+  /** The frame point nearest to distance s. */
+  private nearestIndex(s: number): number {
+    const [i, j, u] = this.indexAt(s);
+    return u < 0.5 ? i : j;
+  }
+
   pointAt(s: number): THREE.Vector3 {
     const [i, j, u] = this.indexAt(s);
     return this.frame!.pos[i].clone().lerp(this.frame!.pos[j], u);
@@ -717,6 +858,23 @@ export class World {
    * turning the car through a corner. */
   headingAt(s: number): THREE.Vector3 {
     return this.pointAt(s + 8).sub(this.pointAt(s - 8)).setY(0).normalize();
+  }
+
+  /** Sideways offset of the racing line from the centre line at s. */
+  private lineOffsetAt(s: number): number {
+    const [i, j, u] = this.indexAt(s);
+    const line = this.frame!.line;
+    return line[i] + (line[j] - line[i]) * u;
+  }
+
+  /** Where the car is at distance s: on the racing line, not the centre line. */
+  carPointAt(s: number): THREE.Vector3 {
+    return this.pointAt(s).addScaledVector(this.sideAt(s), this.lineOffsetAt(s));
+  }
+
+  /** The car's direction of travel along the racing line, over 8 m behind to 8 m ahead. */
+  carHeadingAt(s: number): THREE.Vector3 {
+    return this.carPointAt(s + 8).sub(this.carPointAt(s - 8)).setY(0).normalize();
   }
 
   /** Nose-up angle of the road under a car at s, from the height 4 m behind to 4 m ahead. Without it
@@ -744,8 +902,8 @@ export class World {
     if (Math.abs(ds) < 50) for (const w of this.carWheels) w.rotation.z -= ds / 0.37;
     this.carS = s;
     if (!this.frame) return;
-    const p = this.pointAt(s);
-    const t = this.headingAt(s);
+    const p = this.carPointAt(s);
+    const t = this.carHeadingAt(s);
     this.car.position.copy(p);
     this.car.rotation.y = Math.atan2(-t.z, t.x);
     this.car.rotation.z = this.pitchAt(s);
@@ -759,10 +917,11 @@ export class World {
     const ds = s - this.ghostS;
     if (Math.abs(ds) < 50) for (const w of this.ghostWheels) w.rotation.z -= ds / 0.37;
     this.ghostS = s;
-    const p = this.pointAt(s);
-    const t = this.headingAt(s);
-    // Offset sideways a little so two cars on the same line never sit inside each other.
-    this.ghost.position.copy(p).addScaledVector(this.sideAt(s), 2.2);
+    const p = this.carPointAt(s);
+    const t = this.carHeadingAt(s);
+    // Offset sideways so two cars on the same line never sit inside each other, toward the middle
+    // of the track so the rival never leaves it at an apex.
+    this.ghost.position.copy(p).addScaledVector(this.sideAt(s), this.lineOffsetAt(s) > 0 ? -2.4 : 2.4);
     this.ghost.rotation.y = Math.atan2(-t.z, t.x);
     this.ghost.rotation.z = this.pitchAt(s);
   }
@@ -827,13 +986,13 @@ export class World {
       this.composer.render();
       return;
     }
-    const p = this.pointAt(this.carS);
-    const t = this.headingAt(this.carS);
+    const p = this.carPointAt(this.carS);
+    const t = this.carHeadingAt(this.carS);
     let want: THREE.Vector3;
     let look: THREE.Vector3;
     if (this.mode === "chase") {
       // Look further ahead the faster the car goes, so slow hairpins keep the car in frame.
-      const ahead = this.pointAt(this.carS + 8 + speedKmh * 0.05);
+      const ahead = this.carPointAt(this.carS + 8 + speedKmh * 0.05);
       // Low and close, like a TV chase camera: speed reads from the road and barriers rushing past.
       // The distance depends on speed only and changes slowly. (It used to jump with acceleration;
       // that moved the camera up to 11 m against the car, so braking looked like a sudden stop.)
@@ -850,7 +1009,7 @@ export class World {
     } else if (this.mode === "onboard") {
       // Just above the cockpit, looking down the road: the view from the car.
       want = p.clone().addScaledVector(t, -0.4).setY(p.y + 1.5);
-      const ahead = this.pointAt(this.carS + 45);
+      const ahead = this.carPointAt(this.carS + 45);
       look = ahead.setY(ahead.y + 0.5);
     } else if (this.mode === "side") {
       // Running alongside, a little ahead, so the car crosses the frame side-on. It stays inside the
@@ -871,7 +1030,7 @@ export class World {
         look = mid.addScaledVector(t, 12);
       } else {
         want = p.clone().addScaledVector(t, -70).add(new THREE.Vector3(0, 125, 0));
-        look = this.pointAt(this.carS + 40);
+        look = this.carPointAt(this.carS + 40);
       }
     } else {
       if (!REDUCED_MOTION) this.orbitAngle += dt * 0.05;
@@ -913,9 +1072,15 @@ export class World {
     } else {
       // Smooth the camera's offset from the car, not its absolute position, so it never falls
       // behind at 4x playback.
-      // On board the camera is part of the car: no lag, or it would swing in every corner.
-      const k = snap || this.mode === "onboard" ? 1 : 1 - Math.exp(-dt * 4);
-      this.offset.lerp(want.clone().sub(p), k);
+      // On board the camera is part of the car: no lag once there, or it would swing in every
+      // corner. Switching to it glides in first instead of cutting, arcing up over the bodywork.
+      this.blend = Math.min(1, this.blend + dt / 0.7);
+      const target = want.clone().sub(p);
+      // Locked only once it has arrived, so the last stretch never jumps.
+      const settled = this.mode === "onboard" && this.blend >= 1 && this.offset.distanceToSquared(target) < 0.0025;
+      if (this.mode === "onboard" && this.blend < 1) target.y += 1.5 * Math.sin(Math.PI * this.blend);
+      const k = snap || settled ? 1 : 1 - Math.exp(-dt * (this.mode === "onboard" ? 6 : 4));
+      this.offset.lerp(target, k);
       this.lookOffset.lerp(look.clone().sub(p), k);
       this.camPos.copy(p).add(this.offset);
       this.camLook.copy(p).add(this.lookOffset);
@@ -923,6 +1088,7 @@ export class World {
     this.camera.position.copy(this.camPos);
     this.camera.lookAt(this.camLook);
     this.updateFog(snap ? 10 : dt);
+    this.updateShadow(p);
     // The view widens with speed on board, so 330 km/h feels faster than 80.
     const fast = (this.mode === "chase" || this.mode === "onboard") && !REDUCED_MOTION;
     const wantFov = this.mode === "tv" ? 30 : fast ? 56 + Math.min(speedKmh, 340) * 0.06 : 52;
@@ -932,6 +1098,32 @@ export class World {
       this.camera.updateProjectionMatrix();
     }
     this.composer.render();
+  }
+
+  /** One 4096 shadow map over a whole circuit is about 0.6 m a pixel, too coarse for a car to cast
+   * a shadow, so it looked as if it floated. Close cameras get a shadow box 80 m across that
+   * follows the car (2 cm a pixel); the overview cameras keep the whole circuit. */
+  private updateShadow(car: THREE.Vector3) {
+    const near = this.mode !== "orbit" && this.mode !== "heli";
+    const r = this.radius;
+    const sc = this.sun.shadow.camera;
+    if (near !== this.shadowNear) {
+      this.shadowNear = near;
+      const half = near ? 40 : r * 1.15;
+      sc.left = sc.bottom = -half;
+      sc.right = sc.top = half;
+      sc.near = near ? 1 : 10;
+      sc.far = near ? 600 : r * 4;
+      sc.updateProjectionMatrix();
+    }
+    const dir = SUN_DIR;
+    if (near) {
+      this.sun.target.position.copy(car);
+      this.sun.position.copy(car).addScaledVector(dir, 300);
+    } else {
+      this.sun.target.position.set(0, 0, 0);
+      this.sun.position.copy(dir).multiplyScalar(r * 1.1);
+    }
   }
 
   /** On board the far side of the circuit melts into the haze; from above or in the overview the
@@ -994,7 +1186,7 @@ export class World {
 
   /** Start the on-board camera from where the overview camera is, then glide in. */
   snapCamera() {
-    const p = this.pointAt(this.carS);
+    const p = this.carPointAt(this.carS);
     this.offset.copy(this.camera.position).sub(p);
     this.lookOffset.copy(this.camLook).sub(p);
   }
