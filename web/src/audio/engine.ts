@@ -114,12 +114,36 @@ export class EngineSynth {
     n.start();
   }
 
-  setVolume(on: boolean, fade = 0.4) {
-    this.muted = !on;
+  private active = false;
+
+  /** Whether the engine should be heard right now (a lap is running). Separate from the player's
+   * mute setting, so a pause or a reveal never switches the sound off for later rounds. */
+  setActive(on: boolean, fade = 0.4) {
+    this.active = on;
+    this.apply(fade);
+  }
+
+  /** The player's sound toggle. */
+  setMuted(muted: boolean) {
+    this.muted = muted;
+    this.apply(0.15);
+  }
+
+  private apply(fade: number) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
     this.master.gain.cancelScheduledValues(t);
-    this.master.gain.setTargetAtTime(on ? 0.55 : 0, t, fade / 3);
+    this.master.gain.setTargetAtTime(this.active && !this.muted ? 0.55 : 0, t, fade / 3);
+  }
+
+  /** Stop all audio processing while the tab is hidden; the browser stops drawing frames then,
+   * so without this the engine would drone on its last note. */
+  suspend() {
+    if (this.ctx && this.ctx.state === "running") void this.ctx.suspend();
+  }
+
+  resume() {
+    if (this.ctx && this.ctx.state === "suspended") void this.ctx.resume();
   }
 
   /** Update from one telemetry sample. rpm comes from gear and speed so shifts are instant. */

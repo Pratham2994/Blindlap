@@ -190,7 +190,23 @@ export class World {
       // Data is x east, y north. Rotate to the broadcast map orientation, then map to three's xz plane.
       return new THREE.Vector3(px * cos - py * sin, (z[i] - zmin) * ELEVATION + base, -(px * sin + py * cos));
     });
-    const tan = pos.map((_, i) => pos[(i + 1) % n].clone().sub(pos[(i - 1 + n) % n]).setY(0).normalize());
+    // The reference line carries small sideways wiggles from the position data; a short triangular
+    // average removes them without visibly cutting corners (4 m spacing, weights 1-2-3-2-1).
+    const raw = pos.map((p) => p.clone());
+    const weights = [1, 2, 3, 2, 1];
+    for (let i = 0; i < n; i++) {
+      let x = 0;
+      let zz = 0;
+      weights.forEach((w, k) => {
+        const q = raw[(i + k - 2 + n) % n];
+        x += q.x * w;
+        zz += q.z * w;
+      });
+      pos[i].x = x / 9;
+      pos[i].z = zz / 9;
+    }
+    // Headings over ±12 m, so the car and camera never twitch on a straight.
+    const tan = pos.map((_, i) => pos[(i + 3) % n].clone().sub(pos[(i - 3 + n) % n]).setY(0).normalize());
     const side = tan.map((t) => new THREE.Vector3(-t.z, 0, t.x));
     const s = pos.map((_, i) => i * step);
     this.frame = { pos, tan, side, s, length: session.length };
@@ -466,6 +482,12 @@ export class World {
     return this.frame!.tan[i].clone().lerp(this.frame!.tan[j], u).normalize();
   }
 
+  /** Direction of travel from the line 8 m behind to 8 m ahead: steady on straights, still
+   * turning the car through a corner. */
+  headingAt(s: number): THREE.Vector3 {
+    return this.pointAt(s + 8).sub(this.pointAt(s - 8)).setY(0).normalize();
+  }
+
   sideAt(s: number): THREE.Vector3 {
     const t = this.tangentAt(s);
     return new THREE.Vector3(-t.z, 0, t.x);
@@ -486,7 +508,7 @@ export class World {
     this.carS = s;
     if (!this.frame) return;
     const p = this.pointAt(s);
-    const t = this.tangentAt(s);
+    const t = this.headingAt(s);
     this.car.position.copy(p);
     this.car.rotation.y = Math.atan2(-t.z, t.x);
     if (this.line) this.line.material.uniforms.uCarS.value = s;
@@ -500,7 +522,7 @@ export class World {
     if (Math.abs(ds) < 50) for (const w of this.wheels.slice(4)) w.rotation.z -= ds / 0.37;
     this.ghostS = s;
     const p = this.pointAt(s);
-    const t = this.tangentAt(s);
+    const t = this.headingAt(s);
     // Offset sideways a little so two cars on the same line never sit inside each other.
     this.ghost.position.copy(p).addScaledVector(this.sideAt(s), 2.2);
     this.ghost.rotation.y = Math.atan2(-t.z, t.x);
@@ -517,7 +539,7 @@ export class World {
       return;
     }
     const p = this.pointAt(this.carS);
-    const t = this.tangentAt(this.carS);
+    const t = this.headingAt(this.carS);
     let want: THREE.Vector3;
     let look: THREE.Vector3;
     if (this.mode === "chase") {

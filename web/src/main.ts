@@ -106,7 +106,7 @@ async function route() {
     if (!index) index = await loadIndex();
     if (name === "play") {
       engine.start();
-      engine.setVolume(!engine.muted);
+      engine.setActive(true);
       // #/play/<session>.<lap> is a challenge link; #/play/<session> is any lap at that circuit.
       const [key, lap] = (arg ?? "").split(".");
       const k = Number(key);
@@ -115,11 +115,11 @@ async function route() {
       mount(new PlayView(world, engine, index, null, challenge));
     } else if (name === "mates") {
       engine.start();
-      engine.setVolume(!engine.muted);
+      engine.setActive(true);
       mount(new PlayView(world, engine, index, null, null, true));
     } else if (name === "daily") {
       engine.start();
-      engine.setVolume(!engine.muted);
+      engine.setActive(true);
       const date = todayKey();
       mount(new PlayView(world, engine, index, { date, plan: dailyPlan(index, date) }));
     } else if (name === "dna") {

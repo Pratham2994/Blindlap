@@ -763,7 +763,7 @@ body.playing .topbar nav {
 }
 
 .hud.paused::after {
-  content: "Paused  B7  Space to resume";
+  content: "Paused · Space to resume";
   position: absolute;
   left: 50%;
   top: 50%;

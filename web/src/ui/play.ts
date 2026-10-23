@@ -79,6 +79,16 @@ export class PlayView {
   private team = "";
   private disposed = false;
   private keyHandler = (e: KeyboardEvent) => this.onKey(e);
+  // Leaving the tab (or minimising) pauses the lap and silences audio; it stays paused on return.
+  private visibilityHandler = () => {
+    if (document.hidden) {
+      if (this.phase === "lap" || this.phase === "duel") this.setPaused(true);
+      this.radio?.pause();
+      this.engine.suspend();
+    } else {
+      this.engine.resume();
+    }
+  };
 
   private dailyResults: DailyResult[] = [];
   private nextKey: number | null = null;
@@ -96,6 +106,7 @@ export class PlayView {
     this.root = document.createElement("div");
     this.root.className = "hud";
     window.addEventListener("keydown", this.keyHandler);
+    document.addEventListener("visibilitychange", this.visibilityHandler);
     if (daily) {
       this.dailyResults = readDaily(daily.date);
       if (this.dailyResults.length >= daily.plan.length) {
@@ -109,8 +120,9 @@ export class PlayView {
   dispose() {
     this.disposed = true;
     window.removeEventListener("keydown", this.keyHandler);
+    document.removeEventListener("visibilitychange", this.visibilityHandler);
     this.radio?.pause();
-    this.engine.setVolume(false);
+    this.engine.setActive(false);
     document.body.classList.remove("playing");
   }
 
@@ -176,7 +188,7 @@ export class PlayView {
     this.phase = "lights";
     this.lightsAt = performance.now();
     this.goAt = this.lightsAt + 5 * 700 + 400 + Math.random() * 900;
-    this.engine.setVolume(!this.engine.muted);
+    this.engine.setActive(true);
   }
 
   private buildHud() {
@@ -227,7 +239,7 @@ export class PlayView {
         this.setCamera(b.dataset.cam as "chase" | "heli");
       } else if (b.hasAttribute("data-sound")) {
         const on = this.engine.muted;
-        this.engine.setVolume(on);
+        this.engine.setMuted(!on);
         b.setAttribute("aria-pressed", String(on));
         b.innerHTML = `${on ? icons.soundOn : icons.soundOff}Sound`;
       }
@@ -311,7 +323,7 @@ export class PlayView {
   private setPaused(on: boolean) {
     this.paused = on;
     // Silence the engine while paused; otherwise it drones on its last note.
-    this.engine.setVolume(!on && !this.engine.muted, 0.15);
+    this.engine.setActive(!on, 0.15);
     this.root.classList.toggle("paused", on);
     const btn = this.root.querySelector<HTMLButtonElement>("[data-pause]");
     if (btn) {
@@ -378,7 +390,7 @@ export class PlayView {
     this.phase = "reveal";
     this.engine.update(5000, 0, 0, 0);
     // Cut the engine quickly: the team radio is quiet and must not fight it.
-    this.engine.setVolume(false, 0.3);
+    this.engine.setActive(false, 0.3);
     this.world.mode = "orbit";
     this.world.revealLine(true);
     const truth = this.lap.code;
@@ -470,7 +482,7 @@ export class PlayView {
     this.radio?.pause();
     this.radio = null;
     this.phase = "reveal";
-    this.engine.setVolume(false);
+    this.engine.setActive(false);
     this.root.classList.remove("revealed", "dueling");
     this.root.innerHTML = "";
     const card = document.createElement("section");
@@ -506,7 +518,7 @@ export class PlayView {
     // Keep both cars clear of the driver grid on the right.
     this.world.setFrameShift(window.innerWidth > 860 ? -0.12 : 0);
     this.world.snapCamera();
-    this.engine.setVolume(!this.engine.muted);
+    this.engine.setActive(true);
     const bar = document.createElement("div");
     bar.className = "duel";
     bar.innerHTML = `
@@ -551,7 +563,7 @@ export class PlayView {
     this.world.setFrameShift(0);
     this.world.setCarS(0);
     this.world.mode = "orbit";
-    this.engine.setVolume(false, 1.5);
+    this.engine.setActive(false, 1.5);
     this.root.classList.remove("dueling");
     this.root.querySelector(".duel")?.remove();
   }
