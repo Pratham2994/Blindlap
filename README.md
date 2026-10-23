@@ -11,6 +11,7 @@ updates its guess. You guess too. Then the reveal plays the driver's real team r
 session.
 
 - **Play**: one anonymous lap, the model's live line-up, your pick, the reveal.
+- **Teammates**: same car, two drivers: which one is it? You against the model, chance 50%.
 - **Duel**: after the reveal, race the lap against the driver the model picked, with a live gap.
 - **Daily five**: the same five laps for everyone each day, with a result grid to share.
 - **Challenge link**: send a friend one exact lap, without giving the driver away.

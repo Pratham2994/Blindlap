@@ -61,6 +61,7 @@ async function titleView(): Promise<View> {
     <div class="actions">
       <a class="btn primary" href="#/play">${icons.play} Start a lap</a>
       <a class="btn" href="#/daily">Daily five</a>
+      <a class="btn" href="#/mates">Teammates</a>
       <a class="btn" href="#/how">How it knows</a>
     </div>
     <label class="pick caps">Or pick a circuit
@@ -95,7 +96,7 @@ async function titleView(): Promise<View> {
 async function route() {
   const hash = location.hash.replace(/^#\/?/, "");
   const [name, arg] = hash.split("/");
-  setNav(name === "daily" ? "play" : name || "home");
+  setNav(name === "daily" || name === "mates" ? "play" : name || "home");
   document.body.classList.toggle("reading", name === "how" || name === "lab");
   world.labelsOn = true;
   world.setFrameShift(0);
@@ -110,6 +111,10 @@ async function route() {
       const lapIndex = lap === undefined ? -1 : Number(lap);
       const challenge = key && Number.isInteger(k) && Number.isInteger(lapIndex) && index.sessions.some((s) => s.key === k) ? { key: k, lapIndex } : null;
       mount(new PlayView(world, engine, index, null, challenge));
+    } else if (name === "mates") {
+      engine.start();
+      engine.setVolume(!engine.muted);
+      mount(new PlayView(world, engine, index, null, null, true));
     } else if (name === "daily") {
       engine.start();
       engine.setVolume(!engine.muted);

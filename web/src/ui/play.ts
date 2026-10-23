@@ -23,9 +23,9 @@ interface Score {
 const SCORE_KEY = "blindlap.score.v1";
 const SPEED_KEY = "blindlap.speed.v1";
 
-function readScore(): Score {
+function readScore(key = SCORE_KEY): Score {
   try {
-    const s = JSON.parse(localStorage.getItem(SCORE_KEY) ?? "");
+    const s = JSON.parse(localStorage.getItem(key) ?? "");
     if (typeof s?.you === "number") return s;
   } catch {
     /* first visit or storage blocked */
@@ -33,9 +33,9 @@ function readScore(): Score {
   return { you: 0, model: 0, rounds: 0 };
 }
 
-function writeScore(s: Score) {
+function writeScore(s: Score, key = SCORE_KEY) {
   try {
-    localStorage.setItem(SCORE_KEY, JSON.stringify(s));
+    localStorage.setItem(key, JSON.stringify(s));
   } catch {
     /* storage blocked: score lives for this tab only */
   }
@@ -72,7 +72,9 @@ export class PlayView {
   private goAt = 0;
   private radio: HTMLAudioElement | null = null;
   private duel: { lap: LapData; player: LapPlayer; code: string } | null = null;
-  private score = readScore();
+  private score: Score;
+  private scoreKey: string;
+  private team = "";
   private disposed = false;
   private keyHandler = (e: KeyboardEvent) => this.onKey(e);
 
@@ -84,7 +86,10 @@ export class PlayView {
     private index: Index,
     private daily: { date: string; plan: DailyLap[] } | null = null,
     private challenge: DailyLap | null = null,
+    private mates = false, // teammate mode: same car, two drivers, which one is it?
   ) {
+    this.scoreKey = mates ? `${SCORE_KEY}.mates` : SCORE_KEY;
+    this.score = readScore(this.scoreKey);
     this.root = document.createElement("div");
     this.root.className = "hud";
     window.addEventListener("keydown", this.keyHandler);
@@ -131,15 +136,22 @@ export class PlayView {
       return;
     }
     if (this.disposed) return;
-    const withRadio = this.session.laps.filter((l) => l.radio);
-    const laps = withRadio.length > 6 ? withRadio : this.session.laps;
+    const teamOf = (code: string) => Object.values(this.session.drivers).find((d) => d.code === code)?.team ?? "";
+    const known = new Set(this.session.model.classes);
+    const mateOf = (code: string) =>
+      [...new Set(this.session.laps.map((l) => l.code))].find((c) => c !== code && teamOf(c) === teamOf(code) && known.has(c));
+    // In teammate mode only laps whose teammate also set a lap can be played.
+    const pool = this.mates ? this.session.laps.filter((l) => mateOf(l.code)) : this.session.laps;
+    const withRadio = pool.filter((l) => l.radio);
+    const laps = withRadio.length > 6 ? withRadio : pool;
     // A planned lap index of -1 means "this circuit, any lap".
     this.lap =
       planned && planned.lapIndex >= 0
         ? this.session.laps[planned.lapIndex % this.session.laps.length]
         : laps[Math.floor(Math.random() * laps.length)];
     this.player = new LapPlayer(this.lap);
-    this.guesser = new Guesser(this.session, this.index);
+    this.team = teamOf(this.lap.code);
+    this.guesser = new Guesser(this.session, this.index, this.mates ? [this.lap.code, mateOf(this.lap.code)!] : undefined);
     this.ratios = gearRatios(this.lap.v, this.lap.rpm, this.lap.gear);
     this.evidence = [];
     this.nextCorner = 0;
@@ -163,10 +175,16 @@ export class PlayView {
     const s = this.session;
     this.root.innerHTML = "";
     this.root.classList.remove("revealed");
+    this.root.classList.toggle("mates", this.mates);
     const head = document.createElement("div");
     head.className = "hud-session";
-    head.innerHTML = `<p class="display where">${s.circuit}</p><p class="caps meta num">${s.date.slice(0, 4)} qualifying · ${(s.length / 1000).toFixed(3)} km · ${
-      this.daily
+    const chip = Object.values(s.drivers).find((d) => d.team === this.team)?.colour ?? "#888";
+    head.innerHTML = `<p class="display where">${s.circuit}</p>${
+      this.mates ? `<p class="caps meta mates"><span class="chip" style="background:${chip}"></span>Which ${this.team} driver?</p>` : ""
+    }<p class="caps meta num">${s.date.slice(0, 4)} qualifying · ${(s.length / 1000).toFixed(3)} km · ${
+      this.mates
+        ? `Teammates · round ${this.score.rounds + 1} · You ${this.score.you} – Model ${this.score.model}`
+        : this.daily
         ? `Daily five · lap ${this.dailyResults.length + 1} of ${this.daily.plan.length}`
         : `Round ${this.score.rounds + 1} · You ${this.score.you} – Model ${this.score.model}`
     }</p>`;
@@ -315,7 +333,7 @@ export class PlayView {
     const you = grade(this.lineup.pick);
     const model = grade(modelPick);
     this.score = { you: this.score.you + you, model: this.score.model + model, rounds: this.score.rounds + 1 };
-    writeScore(this.score);
+    writeScore(this.score, this.scoreKey);
     const lastDaily = !!this.daily && this.dailyResults.length + 1 >= this.daily.plan.length;
     if (this.daily) {
       this.dailyResults.push({ you, model, truth, circuit: this.session.circuit });

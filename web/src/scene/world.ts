@@ -520,7 +520,8 @@ export class World {
     let want: THREE.Vector3;
     let look: THREE.Vector3;
     if (this.mode === "chase") {
-      const ahead = this.pointAt(this.carS + 32);
+      // Look further ahead the faster the car goes, so slow hairpins keep the car in frame.
+      const ahead = this.pointAt(this.carS + 10 + speedKmh * 0.08);
       const back = 13 + speedKmh * 0.02;
       want = p.clone().addScaledVector(t, -back).setY(p.y + 4.2 + speedKmh * 0.006);
       // Under braking the nose dips and the view tips forward a little.

@@ -53,9 +53,10 @@ export class Guesser {
   constructor(
     private session: Session,
     private index: Index,
+    only?: string[], // restrict the candidates, e.g. to two teammates
   ) {
     const inSession = new Set(Object.values(session.drivers).map((d) => d.code));
-    this.codes = session.model.classes.filter((c) => inSession.has(c));
+    this.codes = session.model.classes.filter((c) => inSession.has(c) && (!only || only.includes(c)));
     this.cls = this.codes.map((c) => session.model.classes.indexOf(c));
     this.logp = new Float64Array(this.codes.length);
   }

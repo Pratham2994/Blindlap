@@ -113,3 +113,11 @@ test("the title's circuit picker starts a lap at that circuit", async ({ page })
   await expect(page).toHaveURL(new RegExp(`#/play/${value}$`));
   await expect(page.locator(".hud-session .where")).toHaveText(label);
 });
+
+test("teammates mode offers exactly the two drivers of one team", async ({ page }) => {
+  await page.goto("/#/mates");
+  await expect(page.locator(".hud-session .mates")).toContainText(/^Which .+ driver\?$/);
+  await expect(page.locator(".lineup .row")).toHaveCount(2);
+  await expect(page.locator(".reveal")).toBeVisible({ timeout: 90_000 });
+  await expect(page.locator(".lineup .row.truth")).toHaveCount(1);
+});
