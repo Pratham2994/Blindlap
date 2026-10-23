@@ -1,0 +1,278 @@
+- generic [active] [ref=f1e1]:
+  - banner:
+    - link "Blind Lap, home" [ref=f1e3] [cursor=pointer]:
+      - /url: "#/"
+      - text: BLIND LAP
+    - navigation "Main" [ref=f1e4]:
+      - link "Play" [ref=f1e5] [cursor=pointer]:
+        - /url: "#/play"
+      - link "Driver DNA" [ref=f1e6] [cursor=pointer]:
+        - /url: "#/dna"
+      - link "Lab" [ref=f1e7] [cursor=pointer]:
+        - /url: "#/lab"
+      - link "How it works" [ref=f1e8] [cursor=pointer]:
+        - /url: "#/how"
+  - main:
+    - article [ref=f1e10]:
+      - heading "How it knows" [level=1] [ref=f1e11]: How itknows
+      - paragraph [ref=f1e12]: Every lap in Blind Lap is a real push lap from 2025 or 2026 qualifying. The name, number and livery are gone. What is left is 10 numbers per corner that describe how the car was driven through it, and the model has to find the driver in those.
+      - 'figure "3,669 laps from 40 qualifying sessions, 24 drivers. The red tick on each bar is what picking at random would score. The last bar is the hardest test: two drivers, same car, same session, and the model still has to find the right one." [ref=f1e13]':
+        - generic [ref=f1e14]:
+          - generic [ref=f1e15]: First guess is the driver
+          - generic [ref=f1e19]: 35%
+        - generic [ref=f1e20]:
+          - generic [ref=f1e21]: Driver in its top three
+          - generic [ref=f1e25]: 64%
+        - generic [ref=f1e26]:
+          - generic [ref=f1e27]: Names the right team
+          - generic [ref=f1e31]: 49%
+        - generic [ref=f1e32]:
+          - generic [ref=f1e33]: Given the car, picks the right teammate
+          - generic [ref=f1e37]: 71%
+      - paragraph [ref=f1e39]: Each number comes from a circuit the model never trained on. To guess laps at Monza, it was trained on every other circuit, with Monza left out in every year. The game uses those same models, so the guesses you watch are made blind too.
+      - heading "From telemetry to corners" [level=2] [ref=f1e40]
+      - list [ref=f1e41]:
+        - listitem [ref=f1e42]:
+          - generic [ref=f1e43]: Download
+          - generic [ref=f1e44]: Car telemetry (speed, throttle, brake, gear, RPM, DRS, about 3.7 samples a second), car position in 3D (about 4 a second) and team radio come from the public OpenF1 API. Corner positions come from MultiViewer's circuit maps.
+        - listitem [ref=f1e45]:
+          - generic [ref=f1e46]: One line per circuit
+          - generic [ref=f1e47]: The fastest lap's position samples become a smooth closed spline. Every sample of every lap is projected onto it, so 1,200 m means the same spot on track for every driver. Laps that spin, cut or lose data are dropped.
+        - listitem [ref=f1e48]:
+          - generic [ref=f1e49]: Corner zones
+          - generic [ref=f1e50]: The lap is split into one zone per corner. In each zone we measure where braking starts, how long it lasts, entry speed, minimum speed and where it happens, how soon the driver is back to full throttle, the deepest lift, and how far they coast.
+        - listitem [ref=f1e51]:
+          - generic [ref=f1e52]: Against the field
+          - generic [ref=f1e53]: Each measurement becomes a robust z-score against every other push lap at the same corner in the same session. "Braked 9 m later than the field" survives a change of circuit; "braked at 112 m" does not.
+        - listitem [ref=f1e54]:
+          - generic [ref=f1e55]: Corner type
+          - generic [ref=f1e56]: Corners are sorted into slow, medium and fast by the field's apex speed, and features go into a separate block per type. Drivers do not brake for a hairpin the way they lift for a sweeper.
+        - listitem [ref=f1e57]:
+          - generic [ref=f1e58]: Model
+          - generic [ref=f1e59]: A multinomial logistic regression gives P(driver | corner). A lap's guess adds up the log-probabilities of its corners, divided by a temperature of 2.1 learnt on held-out laps, because the corners of one lap are not independent witnesses.
+      - heading "New cars, same drivers" [level=2] [ref=f1e60]
+      - paragraph [ref=f1e61]:
+        - text: 2026 brought new cars and new rules. A model trained only on 41 sessions of 2025 (the same circuits, the old cars) was asked to name the driver of 1424 push laps from 17 sessions of 2026, 20 drivers who raced both years. It named the right driver on
+        - strong [ref=f1e62]: 25%
+        - text: of laps and had them in its top three on
+        - strong [ref=f1e63]: 56%
+        - text: (chance 5%). Part of a driver's style survives a change of car.
+      - heading "Why a simple model" [level=2] [ref=f1e64]
+      - paragraph [ref=f1e65]:
+        - text: A gradient-boosted tree model on the same features scores
+        - strong [ref=f1e66]: 43%
+        - text: top-1 and
+        - strong [ref=f1e67]: 73%
+        - text: top-3, against
+        - strong [ref=f1e68]: 35%
+        - text: and
+        - strong [ref=f1e69]: 64%
+        - text: "for logistic regression. The linear model is slightly behind, and it can say why: every corner's push toward a driver is a sum of weight × feature, which is exactly what the evidence line in the game shows. It is also a few kilobytes of weights, so it runs in your browser."
+      - heading "Accuracy by session" [level=2] [ref=f1e70]
+      - figure "Top-1 accuracy on each session's laps, with the model trained on every other circuit. The red tick is chance. Short or flat-out circuits give fewer corners to read." [ref=f1e71]:
+        - generic [ref=f1e72]:
+          - generic [ref=f1e73]: Hungaroring 2026
+          - generic [ref=f1e77]: 52%
+        - generic [ref=f1e78]:
+          - generic [ref=f1e79]: Hungaroring 2025
+          - generic [ref=f1e83]: 49%
+        - generic [ref=f1e84]:
+          - generic [ref=f1e85]: Suzuka 2025
+          - generic [ref=f1e89]: 46%
+        - generic [ref=f1e90]:
+          - generic [ref=f1e91]: Zandvoort 2026
+          - generic [ref=f1e95]: 45%
+        - generic [ref=f1e96]:
+          - generic [ref=f1e97]: Melbourne 2025
+          - generic [ref=f1e101]: 44%
+        - generic [ref=f1e102]:
+          - generic [ref=f1e103]: Spielberg 2025
+          - generic [ref=f1e107]: 44%
+        - generic [ref=f1e108]:
+          - generic [ref=f1e109]: Shanghai 2025
+          - generic [ref=f1e113]: 42%
+        - generic [ref=f1e114]:
+          - generic [ref=f1e115]: Miami 2025
+          - generic [ref=f1e119]: 42%
+        - generic [ref=f1e120]:
+          - generic [ref=f1e121]: Austin 2025
+          - generic [ref=f1e125]: 42%
+        - generic [ref=f1e126]:
+          - generic [ref=f1e127]: Singapore 2025
+          - generic [ref=f1e131]: 41%
+        - generic [ref=f1e132]:
+          - generic [ref=f1e133]: Mexico City 2025
+          - generic [ref=f1e137]: 40%
+        - generic [ref=f1e138]:
+          - generic [ref=f1e139]: Zandvoort 2025
+          - generic [ref=f1e143]: 39%
+        - generic [ref=f1e144]:
+          - generic [ref=f1e145]: Monte Carlo 2026
+          - generic [ref=f1e149]: 39%
+        - generic [ref=f1e150]:
+          - generic [ref=f1e151]: Silverstone 2025
+          - generic [ref=f1e155]: 38%
+        - generic [ref=f1e156]:
+          - generic [ref=f1e157]: Imola 2025
+          - generic [ref=f1e161]: 38%
+        - generic [ref=f1e162]:
+          - generic [ref=f1e163]: Spa-Francorchamps 2025
+          - generic [ref=f1e167]: 35%
+        - generic [ref=f1e168]:
+          - generic [ref=f1e169]: Jeddah 2025
+          - generic [ref=f1e173]: 35%
+        - generic [ref=f1e174]:
+          - generic [ref=f1e175]: Yas Marina Circuit 2025
+          - generic [ref=f1e179]: 35%
+        - generic [ref=f1e180]:
+          - generic [ref=f1e181]: Miami 2026
+          - generic [ref=f1e185]: 34%
+        - generic [ref=f1e186]:
+          - generic [ref=f1e187]: Singapore 2026
+          - generic [ref=f1e191]: 34%
+        - generic [ref=f1e192]:
+          - generic [ref=f1e193]: Monza 2025
+          - generic [ref=f1e197]: 33%
+        - generic [ref=f1e198]:
+          - generic [ref=f1e199]: Silverstone 2026
+          - generic [ref=f1e203]: 33%
+        - generic [ref=f1e204]:
+          - generic [ref=f1e205]: Monte Carlo 2025
+          - generic [ref=f1e209]: 33%
+        - generic [ref=f1e210]:
+          - generic [ref=f1e211]: Spielberg 2026
+          - generic [ref=f1e215]: 32%
+        - generic [ref=f1e216]:
+          - generic [ref=f1e217]: Monza 2026
+          - generic [ref=f1e221]: 32%
+        - generic [ref=f1e222]:
+          - generic [ref=f1e223]: Interlagos 2025
+          - generic [ref=f1e227]: 32%
+        - generic [ref=f1e228]:
+          - generic [ref=f1e229]: Lusail 2025
+          - generic [ref=f1e233]: 32%
+        - generic [ref=f1e234]:
+          - generic [ref=f1e235]: Spa-Francorchamps 2026
+          - generic [ref=f1e239]: 31%
+        - generic [ref=f1e240]:
+          - generic [ref=f1e241]: Sakhir 2025
+          - generic [ref=f1e245]: 31%
+        - generic [ref=f1e246]:
+          - generic [ref=f1e247]: Montreal 2026
+          - generic [ref=f1e251]: 31%
+        - generic [ref=f1e252]:
+          - generic [ref=f1e253]: Baku 2026
+          - generic [ref=f1e257]: 31%
+        - generic [ref=f1e258]:
+          - generic [ref=f1e259]: Montreal 2025
+          - generic [ref=f1e263]: 29%
+        - generic [ref=f1e264]:
+          - generic [ref=f1e265]: Shanghai 2026
+          - generic [ref=f1e269]: 28%
+        - generic [ref=f1e270]:
+          - generic [ref=f1e271]: Suzuka 2026
+          - generic [ref=f1e275]: 28%
+        - generic [ref=f1e276]:
+          - generic [ref=f1e277]: Catalunya 2025
+          - generic [ref=f1e281]: 27%
+        - generic [ref=f1e282]:
+          - generic [ref=f1e283]: Kuala Lumpur 2026
+          - generic [ref=f1e287]: 26%
+        - generic [ref=f1e288]:
+          - generic [ref=f1e289]: Madring 2026
+          - generic [ref=f1e293]: 26%
+        - generic [ref=f1e294]:
+          - generic [ref=f1e295]: Catalunya 2026
+          - generic [ref=f1e299]: 22%
+        - generic [ref=f1e300]:
+          - generic [ref=f1e301]: Las Vegas 2025
+          - generic [ref=f1e305]: 21%
+        - generic [ref=f1e306]:
+          - generic [ref=f1e307]: Melbourne 2026
+          - generic [ref=f1e311]: 13%
+      - heading "Easiest and hardest to spot" [level=2] [ref=f1e313]
+      - figure "Share of each driver's laps where the model's first guess was right. Drivers with a style unlike anyone else's stand out; teammates in similar cars blur together." [ref=f1e314]:
+        - generic [ref=f1e315]:
+          - generic [ref=f1e316]: BOT
+          - generic [ref=f1e320]: 79%
+        - generic [ref=f1e321]:
+          - generic [ref=f1e322]: PER
+          - generic [ref=f1e326]: 79%
+        - generic [ref=f1e327]:
+          - generic [ref=f1e328]: DOO
+          - generic [ref=f1e332]: 70%
+        - generic [ref=f1e333]:
+          - generic [ref=f1e334]: LEC
+          - generic [ref=f1e338]: 59%
+        - generic [ref=f1e339]:
+          - generic [ref=f1e340]: VER
+          - generic [ref=f1e344]: 58%
+        - generic [ref=f1e345]:
+          - generic [ref=f1e346]: STR
+          - generic [ref=f1e350]: 46%
+        - generic [ref=f1e351]:
+          - generic [ref=f1e352]: PIA
+          - generic [ref=f1e356]: 44%
+        - generic [ref=f1e357]:
+          - generic [ref=f1e358]: NOR
+          - generic [ref=f1e362]: 43%
+        - generic [ref=f1e363]:
+          - generic [ref=f1e364]: HAM
+          - generic [ref=f1e368]: 43%
+        - generic [ref=f1e369]:
+          - generic [ref=f1e370]: LIN
+          - generic [ref=f1e374]: 40%
+        - generic [ref=f1e375]:
+          - generic [ref=f1e376]: ALO
+          - generic [ref=f1e380]: 39%
+        - generic [ref=f1e381]:
+          - generic [ref=f1e382]: ALB
+          - generic [ref=f1e386]: 38%
+        - generic [ref=f1e387]:
+          - generic [ref=f1e388]: OCO
+          - generic [ref=f1e392]: 35%
+        - generic [ref=f1e393]:
+          - generic [ref=f1e394]: RUS
+          - generic [ref=f1e398]: 30%
+        - generic [ref=f1e399]:
+          - generic [ref=f1e400]: TSU
+          - generic [ref=f1e404]: 29%
+        - generic [ref=f1e405]:
+          - generic [ref=f1e406]: ANT
+          - generic [ref=f1e410]: 27%
+        - generic [ref=f1e411]:
+          - generic [ref=f1e412]: LAW
+          - generic [ref=f1e416]: 25%
+        - generic [ref=f1e417]:
+          - generic [ref=f1e418]: BEA
+          - generic [ref=f1e422]: 22%
+        - generic [ref=f1e423]:
+          - generic [ref=f1e424]: COL
+          - generic [ref=f1e428]: 22%
+        - generic [ref=f1e429]:
+          - generic [ref=f1e430]: GAS
+          - generic [ref=f1e434]: 22%
+        - generic [ref=f1e435]:
+          - generic [ref=f1e436]: SAI
+          - generic [ref=f1e440]: 19%
+        - generic [ref=f1e441]:
+          - generic [ref=f1e442]: HAD
+          - generic [ref=f1e446]: 19%
+        - generic [ref=f1e447]:
+          - generic [ref=f1e448]: HUL
+          - generic [ref=f1e452]: 13%
+        - generic [ref=f1e453]:
+          - generic [ref=f1e454]: BOR
+          - generic [ref=f1e458]: 10%
+      - heading "Who gets mixed up with whom" [level=2] [ref=f1e460]
+      - figure "Rows are the real driver, columns the model's first guess. A bright diagonal is a driver with a clear style. Bright squares off the diagonal are drivers who look alike in this data, often teammates in the same car." [ref=f1e461]:
+        - generic "Confusion matrix of true driver against model guess" [ref=f1e462]
+      - heading "What it cannot see" [level=2] [ref=f1e464]
+      - paragraph [ref=f1e465]: "At 300 km/h a car covers about 22 m between telemetry samples, so a single braking point is only known to about ±11 m. The model works because the error averages out over many corners and many laps. It also cannot fully separate the driver from the car: a faster car carries more apex speed whoever drives it. Teammates in the same car are the honest test, and the matrix above shows where it passes and fails."
+      - paragraph [ref=f1e466]: "The engine you hear is synthesised in your browser from each lap's gear, speed and throttle: the pitch is the firing frequency of a V6 at that RPM. No engine recordings are used. Team radio clips are the real ones from that session."
+      - heading "Data" [level=2] [ref=f1e467]
+      - paragraph [ref=f1e468]:
+        - text: "Telemetry, positions and radio:"
+        - link "OpenF1" [ref=f1e469] [cursor=pointer]:
+          - /url: https://openf1.org
+        - text: ". Corner maps: MultiViewer. Blind Lap is a fan project and is not associated with Formula 1 or any team."

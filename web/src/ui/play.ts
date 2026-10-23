@@ -471,7 +471,7 @@ export class PlayView {
     this.world.setCarS(a.s);
     this.world.setGhostS(b.s);
     // Gap at the white car's position: how long ago the red car passed the same point.
-    const gap = Math.min(this.t, this.player.duration) - timeAt(d.lap, a.s);
+    const gap = Math.min(this.t, this.player.duration) - d.player.timeAt(a.s);
     const gapEl = this.root.querySelector(".duel .gap");
     const whereEl = this.root.querySelector(".duel .where");
     if (gapEl) {
@@ -537,22 +537,6 @@ export class PlayView {
       if (!this.disposed && this.radio === audio && this.phase === "reveal" && !this.duel) void audio.play().catch(() => {});
     }, 1400);
   }
-}
-
-/** Time at which a lap reached distance s, by interpolating its (s, t) samples. */
-function timeAt(lap: LapData, s: number): number {
-  const S = lap.s;
-  let lo = 0;
-  let hi = S.length - 1;
-  if (s <= S[0]) return lap.t[0];
-  if (s >= S[hi]) return lap.t[hi];
-  while (hi - lo > 1) {
-    const mid = (lo + hi) >> 1;
-    if (S[mid] <= s) lo = mid;
-    else hi = mid;
-  }
-  const u = (s - S[lo]) / (S[hi] - S[lo] || 1);
-  return lap.t[lo] + (lap.t[hi] - lap.t[lo]) * u;
 }
 
 function capitalise(s: string) {
