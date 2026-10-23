@@ -26,7 +26,7 @@ export function howView(index: Index, report: Report): HTMLElement {
           ([label, v, c]) => `<div class="chart-row num big"><span>${label}</span><span class="track"><i style="width:${(v as number) * 100}%"></i><span class="chance" style="left:${(c as number) * 100}%"></span></span><span>${pct(v as number)}</span></div>`,
         )
         .join("")}
-      <figcaption>${lr.laps} laps from ${lr.sessions.length} qualifying sessions, ${lr.classes.length} drivers. The red tick on each bar is what picking at random would score. The last bar is the hardest test: two drivers, same car, same session, and the model still has to find the right one.</figcaption>
+      <figcaption>${lr.laps.toLocaleString("en-GB")} laps from ${lr.sessions.length} qualifying sessions, ${lr.classes.length} drivers. The red tick on each bar is what picking at random would score. The last bar is the hardest test: two drivers, same car, same session, and the model still has to find the right one.</figcaption>
     </figure>
     <p>Each number comes from a circuit the model never trained on. To guess laps at Monza, it was trained on every other circuit, with Monza left out in every year. The game uses those same models, so the guesses you watch are made blind too.</p>
 
