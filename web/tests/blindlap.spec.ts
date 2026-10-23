@@ -5,10 +5,10 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("blindlap.speed.v1", "4"));
 });
 
-test("title states the honest accuracy and links to play", async ({ page }) => {
+test("home states the honest accuracy and links to play", async ({ page }) => {
   await page.goto("/#/");
-  await expect(page.getByRole("heading", { name: /blind lap/i })).toBeVisible();
-  await expect(page.locator(".honest")).toContainText(/names the driver \d+%/);
+  await expect(page.getByRole("heading", { name: /who's driving/i })).toBeVisible();
+  await expect(page.locator(".home .facts")).toContainText(/\d+% first guess right/);
   await expect(page.getByRole("link", { name: /start a lap/i })).toHaveAttribute("href", "#/play");
 });
 
@@ -17,7 +17,7 @@ test("a full round: model reads every corner, you guess, reveal, duel", async ({
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/#/play");
 
-  const corners = await page.locator(".tyre .tick-label").count();
+  const corners = await page.locator(".telemetry .tm-rule .tick").count();
   expect(corners).toBeGreaterThan(5);
 
   // Lights out, then the model starts reading corners.
@@ -30,7 +30,7 @@ test("a full round: model reads every corner, you guess, reveal, duel", async ({
   await expect(reveal).toBeVisible({ timeout: 90_000 });
   await expect(page.locator("[data-k=count]")).toHaveText(`${corners} corners read`);
   await expect(reveal.locator(".verdicts .tag")).toHaveCount(2);
-  await expect(reveal).toContainText(/Model ranked them\s*P\d+ of \d+/i);
+  await expect(reveal).toContainText(/Ranked\s*P\d+ of \d+/i);
   await expect(page.locator(".lineup .row.truth")).toHaveCount(1);
   await expect(reveal.locator(".caption li")).toHaveCount(3);
 
@@ -74,7 +74,7 @@ test("daily five summary and share text", async ({ page, context }) => {
     localStorage.setItem(`blindlap.daily.${key}`, JSON.stringify([r(3, 0, "VER"), r(1, 3, "NOR"), r(0, 1, "HAM"), r(3, 3, "LEC"), r(0, 0, "ALB")]));
   });
   await page.goto("/#/daily");
-  const card = page.locator(".reveal.daily");
+  const card = page.locator(".daily-card");
   await expect(card).toContainText("Daily");
   await expect(card.locator("tbody tr")).toHaveCount(5);
   await expect(card.locator("tfoot")).toContainText("7");
@@ -88,7 +88,7 @@ test("a challenge link opens that exact lap without naming the driver", async ({
   const index = await (await page.request.get("/data/index.json")).json();
   const monza = index.sessions.find((s: { circuit: string }) => s.circuit === "Monza");
   await page.goto(`/#/play/${monza.key}.0`);
-  await expect(page.locator(".hud-session .where")).toHaveText("Monza");
+  await expect(page.locator(".play-bar .where h1")).toHaveText(/^Monza \d{4}$/);
   expect(page.url()).not.toMatch(/[A-Z]{3}/);
 });
 
@@ -103,20 +103,20 @@ test("telemetry lab overlays two drivers and explains each corner", async ({ pag
   await expect(page.locator(".lab-legend")).not.toHaveText(before);
 });
 
-test("the title's circuit picker starts a lap at that circuit", async ({ page }) => {
+test("the home circuit picker starts a lap at that circuit", async ({ page }) => {
   await page.goto("/#/");
-  const select = page.locator(".title .pick select");
+  const select = page.locator(".home .pick select");
   const option = select.locator("option").nth(3);
   const value = await option.getAttribute("value");
-  const label = (await option.textContent())!.replace(/ \d{4}$/, "");
+  const label = (await option.textContent())!;
   await select.selectOption(value!);
   await expect(page).toHaveURL(new RegExp(`#/play/${value}$`));
-  await expect(page.locator(".hud-session .where")).toHaveText(label);
+  await expect(page.locator(".play-bar .where h1")).toHaveText(label);
 });
 
 test("teammates mode offers exactly the two drivers of one team", async ({ page }) => {
   await page.goto("/#/mates");
-  await expect(page.locator(".hud-session .mates")).toContainText(/^Which .+ driver\?$/);
+  await expect(page.locator(".play-bar .mates-q")).toContainText(/^Which .+ driver\?$/);
   await expect(page.locator(".lineup .row")).toHaveCount(2);
   await expect(page.locator(".reveal")).toBeVisible({ timeout: 90_000 });
   await expect(page.locator(".lineup .row.truth")).toHaveCount(1);

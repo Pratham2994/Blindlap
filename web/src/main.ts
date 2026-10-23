@@ -1,14 +1,15 @@
 import "./styles.css";
 import { EngineSynth } from "./audio/engine";
-import type { Index } from "./data";
+import type { Index, ModelReport, Report } from "./data";
 import { loadCareers, loadDna, loadIndex, loadReport, loadSession } from "./data";
 import { World } from "./scene/world";
-import { dailyPlan, todayKey } from "./ui/daily";
+import { dailyPlan, readDaily, todayKey } from "./ui/daily";
 import { DnaView } from "./ui/dna";
 import { howView } from "./ui/how";
 import { icons } from "./ui/icons";
 import { LabView } from "./ui/lab";
 import { PlayView } from "./ui/play";
+import { dockStage } from "./ui/stage";
 
 interface View {
   root: HTMLElement;
@@ -22,7 +23,7 @@ const engine = new EngineSynth();
 if (import.meta.env.DEV) Object.assign(window, { world, engine });
 let current: View | null = null;
 let index: Index;
-let titleSession: number | null = null;
+let homeSession: number | null = null;
 
 function setNav(route: string) {
   document.querySelectorAll<HTMLAnchorElement>(".topbar nav a").forEach((a) => {
@@ -31,77 +32,111 @@ function setNav(route: string) {
   });
 }
 
+// Phone menu: one button opens the nav as a sheet; any navigation closes it.
+const toggle = document.querySelector<HTMLButtonElement>(".menu-toggle")!;
+toggle.addEventListener("click", () => {
+  const open = !document.body.classList.contains("nav-open");
+  document.body.classList.toggle("nav-open", open);
+  toggle.setAttribute("aria-expanded", String(open));
+});
+
 function mount(v: View) {
   current?.dispose?.();
   view.replaceChildren(v.root);
   current = v;
+  window.scrollTo(0, 0);
 }
 
-async function titleView(): Promise<View> {
-  const report = await loadReport().catch(() => null);
-  // Behind the title: a random circuit, orbiting, with its pole-position line laid down.
-  if (titleSession === null) titleSession = index.sessions[Math.floor(Math.random() * index.sessions.length)].key;
-  const session = await loadSession(titleSession);
+const pct = (v: number) => `${Math.round(v * 100)}%`;
+
+async function homeView(): Promise<View> {
+  const report = (await loadReport().catch(() => null)) as Report | null;
+  const best = report ? (report as unknown as Record<string, ModelReport>)[index.models[0].id] : null;
+  // Beside the headline: a random circuit, orbiting, with the session's fastest lap laid down.
+  if (homeSession === null) homeSession = index.sessions[Math.floor(Math.random() * index.sessions.length)].key;
+  const session = await loadSession(homeSession);
   world.setSession(session);
   const fastest = [...session.laps].sort((a, b) => a.lapTime - b.lapTime)[0];
   world.setLap(fastest);
   world.revealLine(true);
   world.showCar(false);
   world.mode = "orbit";
-  // The title copy owns the left of the screen: no corner numbers, and the circuit slides right.
   world.labelsOn = false;
-  world.setFrameShift(window.innerWidth > 860 ? 0.2 : 0);
 
-  const lr = report?.logreg;
+  const laps = index.sessions.reduce((a, s) => a + s.laps, 0);
+  const dailyDone = readDaily(todayKey()).length >= 5;
   const root = document.createElement("div");
-  root.className = "title";
+  root.className = "home";
   root.innerHTML = `
-    <h1 class="display">Blind<br>Lap</h1>
-    <p class="lede">A real ${index.seasons.join(" or ")} qualifying lap with the name taken off. A model reads how the car takes each corner and guesses who is driving. So do you.</p>
-    <div class="actions">
-      <a class="btn primary" href="#/play">${icons.play} Start a lap</a>
-      <a class="btn" href="#/daily">Daily five</a>
-      <a class="btn" href="#/mates">Teammates</a>
-      <a class="btn" href="#/how">How it knows</a>
-    </div>
-    <label class="pick caps">Or pick a circuit
-      <select aria-label="Pick a circuit to play">
-        <option value="">Any circuit</option>
-        ${index.seasons
-          .slice()
-          .reverse()
-          .map(
-            (y) =>
-              `<optgroup label="${y}">${index.sessions
-                .filter((s) => s.year === y)
-                .sort((a, b) => a.date.localeCompare(b.date))
-                .map((s) => `<option value="${s.key}">${s.circuit} ${y}</option>`)
-                .join("")}</optgroup>`,
-          )
-          .join("")}
-      </select>
-    </label>
+    <section class="hero">
+      <div class="hero-block">
+        <h1 class="display">Who's<br>driving?</h1>
+        <p class="lede">A real ${index.seasons.join(" or ")} F1 qualifying lap with the name taken off. Three models read every corner and guess the driver. So do you.</p>
+        <a class="btn on-red" href="#/play">${icons.play} Start a lap</a>
+      </div>
+      <figure class="hero-stage frame">
+        <div class="stage-slot"></div>
+        <figcaption class="caps">${session.circuit} ${session.date.slice(0, 4)} · fastest lap of the session</figcaption>
+      </figure>
+    </section>
+
+    <section class="modes" aria-label="Ways to play">
+      <a class="mode quick" href="#/play"><h2 class="display">Quick lap</h2><p>One random lap from ${index.sessions.length} qualifying sessions. Sound on.</p><span class="go">${icons.next}</span></a>
+      <a class="mode" href="#/daily"><h2 class="display">Daily five</h2><p>${dailyDone ? "Done for today. See your grid and share it." : "The same five laps for everyone today. Share your grid."}</p><span class="go">${icons.next}</span></a>
+      <a class="mode" href="#/mates"><h2 class="display">Teammates</h2><p>Same car, two drivers. Which one is at the wheel?</p><span class="go">${icons.next}</span></a>
+      <label class="mode pick"><h2 class="display">Pick a circuit</h2>
+        <select aria-label="Pick a circuit to play">
+          <option value="">Choose a circuit</option>
+          ${index.seasons
+            .slice()
+            .reverse()
+            .map(
+              (y) =>
+                `<optgroup label="${y}">${index.sessions
+                  .filter((s) => s.year === y)
+                  .sort((a, b) => a.date.localeCompare(b.date))
+                  .map((s) => `<option value="${s.key}">${s.circuit} ${y}</option>`)
+                  .join("")}</optgroup>`,
+            )
+            .join("")}
+        </select>
+      </label>
+    </section>
+
+    <section class="explore" aria-label="Explore the data">
+      <a href="#/dna"><h3>Driver DNA</h3><p>Every driver's corner style on one map, and the habits that give them away.</p></a>
+      <a href="#/lab"><h3>Telemetry lab</h3><p>Any two drivers in one session, corner by corner.</p></a>
+      <a href="#/how"><h3>How it knows</h3><p>The data, the three models and the honest numbers.</p></a>
+    </section>
+
     ${
-      lr
-        ? `<p class="honest">On circuits it never trained on, the model names the driver <strong>${Math.round(lr.top1 * 100)}%</strong> of the time and has them in its top three <strong>${Math.round(lr.top3 * 100)}%</strong> of the time. Picking at random gets ${Math.round(lr.chance * 100)}%.${
-            lr.teammate != null ? ` Given the car, it picks the right one of two teammates <strong>${Math.round(lr.teammate * 100)}%</strong> of the time, where chance is 50%.` : ""
-          } Sound on: the engine is synthesised from the telemetry. Behind this text: ${session.circuit}, the session's fastest lap.</p>`
+      best
+        ? `<section class="facts num" aria-label="The numbers">
+            <p><b>${index.sessions.length}</b> qualifying sessions</p>
+            <p><b>${laps.toLocaleString("en-GB")}</b> laps in the game</p>
+            <p><b>${pct(best.top1)}</b> first guess right · chance ${pct(best.chance)}</p>
+            ${best.teammate != null ? `<p><b>${pct(best.teammate)}</b> right teammate · chance 50%</p>` : ""}
+          </section>`
         : ""
     }`;
   root.querySelector("select")!.addEventListener("change", (e) => {
     const v = (e.target as HTMLSelectElement).value;
-    location.hash = v ? `#/play/${v}` : "#/play";
+    if (v) location.hash = `#/play/${v}`;
   });
+  dockStage(root.querySelector(".stage-slot"));
   return { root, frame: (dt) => world.update(dt) };
 }
 
 async function route() {
   const hash = location.hash.replace(/^#\/?/, "");
   const [name, arg] = hash.split("/");
+  document.body.classList.remove("nav-open");
+  toggle.setAttribute("aria-expanded", "false");
   setNav(name === "daily" || name === "mates" ? "play" : name || "home");
-  document.body.classList.toggle("reading", name === "how" || name === "lab");
+  document.body.dataset.route = name || "home";
   world.labelsOn = true;
   world.setFrameShift(0);
+  dockStage(null);
   try {
     if (!index) index = await loadIndex();
     if (name === "play") {
@@ -128,28 +163,17 @@ async function route() {
     } else if (name === "lab") {
       mount(new LabView(index));
     } else if (name === "how") {
-      const r = howView(index, await loadReport());
-      mount({ root: r, frame: () => {} });
+      mount({ root: howView(index, await loadReport()) });
     } else {
-      mount(await titleView());
+      mount(await homeView());
     }
   } catch (e) {
     const root = document.createElement("div");
     root.className = "error";
-    root.innerHTML = `<p>Something went wrong loading the data: ${(e as Error).message}.</p>`;
+    root.innerHTML = `<p>Couldn't load the data: ${(e as Error).message}.</p><a class="btn" href="#/">Back to the menu</a>`;
     mount({ root });
   }
 }
-
-// Carry the driver from the reveal into the DNA page.
-document.addEventListener("click", (e) => {
-  const a = (e.target as HTMLElement).closest("a[href='#/dna']");
-  const truth = document.querySelector(".row.truth .code")?.textContent;
-  if (a && truth) {
-    e.preventDefault();
-    location.hash = `#/dna/${truth}`;
-  }
-});
 
 window.addEventListener("hashchange", route);
 void route();

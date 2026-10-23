@@ -11,4 +11,7 @@ export const icons = {
   pause: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 3h3v10H4zM9 3h3v10H9z" fill="currentColor"/></svg>',
   next: wrap('<path d="M3 8h9"/><path d="M8.5 4.5L12 8l-3.5 3.5"/>'),
   flag: wrap('<path d="M3.5 14V2.5"/><path d="M3.5 3h9l-2 3 2 3h-9"/>'),
+  back: wrap('<path d="M13 8H4"/><path d="M7.5 4.5L4 8l3.5 3.5"/>'),
+  menu: wrap('<path d="M2.5 4h11M2.5 8h11M2.5 12h11"/>'),
+  close: wrap('<path d="M4 4l8 8M12 4l-8 8"/>'),
 };

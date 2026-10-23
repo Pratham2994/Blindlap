@@ -1,16 +1,20 @@
 // One round: lights out, an anonymous lap, the model reading corners, your guess, the reveal.
+// Layout: a bar with the way back, the framed stage, the ranking column, and a band underneath
+// that carries the telemetry during the lap and becomes the reveal afterwards.
 import { gearRatios, EngineSynth } from "../audio/engine";
-import type { Index, LapData, Session } from "../data";
+import type { DriverInfo, Index, LapData, Session } from "../data";
 import { careerLine, loadCareers, loadRadio, loadSession } from "../data";
 import { formatLapTime, LapPlayer } from "../lap";
 import type { Evidence } from "../model";
 import { Guesser } from "../model";
 import type { World } from "../scene/world";
-import { icons } from "./icons";
+import { INK } from "../scene/world";
 import type { DailyLap, DailyResult } from "./daily";
 import { readDaily, shareText, summaryHtml, writeDaily } from "./daily";
+import { icons } from "./icons";
 import { Lineup } from "./lineup";
-import { TyreGauge } from "./tyre";
+import { dockStage } from "./stage";
+import { Telemetry } from "./telemetry";
 
 type Phase = "loading" | "lights" | "lap" | "reveal" | "duel";
 
@@ -22,6 +26,7 @@ interface Score {
 
 const SCORE_KEY = "blindlap.score.v1";
 const SPEED_KEY = "blindlap.speed.v1";
+const SHORT_MODEL: Record<string, string> = { gbm: "Boosted trees", forest: "Random forest", logreg: "Logistic" };
 
 function readScore(key = SCORE_KEY): Score {
   try {
@@ -51,6 +56,16 @@ function readSpeed(): number {
   return 1;
 }
 
+/** Ink or paper, whichever reads on a team colour. */
+function inkOn(hex: string): string {
+  const n = parseInt(hex.replace("#", ""), 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.35 ? "#111111" : "#f3f2ee";
+}
+
 const recent: string[] = [];
 
 export class PlayView {
@@ -63,7 +78,8 @@ export class PlayView {
   private player!: LapPlayer;
   private guesser!: Guesser;
   private lineup!: Lineup;
-  private tyre!: TyreGauge;
+  private telemetry!: Telemetry;
+  private band!: HTMLElement;
   private ratios: number[] = [];
   private t = 0;
   private nextCorner = 0;
@@ -104,7 +120,7 @@ export class PlayView {
     this.scoreKey = mates ? `${SCORE_KEY}.mates` : SCORE_KEY;
     this.score = readScore(this.scoreKey);
     this.root = document.createElement("div");
-    this.root.className = "hud";
+    this.root.className = "play";
     window.addEventListener("keydown", this.keyHandler);
     document.addEventListener("visibilitychange", this.visibilityHandler);
     if (daily) {
@@ -126,13 +142,20 @@ export class PlayView {
     document.body.classList.remove("playing");
   }
 
+  private modeLabel(): string {
+    if (this.mates) return "Teammates";
+    if (this.daily) return `Daily five · lap ${this.dailyResults.length + 1} of ${this.daily.plan.length}`;
+    return `Quick lap · round ${this.score.rounds + 1}`;
+  }
+
   private async newRound() {
     this.phase = "loading";
     this.paused = false;
-    this.root.classList.remove("paused");
     this.radio?.pause();
     this.radio = null;
-    this.root.innerHTML = `<div class="countdown"><p class="caps load-note">Loading a lap…</p></div>`;
+    this.root.dataset.phase = "loading";
+    this.root.innerHTML = `<p class="loading caps">Loading a lap…</p>`;
+    dockStage(null);
     const sessions = this.index.sessions;
     // A challenge link plays its lap first; after that the rounds are random again.
     const planned = this.daily?.plan[this.dailyResults.length] ?? this.challenge ?? undefined;
@@ -152,7 +175,7 @@ export class PlayView {
     try {
       this.session = await loadSession(summary.key);
     } catch (e) {
-      this.root.innerHTML = `<div class="error"><p>Could not load ${summary.circuit}. ${(e as Error).message}. <a href="#/play">Try another lap</a></p></div>`;
+      this.root.innerHTML = `<div class="error"><p>Couldn't load ${summary.circuit}: ${(e as Error).message}.</p><a class="btn" href="#/">Back to menu</a></div>`;
       return;
     }
     if (this.disposed) return;
@@ -180,12 +203,14 @@ export class PlayView {
     this.world.setSession(this.session);
     this.world.setLap(this.lap);
     this.world.setCarS(0);
+    this.world.setCarColours(INK);
     this.world.showCar(true);
     this.world.mode = "chase";
     this.world.snapCamera();
     document.body.classList.add("playing");
     this.buildHud();
     this.phase = "lights";
+    this.root.dataset.phase = "lights";
     this.lightsAt = performance.now();
     this.goAt = this.lightsAt + 5 * 700 + 400 + Math.random() * 900;
     this.engine.setActive(true);
@@ -194,39 +219,38 @@ export class PlayView {
   private buildHud() {
     const s = this.session;
     this.root.innerHTML = "";
-    this.root.classList.remove("revealed");
     this.root.classList.toggle("mates", this.mates);
-    const head = document.createElement("div");
-    head.className = "hud-session";
-    const chip = Object.values(s.drivers).find((d) => d.team === this.team)?.colour ?? "#888";
-    head.innerHTML = `<p class="display where">${s.circuit}</p>${
-      this.mates ? `<p class="caps meta mates"><span class="chip" style="background:${chip}"></span>Which ${this.team} driver?</p>` : ""
-    }<p class="caps meta num">${s.date.slice(0, 4)} qualifying · ${(s.length / 1000).toFixed(3)} km · ${
-      this.mates
-        ? `Teammates · round ${this.score.rounds + 1} · You ${this.score.you} – Model ${this.score.model}`
-        : this.daily
-        ? `Daily five · lap ${this.dailyResults.length + 1} of ${this.daily.plan.length}`
-        : `Round ${this.score.rounds + 1} · You ${this.score.you} – Model ${this.score.model}`
-    }</p>`;
+    const teamColour = Object.values(s.drivers).find((d) => d.team === this.team)?.colour ?? "#888";
 
-    const controls = document.createElement("div");
-    controls.className = "hud-controls";
-    controls.innerHTML = `
-      <div class="seg"><button type="button" data-pause aria-pressed="false" title="Pause (Space)">${icons.pause}Pause</button></div>
-      <div class="seg" role="group" aria-label="Playback speed">
-        ${[1, 2, 4].map((v) => `<button type="button" data-speed="${v}" aria-pressed="${v === this.speed}">${v}×</button>`).join("")}
+    const bar = document.createElement("header");
+    bar.className = "play-bar";
+    bar.innerHTML = `
+      <a class="back" href="#/">${icons.back}<span>Menu</span></a>
+      <div class="where">
+        <h1 class="display">${s.circuit} <span class="year">${s.date.slice(0, 4)}</span></h1>
+        <p class="caps">${this.modeLabel()} · ${(s.length / 1000).toFixed(3)} km</p>
       </div>
-      <div class="seg" role="group" aria-label="Camera">
-        <button type="button" data-cam="chase" aria-pressed="true">${icons.chase}Chase</button>
-        <button type="button" data-cam="heli" aria-pressed="false">${icons.heli}Above</button>
-      </div>
-      <div class="seg"><button type="button" data-sound aria-pressed="${!this.engine.muted}" aria-label="Engine sound">${this.engine.muted ? icons.soundOff : icons.soundOn}Sound</button></div>`;
-    controls.addEventListener("click", (e) => {
+      ${
+        this.mates
+          ? `<p class="mates-q"><span class="chip" style="background:${teamColour}"></span>Which ${this.team} driver?</p>`
+          : `<p class="score caps num">You <b>${this.score.you}</b> <span>·</span> Model <b>${this.score.model}</b></p>`
+      }
+      <div class="controls">
+        <button type="button" class="ctl" data-pause aria-pressed="false" title="Pause (Space)">${icons.pause}<span>Pause</span></button>
+        <div class="seg" role="group" aria-label="Playback speed">
+          ${[1, 2, 4].map((v) => `<button type="button" data-speed="${v}" aria-pressed="${v === this.speed}">${v}×</button>`).join("")}
+        </div>
+        <div class="seg" role="group" aria-label="Camera">
+          <button type="button" data-cam="chase" aria-pressed="true" title="Behind the car (C)">${icons.chase}<span>Chase</span></button>
+          <button type="button" data-cam="heli" aria-pressed="false" title="From above (C)">${icons.heli}<span>Above</span></button>
+        </div>
+        <button type="button" class="ctl" data-sound aria-pressed="${!this.engine.muted}" aria-label="Engine sound">${this.engine.muted ? icons.soundOff : icons.soundOn}<span>Sound</span></button>
+      </div>`;
+    bar.querySelector(".controls")!.addEventListener("click", (e) => {
       const b = (e.target as HTMLElement).closest("button");
       if (!b) return;
       if (b.hasAttribute("data-pause")) {
         if (this.phase === "lap" || this.phase === "duel") this.setPaused(!this.paused);
-        b.blur();
       } else if (b.dataset.speed) {
         this.speed = Number(b.dataset.speed);
         try {
@@ -234,27 +258,36 @@ export class PlayView {
         } catch {
           /* ignore */
         }
-        controls.querySelectorAll("[data-speed]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+        bar.querySelectorAll("[data-speed]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
       } else if (b.dataset.cam) {
         this.setCamera(b.dataset.cam as "chase" | "heli");
       } else if (b.hasAttribute("data-sound")) {
         const on = this.engine.muted;
         this.engine.setMuted(!on);
         b.setAttribute("aria-pressed", String(on));
-        b.innerHTML = `${on ? icons.soundOn : icons.soundOff}Sound`;
+        b.innerHTML = `${on ? icons.soundOn : icons.soundOff}<span>Sound</span>`;
       }
+      b.blur();
     });
 
+    const stage = document.createElement("div");
+    stage.className = "stage-frame";
+    stage.innerHTML = `<div class="stage-slot"></div>
+      <div class="countdown"><div class="lights" role="img" aria-label="Start lights">${"<i></i>".repeat(5)}</div>
+        <p class="caps">Watch the lap. Tap the driver you think it is, any time before the flag.</p></div>
+      <p class="paused-note caps" aria-live="polite">Paused · Space to resume</p>`;
+
+    const side = document.createElement("aside");
+    side.className = "side";
     this.lineup = new Lineup(this.guesser.codes, s.drivers);
     this.lineup.update(this.guesser.guesses(), 0);
-    // Three models read the same corners; the grid follows whichever one you pick.
+    // Three models read the same corners; the ranking follows whichever one you pick.
     const switcher = document.createElement("div");
     switcher.className = "seg model-switch";
     switcher.setAttribute("role", "group");
     switcher.setAttribute("aria-label", "Which model guesses");
-    const short: Record<string, string> = { gbm: "Boosted", forest: "Forest", logreg: "Logistic" };
     switcher.innerHTML = this.index.models
-      .map((m) => `<button type="button" data-model="${m.id}" aria-pressed="${m.id === this.guesser.model}" title="${m.name}: right ${Math.round(m.top1 * 100)}% of the time on unseen circuits">${short[m.id] ?? m.name}</button>`)
+      .map((m) => `<button type="button" data-model="${m.id}" aria-pressed="${m.id === this.guesser.model}" title="${m.name}: right ${Math.round(m.top1 * 100)}% of the time on circuits it never saw">${SHORT_MODEL[m.id] ?? m.name}</button>`)
       .join("");
     switcher.addEventListener("click", (e) => {
       const b = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-model]");
@@ -266,28 +299,25 @@ export class PlayView {
       b.blur();
     });
     this.lineup.root.querySelector("header")!.after(switcher);
+    side.appendChild(this.lineup.root);
 
-    this.tyre = new TyreGauge(s);
-
+    this.band = document.createElement("section");
+    this.band.className = "band";
+    this.telemetry = new Telemetry(s);
     const ev = document.createElement("div");
     ev.className = "evidence";
     ev.setAttribute("aria-live", "polite");
-    ev.innerHTML = `<span class="t">${icons.flag.replace("<svg", '<svg width="18" height="18"')}</span><span class="what">The model reads every corner as the car leaves it.</span><span class="who"></span>`;
+    ev.innerHTML = `<span class="t">${icons.flag}</span><span class="what">The models read every corner as the car leaves it.</span><span class="who"></span>`;
+    this.band.append(this.telemetry.root, ev);
 
-    const cd = document.createElement("div");
-    cd.className = "countdown";
-    cd.innerHTML = `<div class="lights" role="img" aria-label="Start lights">${"<i></i>".repeat(5)}</div>`;
-
-    this.root.append(this.tyre.root, head, controls, this.lineup.root, ev, cd);
+    this.root.append(bar, stage, side, this.band);
+    dockStage(stage.querySelector(".stage-slot"));
   }
 
   private setCamera(mode: "chase" | "heli") {
     if (this.phase === "reveal") return;
-    if (this.phase === "duel") {
-      this.world.mode = mode;
-      return;
-    }
     this.world.mode = mode;
+    if (this.phase === "duel") return;
     this.root.querySelectorAll("[data-cam]").forEach((x) => x.setAttribute("aria-pressed", String((x as HTMLElement).dataset.cam === mode)));
   }
 
@@ -301,6 +331,8 @@ export class PlayView {
       if (this.phase === "lap" || this.phase === "duel") this.setPaused(!this.paused);
     } else if (e.key === "c" || e.key === "C") {
       this.setCamera(this.world.mode === "chase" ? "heli" : "chase");
+    } else if (e.key === "Escape") {
+      location.hash = "#/";
     } else if (e.key === "Enter" && this.phase === "reveal") {
       void this.newRound();
     }
@@ -315,7 +347,7 @@ export class PlayView {
       const list = g.guesses();
       const k = list.findIndex((x) => x.code === truth);
       const p = list[k]?.p ?? 0;
-      return `<tr${m.id === this.guesser.model ? ' class="current"' : ""}><td>${m.name}</td><td class="num">${list[0].code === truth ? "<b>right</b>" : `P${k + 1}`}</td><td class="num">${Math.round(p * 100)}%</td><td><span class="bar"><i style="width:${p * 100}%"></i></span></td></tr>`;
+      return `<tr${m.id === this.guesser.model ? ' class="current"' : ""}><td>${m.name}</td><td class="num">${list[0].code === truth ? "<b>Right</b>" : `P${k + 1}`}</td><td class="num">${Math.round(p * 100)}%</td></tr>`;
     });
     return `<table class="model-table"><caption class="caps">How each model ranked ${truth}</caption><tbody>${rows.join("")}</tbody></table>`;
   }
@@ -327,13 +359,14 @@ export class PlayView {
     this.root.classList.toggle("paused", on);
     const btn = this.root.querySelector<HTMLButtonElement>("[data-pause]");
     if (btn) {
-      btn.innerHTML = on ? `${icons.play}Resume` : `${icons.pause}Pause`;
+      btn.innerHTML = on ? `${icons.play}<span>Resume</span>` : `${icons.pause}<span>Pause</span>`;
       btn.setAttribute("aria-pressed", String(on));
     }
   }
 
   /** Called every animation frame by the app. */
   frame(dt: number) {
+    if (this.phase === "loading") return;
     if (this.phase === "lights") {
       const now = performance.now();
       const lit = Math.min(5, Math.floor((now - this.lightsAt) / 700));
@@ -342,6 +375,7 @@ export class PlayView {
       if (now >= this.goAt) {
         this.root.querySelector(".countdown")?.remove();
         this.phase = "lap";
+        this.root.dataset.phase = "lap";
       }
       this.world.update(dt, 0);
       return;
@@ -353,12 +387,12 @@ export class PlayView {
       const rpm = ratio > 0 && smp.speed > 40 ? smp.speed * ratio : smp.rpm;
       this.engine.update(rpm, smp.throttle, smp.speed, smp.gear);
       this.world.setCarS(smp.s);
-      this.tyre.update(smp.s, smp.speed, smp.gear, smp.throttle, smp.brake);
+      this.telemetry.update(smp.s, this.t, smp.speed, smp.gear, smp.throttle, smp.brake);
       const corners = this.session.corners;
       while (this.nextCorner < corners.length && smp.s > corners[this.nextCorner].hi) this.readCorner(this.nextCorner++);
       if (this.t >= this.player.duration) {
         while (this.nextCorner < corners.length) this.readCorner(this.nextCorner++);
-        this.reveal();
+        void this.reveal();
       }
       this.world.update(dt, smp.speed, smp.brake);
       return;
@@ -375,7 +409,7 @@ export class PlayView {
     this.evidence.push(ev);
     const c = this.session.corners[i];
     this.world.markEvidence(i, c.lo, c.hi, ev.short);
-    this.tyre.markCorner(i);
+    this.telemetry.markCorner(i);
     this.lineup.update(this.guesser.guesses(), this.guesser.seen);
     const box = this.root.querySelector(".evidence") as HTMLElement | null;
     if (box) {
@@ -386,22 +420,28 @@ export class PlayView {
     }
   }
 
+  private driverOf(code: string): DriverInfo {
+    return Object.values(this.session.drivers).find((d) => d.code === code)!;
+  }
+
   private async reveal() {
     this.phase = "reveal";
+    this.root.dataset.phase = "reveal";
     this.engine.update(5000, 0, 0, 0);
     // Cut the engine quickly: the team radio is quiet and must not fight it.
     this.engine.setActive(false, 0.3);
     this.world.mode = "orbit";
     this.world.revealLine(true);
     const truth = this.lap.code;
+    const driver = this.driverOf(truth);
+    this.world.setCarColours(driver.colour);
     const careers = await loadCareers();
     if (this.disposed) return;
     const career = careerLine(careers.drivers[truth]);
-    const driver = Object.values(this.session.drivers).find((d) => d.code === truth)!;
     const guesses = this.guesser.guesses();
     const modelPick = guesses[0].code;
     const rank = guesses.findIndex((g) => g.code === truth) + 1;
-    const teamOf = (code: string) => Object.values(this.session.drivers).find((d) => d.code === code)?.team;
+    const teamOf = (code: string) => this.driverOf(code)?.team;
     const grade = (code: string | null) => (code === truth ? 3 : code && teamOf(code) === driver.team ? 1 : 0);
     const you = grade(this.lineup.pick);
     const model = grade(modelPick);
@@ -413,43 +453,54 @@ export class PlayView {
       writeDaily(this.daily.date, this.dailyResults);
     }
     this.lineup.reveal(truth);
+    const scoreEl = this.root.querySelector(".play-bar .score");
+    if (scoreEl) scoreEl.innerHTML = `You <b>${this.score.you}</b> <span>·</span> Model <b>${this.score.model}</b>`;
 
-    const tag = (who: string, pts: number, code: string | null) =>
+    const verdict = (who: string, pts: number, code: string | null) =>
       `<span class="tag ${pts === 3 ? "win" : pts === 1 ? "half" : "miss"}">${who}: ${code ?? "no guess"} · ${pts === 3 ? "right" : pts === 1 ? "teammate" : "wrong"}</span>`;
 
-    // The corners that pointed hardest at the real driver, as a ruled caption.
+    // The corners that pointed hardest at the real driver.
     const best = [...this.evidence].sort((a, b) => (b.deltas[truth] ?? 0) - (a.deltas[truth] ?? 0)).slice(0, 3);
     const cornerById = new Map(this.session.corners.map((c, i) => [i, c]));
 
     // The duel rival: whoever the model picked, or its runner-up when it was right.
     const rivalCode = modelPick !== truth ? modelPick : guesses[1]?.code;
     const rival = [...this.session.laps].filter((l) => l.code === rivalCode).sort((a, b) => a.lapTime - b.lapTime)[0];
+    const [first, ...rest] = driver.name.split(" ");
 
-    const card = document.createElement("section");
-    card.className = "reveal";
-    card.setAttribute("aria-live", "polite");
-    card.innerHTML = `
-      <div class="verdicts">${tag("You", you, this.lineup.pick)}${tag("Model", model, modelPick)}</div>
-      <div class="who"><div><h2 class="display">${driver.name.replace(/\s(\S+)$/, " <br>$1")}</h2><p class="caps team"><span class="chip" style="background:${driver.colour}"></span>${driver.team} · lap ${this.lap.lapNumber}</p>${career ? `<p class="career num">${career} <span>career, ${careers.source}</span></p>` : ""}</div></div>
-      <div class="stats caps num">
-        <span>Lap time<b>${formatLapTime(this.lap.lapTime)}</b></span>
-        <span>Model ranked them<b>P${rank} of ${guesses.length}</b></span>
-        <span>Final confidence<b>${Math.round((guesses.find((g) => g.code === truth)?.p ?? 0) * 100)}%</b></span>
+    this.band.className = "band reveal";
+    this.band.style.setProperty("--team", driver.colour);
+    this.band.style.setProperty("--on-team", inkOn(driver.colour));
+    this.band.innerHTML = `
+      <div class="who-block">
+        <div class="verdicts">${verdict("You", you, this.lineup.pick)}${verdict(SHORT_MODEL[this.guesser.model] ?? "Model", model, modelPick)}</div>
+        <h2 class="display"><span>${first}</span> ${rest.join(" ")}</h2>
+        <p class="caps team">${driver.team} · lap ${this.lap.lapNumber} · ${formatLapTime(this.lap.lapTime)}</p>
+        ${career ? `<p class="career num">${career}</p>` : ""}
       </div>
-      ${this.modelTable(truth)}
-      <ol class="caption">${best
-        .map((e) => `<li><b>${e.label}</b><span>${capitalise(e.sentence)}${cornerById.get(e.corner)?.braked === false ? " (no braking)" : ""}.</span></li>`)
-        .join("")}</ol>
-      ${
-        this.lap.radio
-          ? `<div class="radio"><button type="button" aria-label="Play team radio">${icons.play}</button><span class="wave">${"<i></i>".repeat(36)}</span><span class="label caps">Team radio, this session</span></div>`
-          : `<div class="radio none"><span class="dot" aria-hidden="true"></span><span class="label caps">No team radio from ${truth} in this session</span></div>`
-      }
-      <div class="actions"><button type="button" class="btn primary" data-next>${lastDaily ? "Today's result" : "Next lap"} ${icons.next}</button>${
-        rival ? `<button type="button" class="btn" data-duel>Race it against ${rival.code}</button>` : ""
-      }<a class="btn" href="#/dna">See ${truth}'s DNA</a><button type="button" class="btn" data-challenge>Copy challenge link</button></div>
-      <p class="caps share-note" aria-live="polite"></p>`;
-    this.root.classList.add("revealed");
+      <div class="facts">
+        <p class="stat caps num">Ranked <b>P${rank}</b> of ${guesses.length} · confidence <b>${Math.round((guesses.find((g) => g.code === truth)?.p ?? 0) * 100)}%</b></p>
+        ${this.modelTable(truth)}
+      </div>
+      <div class="why">
+        <ol class="caption">${best
+          .map((e) => `<li><b>${e.label}</b><span>${capitalise(e.sentence)}${cornerById.get(e.corner)?.braked === false ? " (no braking)" : ""}.</span></li>`)
+          .join("")}</ol>
+        ${
+          this.lap.radio
+            ? `<div class="radio"><button type="button" aria-label="Play team radio">${icons.play}</button><span class="wave">${"<i></i>".repeat(32)}</span><span class="label caps">Team radio, this session</span></div>`
+            : `<div class="radio none"><span class="label caps">No team radio from ${truth} in this session</span></div>`
+        }
+      </div>
+      <div class="actions">
+        <button type="button" class="btn primary" data-next>${lastDaily ? "Today's result" : "Next lap"} ${icons.next}</button>
+        ${rival ? `<button type="button" class="btn" data-duel>Race it against ${rival.code}</button>` : ""}
+        <a class="btn" href="#/dna/${truth}">${truth}'s driver DNA</a>
+        <button type="button" class="btn" data-challenge>Copy challenge link</button>
+        <a class="btn ghost" href="#/">${icons.back} Menu</a>
+        <p class="caps share-note" aria-live="polite"></p>
+      </div>`;
+
     // Fetch the next random circuit while the player reads the reveal.
     if (!this.daily) {
       const pool = this.index.sessions.filter((x) => !recent.includes(String(x.key)));
@@ -459,7 +510,7 @@ export class PlayView {
         void loadSession(next.key).catch(() => (this.nextKey = null));
       }
     }
-    this.root.appendChild(card);
+    const card = this.band;
     card.querySelector("[data-next]")!.addEventListener("click", () => (lastDaily ? this.showDailySummary() : void this.newRound()));
     if (rival) card.querySelector("[data-duel]")!.addEventListener("click", () => this.startDuel(rival));
     card.querySelector("[data-challenge]")!.addEventListener("click", async () => {
@@ -473,7 +524,7 @@ export class PlayView {
         note.textContent = link;
       }
     });
-    if (this.lap.radio) this.setupRadio(card.querySelector(".radio")!, this.lap.radio);
+    if (this.lap.radio) void this.setupRadio(card.querySelector(".radio")!, this.lap.radio);
     (card.querySelector("[data-next]") as HTMLElement).focus({ preventScroll: true });
   }
 
@@ -483,27 +534,29 @@ export class PlayView {
     this.radio = null;
     this.phase = "reveal";
     this.engine.setActive(false);
-    this.root.classList.remove("revealed", "dueling");
-    this.root.innerHTML = "";
-    const card = document.createElement("section");
-    card.className = "reveal daily";
-    card.innerHTML = `${summaryHtml(d.date, this.dailyResults)}
-      <div class="actions">
-        <button type="button" class="btn primary" data-copy>Copy result</button>
-        <a class="btn" href="#/play">Keep playing</a>
-      </div>
-      <p class="caps share-note" aria-live="polite">New five at midnight, your time.</p>`;
-    card.querySelector("[data-copy]")!.addEventListener("click", async () => {
-      const note = card.querySelector(".share-note")!;
+    dockStage(null);
+    document.body.classList.add("playing");
+    this.root.dataset.phase = "summary";
+    this.root.innerHTML = `
+      <header class="play-bar"><a class="back" href="#/">${icons.back}<span>Menu</span></a>
+        <div class="where"><h1 class="display">Daily five</h1><p class="caps">${d.date}</p></div></header>
+      <section class="daily-card">${summaryHtml(d.date, this.dailyResults)}
+        <div class="actions">
+          <button type="button" class="btn primary" data-copy>Copy result</button>
+          <a class="btn" href="#/play">Quick lap</a>
+          <a class="btn ghost" href="#/">${icons.back} Menu</a>
+        </div>
+        <p class="caps share-note" aria-live="polite">A new five at midnight, your time.</p>
+      </section>`;
+    this.root.querySelector("[data-copy]")!.addEventListener("click", async () => {
+      const note = this.root.querySelector(".share-note")!;
       try {
         await navigator.clipboard.writeText(shareText(d.date, this.dailyResults));
         note.textContent = "Copied. Paste it anywhere.";
       } catch {
-        note.textContent = "Could not reach the clipboard. Select the table and copy it instead.";
+        note.textContent = "Couldn't reach the clipboard. Select the table and copy it instead.";
       }
     });
-    this.root.appendChild(card);
-    this.world.mode = "orbit";
   }
 
   private startDuel(rival: LapData) {
@@ -512,22 +565,23 @@ export class PlayView {
     this.player = new LapPlayer(this.lap);
     this.t = 0;
     this.phase = "duel";
+    this.root.dataset.phase = "duel";
     this.setPaused(false);
-    this.root.classList.add("dueling");
     this.world.mode = "heli";
-    // Keep both cars clear of the driver grid on the right.
-    this.world.setFrameShift(window.innerWidth > 860 ? -0.12 : 0);
+    this.world.setCarColours(this.driverOf(this.lap.code).colour, this.driverOf(rival.code).colour);
     this.world.snapCamera();
     this.engine.setActive(true);
+    const a = this.driverOf(this.lap.code);
+    const b = this.driverOf(rival.code);
     const bar = document.createElement("div");
     bar.className = "duel";
     bar.innerHTML = `
-      <span class="car hard"></span><b>${this.lap.code}</b><span class="caps">vs</span><span class="car soft"></span><b>${rival.code}</b>
+      <span class="car" style="background:${a.colour}"></span><b>${a.code}</b><span class="caps">vs</span><span class="car" style="background:${b.colour}"></span><b>${b.code}</b>
       <span class="gap num">+0.000 s</span>
       <span class="caps where">Same session</span>
-      <button type="button" class="btn" data-back>Back to result</button>`;
+      <button type="button" class="btn" data-back>${icons.back} Back to result</button>`;
     bar.querySelector("[data-back]")!.addEventListener("click", () => this.endDuel());
-    this.root.appendChild(bar);
+    this.band.appendChild(bar);
   }
 
   private duelFrame(dt: number) {
@@ -540,7 +594,7 @@ export class PlayView {
     this.engine.update(ratio > 0 && a.speed > 40 ? a.speed * ratio : a.rpm, a.throttle, a.speed, a.gear);
     this.world.setCarS(a.s);
     this.world.setGhostS(b.s);
-    // Gap at the white car's position: how long ago the red car passed the same point.
+    // Gap at the first car's position: how long ago the rival passed the same point.
     const gap = Math.min(this.t, this.player.duration) - d.player.timeAt(a.s);
     const gapEl = this.root.querySelector(".duel .gap");
     const whereEl = this.root.querySelector(".duel .where");
@@ -559,12 +613,11 @@ export class PlayView {
   private endDuel() {
     this.duel = null;
     this.phase = "reveal";
+    this.root.dataset.phase = "reveal";
     this.world.setGhostS(null);
-    this.world.setFrameShift(0);
     this.world.setCarS(0);
     this.world.mode = "orbit";
     this.engine.setActive(false, 1.5);
-    this.root.classList.remove("dueling");
     this.root.querySelector(".duel")?.remove();
   }
 

@@ -1,48 +1,43 @@
 ---
 name: Blind Lap
-description: An anonymous F1 qualifying lap read the way a tyre reads a track, through grip.
+description: A race poster you can play. Paper, heavy ink type, one F1-red block, team colours as flat fields.
 colors:
-  rubber: "#0e0e0e"
-  rubber-2: "#151515"
-  rubber-3: "#1e1e1e"
-  groove: "#2b2b2b"
-  raised: "#3a3a3a"
-  ink: "#f2f0ea"
-  ink-2: "#c2bfb7"
-  ink-3: "#8f8c85"
-  soft: "#e8312a"
-  medium: "#f5c518"
-  hard: "#f2f0ea"
-  inter: "#3fae49"
-  wet: "#2f7fe0"
+  paper: "#f1f0ec"
+  paper-2: "#e6e4de"
+  paper-3: "#d9d6cf"
+  ink: "#111111"
+  ink-2: "#3a3936"
+  ink-3: "#5f5d58"
+  red: "#e10600"
+  red-deep: "#b00500"
+  yellow: "#f5c518"
+  green: "#11803d"
 typography:
   display:
     fontFamily: "Archivo Variable, Archivo, system-ui, sans-serif"
-    fontSize: "clamp(3.4rem, 9vw, 6rem)"
-    fontWeight: 850
-    lineHeight: 0.92
-    letterSpacing: "0.01em"
+    fontSize: "min(13cqi, 7.6rem) on the home hero; clamp(2.6rem, 6vw, 5.6rem) on page heads"
+    fontWeight: 900
+    lineHeight: 0.9
+    letterSpacing: "-0.01em"
     fontVariation: "\"wdth\" 125"
   headline:
     fontFamily: "Archivo Variable, Archivo, system-ui, sans-serif"
-    fontSize: "clamp(2.2rem, 4.6vw, 4rem)"
-    fontWeight: 850
-    lineHeight: 0.92
-    letterSpacing: "0.01em"
+    fontSize: "clamp(2rem, 3.6vw, 3.6rem)"
+    fontWeight: 900
+    lineHeight: 0.9
     fontVariation: "\"wdth\" 125"
-  title:
+  numeral:
     fontFamily: "Archivo Variable, Archivo, system-ui, sans-serif"
-    fontSize: "1.25rem"
-    fontWeight: 850
-    letterSpacing: "0.02em"
+    fontSize: "clamp(2.6rem, 5vw, 4.6rem)"
+    fontWeight: 900
+    lineHeight: 0.85
     fontVariation: "\"wdth\" 125"
+    fontFeature: "\"tnum\""
   code:
     fontFamily: "Archivo Variable, Archivo, system-ui, sans-serif"
     fontSize: "0.86rem"
-    fontWeight: 850
-    letterSpacing: "0.02em"
+    fontWeight: 900
     fontVariation: "\"wdth\" 125"
-    fontFeature: "\"tnum\""
   body:
     fontFamily: "Archivo Variable, Archivo, system-ui, sans-serif"
     fontSize: "1.02rem"
@@ -52,251 +47,169 @@ typography:
   label:
     fontFamily: "Archivo Variable, Archivo, system-ui, sans-serif"
     fontSize: "0.72rem"
-    fontWeight: 650
-    letterSpacing: "0.08em"
+    fontWeight: 700
+    letterSpacing: "0.07em"
     fontVariation: "\"wdth\" 112"
   button:
     fontFamily: "Archivo Variable, Archivo, system-ui, sans-serif"
-    fontSize: "0.85rem"
-    fontWeight: 800
-    letterSpacing: "0.06em"
-    fontVariation: "\"wdth\" 120"
+    fontSize: "0.82rem"
+    fontWeight: 850
+    letterSpacing: "0.05em"
+    fontVariation: "\"wdth\" 118"
 rounded:
-  chip: "2px"
-  bar: "4px"
-  square: "5px"
-  row: "10px"
-  panel: "22px"
-  card: "26px"
-  pill: "999px"
+  everything: "0"
+  light: "50%"
 spacing:
-  gutter: "clamp(16px, 2.4vw, 36px)"
-  xs: "4px"
-  sm: "8px"
-  md: "12px"
-  lg: "22px"
-  xl: "28px"
+  gutter: "clamp(16px, 2.6vw, 40px)"
+  rule: "3px"
+  hair: "1px"
 components:
   button:
-    backgroundColor: "{colors.rubber-3}"
+    backgroundColor: "{colors.paper}"
     textColor: "{colors.ink}"
+    border: "3px solid {colors.ink}"
     typography: "{typography.button}"
-    rounded: "{rounded.pill}"
-    padding: "16px 26px 15px"
+    padding: "13px 20px 12px"
+  button-primary:
+    backgroundColor: "{colors.red}"
+    textColor: "#ffffff"
   segmented:
-    backgroundColor: "{colors.rubber}"
-    rounded: "{rounded.pill}"
-    padding: "3px"
-  segmented-option:
-    textColor: "{colors.ink-3}"
-    typography: "{typography.label}"
-    rounded: "{rounded.pill}"
-    padding: "8px 12px"
+    border: "3px solid {colors.ink}"
+    backgroundColor: "{colors.paper}"
   segmented-option-active:
-    backgroundColor: "{colors.rubber-3}"
-    textColor: "{colors.ink}"
-  nav-link:
-    textColor: "{colors.ink-2}"
-    typography: "{typography.label}"
-    rounded: "{rounded.pill}"
-    padding: "9px 14px"
+    backgroundColor: "{colors.ink}"
+    textColor: "{colors.paper}"
   nav-link-current:
-    backgroundColor: "{colors.rubber-3}"
-    textColor: "{colors.ink}"
-  lineup-panel:
-    backgroundColor: "{colors.rubber-2}"
-    rounded: "{rounded.panel}"
-    padding: "14px 10px 10px"
+    backgroundColor: "{colors.ink}"
+    textColor: "{colors.paper}"
   lineup-row:
-    backgroundColor: "{colors.rubber-2}"
-    textColor: "{colors.ink}"
+    height: "var(--row), 30px max"
     typography: "{typography.code}"
-    rounded: "{rounded.row}"
-    height: "34px"
-    padding: "0 8px"
   lineup-row-pick:
-    textColor: "{colors.medium}"
-  reveal-card:
-    backgroundColor: "{colors.rubber}"
-    rounded: "{rounded.card}"
-    padding: "30px 32px 28px"
-  tag:
-    backgroundColor: "{colors.rubber-3}"
-    textColor: "{colors.ink-2}"
-    typography: "{typography.label}"
-    rounded: "{rounded.pill}"
-    padding: "7px 12px 6px"
-  tag-win:
-    backgroundColor: "{colors.inter}"
-    textColor: "#04140a"
-  evidence-line:
-    backgroundColor: "{colors.rubber}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.pill}"
-    padding: "14px 20px"
-    height: "56px"
-  dna-panel:
-    backgroundColor: "{colors.rubber}"
-    rounded: "{rounded.panel}"
-    padding: "22px"
+    backgroundColor: "{colors.yellow}"
+  lineup-row-truth:
+    border: "3px inset {colors.green}"
+  who-block:
+    backgroundColor: "team colour"
+    textColor: "ink or paper by luminance"
 ---
 
 # Design System: Blind Lap
 
 ## Overview
 
-**Creative North Star: "The Moulded Sidewall"**
+**Creative North Star: "The Race Poster"**
 
-Blind Lap is set in vulcanised rubber. The ground is matte black with fine concentric grooves, the lettering is raised from it as if moulded by the same press, and one raking light picks out the relief. Every hue on the page is a tyre compound band, and each band has one job. The world reads the lap the way a tyre reads a track: through grip, not through broadcast chrome.
+Blind Lap is a race poster you can play. The ground is light paper. Type is heavy black ink, set wide and in capitals. F1 red is the one brand block: the hero, the wordmark and the primary action. Team colour appears only where a named driver owns it: as a large flat field on the reveal, or as a chip beside a driver code. The 3D circuit is a framed picture on the poster, never a full-bleed backdrop that UI floats over.
 
-The density is instrument-like. The 3D track is full-bleed and carries the story; the UI sits on it as rubber pieces pressed into or lifted out of the surface: a sidewall gauge bleeding off the bottom-left, a line-up of embossed rows down the right edge, a pill-shaped evidence line along the bottom. Reading pages (How it works) keep the same rubber, with a faint radial groove pattern behind a single 70ch column.
-
-The confirmed rejection is the broadcast look: team-colour glass panels and chyrons on blue-black. Team colour exists only as a thin chip beside a driver code.
+This replaced a first world (matte black tyre rubber, moulded lettering, five compound hues). The owner rejected it as bland and confusing to move through. The poster world fixes both: every page has a visible top bar, every lap has a "Menu" button in its top-left corner, and the home page is a hub of four ways to play.
 
 **Key Characteristics:**
-- Rubber-black ground, warm off-white ink, no surface hue.
-- Five compound hues, one meaning each.
-- Archivo variable with the width axis doing the hierarchy work: extended caps for anything moulded, normal width for reading.
-- Depth through emboss, deboss and lift, never through glass or blur panels.
-- State shown as a mark (ring, notch, half-filled disc) before it is shown as a colour.
+- Paper ground, ink type, one red block. No gradients, no shadows, no glass, no rounded corners.
+- 3px ink rules divide the page into panels. 1px paper-3 hairlines divide rows inside a panel.
+- Archivo variable: width 125 and weight 900 for anything that is a name or a number, width 100 for sentences.
+- The 3D scene is light too: paper ground with a printed grid and the circuit name, red and white barriers and kerbs, an ink car that takes the team colour at the reveal.
 
 ## Colors
 
-A rubber-and-chalk neutral ladder carrying five compound bands, each band a single meaning.
+### Brand
+- **Red** (#e10600): the hero block, the wordmark, the primary button ("Start a lap", "Next lap", "Copy result"), the leading bar in the model's grid, the braking meter, lit start lights, red ticks on the lap rule for corners read, the red marker for chance on charts, the second driver in the lab.
+- **Red Deep** (#b00500): reserved for a pressed red surface.
 
-### Primary
-- **Soft Red** (soft): the model's pick. The leading bar in the line-up, the model's choice in the duel replay, and the start lights (real start lights are red; this is the world's own device).
+### Signals
+- **Yellow** (#f5c518): your own input. The row you picked, the bold code in the grid hint, the pause banner and the active pause button, text selection.
+- **Green** (#11803d): correct. The true driver's ring after the reveal, "right" verdict tags and model-table marks, a right square in the daily grid, the duel gap when you are ahead.
 
-### Secondary
-- **Medium Yellow** (medium): your pick. The ring and code colour of the row you chose, the bold code in the line-up hint, and by extension anything that is your own input: the focus outline and the text selection.
-
-### Tertiary
-- **Inter Green** (inter): correct. The truth row ring after the reveal, the "right" verdict tag, a right square in the daily grid, the duel gap when you are ahead (ink otherwise).
-- **Wet Blue** (wet): braking. Only in the lap: brake segments of the rubber line in WebGL and the brake arc inside the tyre gauge.
-- **Hard White** (hard): data. Same value as ink, but named for its role in the instruments: full-throttle segments of the rubber line, the lap progress band and throttle arc on the gauge, the reference car in the duel, chart fills.
-
-### Neutral
-- **Rubber** (rubber): page ground and translucent panel bases (at 72 to 97% opacity over the 3D scene). The 3D sky and fog are a neutral haze one step lighter, so the far circuit fades out rather than cutting off.
-- **Rubber Two** (rubber-2): the line-up panel and its rows, the radio strip.
-- **Rubber Three** (rubber-3): raised pieces at rest: buttons, active segments, tags, bar tracks.
-- **Groove** (groove): one-pixel rules in captions, tables, pipeline lists and tells; the reading-mode top bar underline.
-- **Raised** (raised): the centre tick on DNA axis tracks and unlit disc rims.
-- **Ink** (ink): primary text and numbers.
-- **Ink Two** (ink-2): secondary text, ledes, team lines, caption body.
-- **Ink Three** (ink-3): labels, meta, inactive segments, figcaptions, partial-throttle and idle bars.
+### Neutrals
+- **Paper** (#f1f0ec): page ground, panels, buttons at rest.
+- **Paper Two** (#e6e4de): the stage frame behind the canvas, hover fills, bar tracks.
+- **Paper Three** (#d9d6cf): hairlines, empty bar tracks in rows, a wrong square.
+- **Ink** (#111111): text, rules, active segments, the current nav link, the quick-lap tile, data fills.
+- **Ink Two** (#3a3936): body text in reading pages, ledes, idle bars.
+- **Ink Three** (#5f5d58): labels, meta, figcaptions.
 
 ### Named Rules
-**The One Compound, One Job Rule.** Each compound hue means one thing everywhere: soft = the model's pick, medium = your pick, hard = data, inter = correct, wet = braking. A new surface that needs a sixth meaning uses ink and a mark, not a new hue or a borrowed one.
+**The Owned Colour Rule.** Team colour is shown only where a named driver owns it: the reveal's who-block (full field, with text in ink or paper chosen by luminance), the 6px chip beside a code, the car after the reveal, the duel car swatches, DNA disc chips. Never on a button, a chart or body text.
 
-**The Team Chip Rule.** Team colour appears only as a small chip (4px wide by 14 to 16px tall in the UI, a 36 by 8 bar on DNA discs) beside a driver code. It never fills a panel, a bar, a button or text.
+**The One Red Rule.** Red is the brand and the primary action. A second red meaning (the model's lead bar, braking) is allowed because both are "the strongest signal right now"; anything else that wants attention uses ink.
 
 ## Typography
 
-**Display Font:** Archivo Variable (with Archivo, system-ui)
-**Body Font:** Archivo Variable at normal width
-**Label/Mono Font:** Archivo Variable at width 112; a system monospace stack appears only for inline code in prose.
+One family across its width axis.
 
-**Character:** One family stretched across its width axis. Extended, heavy caps read as letters moulded into a sidewall; normal-width text reads as the printed spec sheet beside it.
+- **Display** (900, wdth 125, uppercase, 0.9 line-height): "Who's driving?", page heads, the circuit name in the play bar, mode tiles. The hero size is a container query (13cqi, max 7.6rem) so "DRIVING?" always fits one line in its red block at any width.
+- **Headline** (900, wdth 125): the driver's name on the reveal, hyphenated when a surname is longer than the block (HULKEN-BERG).
+- **Numeral** (900, wdth 125, tabular): speed (up to 4.6rem), gear, the duel gap, home facts.
+- **Code** (900, wdth 125): three-letter driver codes.
+- **Body** (400, wdth 100, 1.65 line-height): reading pages, max 76ch.
+- **Label** (700, wdth 112, 0.72rem, 0.07em tracking, uppercase): meta, table heads, captions on frames.
+- **Button** (850, wdth 118, 0.82rem, uppercase).
 
-### Hierarchy
-- **Display** (850, wdth 125, clamp(3.4rem, 9vw, 6rem) on the title, 0.92 line-height, uppercase, embossed): the title, page heads (Driver DNA, How it knows) and the circuit name in the HUD, sized per context with clamps between 2.4rem and 6rem.
-- **Headline** (850, wdth 125, clamp(2.2rem, 4.6vw, 4rem), uppercase): the driver name on the reveal card, the DNA panel code (2rem), Daily five.
-- **Title** (850, wdth 125, 1.25rem, uppercase): section heads in reading pages. The evidence corner label uses 900 at 1.1rem with a 2px underline.
-- **Code** (850, wdth 125, 0.86rem, tabular): three-letter driver codes in rows, captions and the duel bar; also big numbers (gauge speed 900 at 64px, gear 30px).
-- **Body** (400, wdth 100, 1.02rem, 1.65 line-height, max 70ch): reading pages. Ledes run 1.02 to 1.2rem at 1.5 line-height, max 44ch.
-- **Label** (650, wdth 112, 0.72rem, 0.08em, uppercase): panel labels, meta under headings, team lines, stats labels, table heads.
-
-### Named Rules
-**The Width Is Rank Rule.** Hierarchy rides the width axis as much as the size: wdth 125 for anything moulded (display, codes, numbers), 112 to 120 for labels and buttons, 100 for sentences. Never set reading text extended or headings at normal width.
-
-**The Tabular Numbers Rule.** Every changing number (percentages, lap times, counts, speed) is set tabular so the line-up and gauge do not jitter while they update.
+**The Width Is Rank Rule.** Names and numbers are wide, sentences are normal width. Never set a sentence wide or in capitals.
 
 ## Layout
 
-The 3D scene is fixed full-bleed behind everything; UI pieces are absolutely placed against a fluid gutter (clamp(16px, 2.4vw, 36px)). The top bar is transparent over the scene and turns solid rubber with a groove underline on reading pages. In play: session name top-left, view and sound controls top-right, the line-up panel down the right edge (min(300px, 34vw)), the tyre gauge bleeding off the bottom-left (clamp(300px, 34vw, 440px)), the evidence line between them at the bottom. The reveal card replaces the gauge and evidence on the left, vertically centred, while the line-up stays.
+A sticky 60px top bar on every page except a lap: red wordmark left, nav right, the current page as an ink block. Under 860px the nav folds into a "Menu" button that opens a full-width sheet.
 
-Line-up rows are 34px and shrink to a 24px floor so all 20 drivers fit without scrolling. Reading pages are one centred column (max 70ch) with 64px above each section head.
+**Home.** A two-column hero framed in a 3px rule: red block with the title, lede and "Start a lap" on the left; a framed orbiting circuit on the right with a caption tab. Under it, four mode tiles in one row (Quick lap in ink, Daily five, Teammates, Pick a circuit with a select). Then three explore links and a facts strip with the real held-out accuracy.
 
-At 860px and below the line-up moves to a 210px strip above the evidence line, the gauge shrinks to 230px and moves up, the evidence line becomes an 18px-radius block, the reveal card spans both gutters and scrolls, and the title scrim turns from a left-to-right to a bottom-up gradient. At 520px and below the controls drop under the wordmark, the gauge goes to 190px, the line-up hides after the reveal, and the duel bar and radio strip wrap into rounded blocks.
+**Play.** A fixed full-viewport grid: play bar across the top (Menu, circuit and year, mode, score, pause, speed, camera, sound), the framed 3D stage on the left, the model's grid in a right column (260 to 330px), and a band under the stage with the telemetry (speed, gear, throttle and brake meters, a lap rule with a tick per corner) and the evidence line. On the reveal the band becomes three panels (who, facts, why) plus an action row, and the stage shrinks. On a phone the play view becomes one scrolling column: bar, stage, band, then the grid.
+
+**Reading pages** (DNA, Lab, How): a two-column page head (huge title, lede), then content. DNA is a framed 3D field beside a panel. Lab and How are a centred column.
 
 ## Elevation & Depth
 
-Depth is moulded, not floated. Three tokens carry all of it: emboss on raised lettering, deboss on wells pressed into the rubber, and lift on the one piece that is active or pressable. Panels over the scene are translucent rubber (no backdrop blur), debossed into the surface. The WebGL world matches: the ground is a 4096px sidewall texture with concentric moulding grooves, two raised rims and arc-set lettering, rendered as colour plus bump map (bumpScale 6, roughness 0.92, metalness 0) under a single warm directional key light. The track is a 3 m asphalt strip floating 10 m above it, so its shadow draws the circuit on the sidewall. The car is a low-poly F1 shape in hard white (the duel rival in soft red) with rubber wheels carrying a painted band, so the spin reads; read corners send out a hard-white pulse ring.
-
-### Shadow Vocabulary
-- **Emboss** (`text-shadow: 0 -1px 0 rgba(0,0,0,0.9), 0 1px 0 rgba(255,255,255,0.07)`): display type, the wordmark and driver codes, as if raised under a raking light.
-- **Deboss** (`box-shadow: inset 0 1px 2px rgba(0,0,0,0.85), inset 0 -1px 0 rgba(255,255,255,0.05)`): wells and tracks: nav and segmented housings, the line-up, evidence line, DNA panel, bar tracks, unlit start lights, a pressed button.
-- **Lift** (`box-shadow: 0 6px 18px -6px rgba(0,0,0,0.8), 0 1px 0 rgba(255,255,255,0.04) inset`): raised pieces: buttons at rest, the active segment and current nav link, the start-light housing; combined with deboss on the reveal card.
-
-### Named Rules
-**The Pressed Into Rubber Rule.** Containers are wells (deboss); the thing you can press or the option that is on is the raised piece inside them (lift). Pressing a button swaps lift for deboss.
+None in the UI. Depth is the 3D picture inside the frame. Separation is done with 3px ink rules and flat fills.
 
 ## Shapes
 
-Soft, moulded corners. Controls, tags, the evidence line and the duel bar are full pills (999px); panels are 22px and the reveal card 26px; rows 10px; bars and chips 2 to 4px; daily squares 5px. Circles appear where the world is circular: the tyre gauge, start lights, radio play button, DNA wheel-nut discs. Rules are one-pixel groove lines, never boxes.
+Square everywhere. Circles appear only where the real thing is round: start lights.
 
 ## Components
 
 ### Buttons
-Raised rubber slugs with extended caps.
-- **Shape:** full pill (999px).
-- **Default:** rubber-3 fill, ink text, button type (800, wdth 120, 0.85rem, 0.06em caps), lift shadow, 16px icon at a 12px gap.
-- **Hover / Active:** rises 1px and lightens slightly; on press drops 1px and swaps lift for deboss; transform on the out-curve over 0.25s.
-- **Disabled:** 45% opacity, no movement.
-- **Primary:** the "Start" and "Next lap" action is filled ink with rubber text and the lift shadow. (An earlier build filled it soft red; the finish review flagged the overlap with the model's pick and it was changed.)
+3px ink border, paper fill, button type. Hover inverts to ink. Primary is red with white text, hover ink. On the red hero the button is paper with no visible border. Ghost buttons have a transparent border until hover.
 
-### Segmented controls and navigation
-A debossed pill housing (rubber at 72 to 78% opacity, 3 to 4px padding) holding label-type options in ink-3 (ink-2 in nav). The selected option is a lifted rubber-3 pill in ink. Used for playback speed, camera (with 15px authored icons) and the main nav. On play the nav hides; on reading pages the top bar becomes solid.
+### Segmented controls
+A 3px-bordered strip; options are divided by 3px rules; the active option is an ink block with paper text. Used for speed, camera and the model switch (Boosted trees / Random forest / Logistic), which works during the lap and after the reveal.
 
-### Line-up rows (signature)
-The model's grid: 20 buttons stacked absolutely, each a 4px team chip, an embossed code, a debossed 8px bar track and a tabular percentage. Bars are ink-3; the leader's bar is soft. Your pick gets a 1.5px medium inset ring, a 12% medium wash and a medium code. After the reveal the true driver gets the same ring in inter. Rows re-sort by translating on the out-curve (0.26s), higher-ranked rows passing over lower ones; bar widths ease over 0.6s.
+### Model's grid (signature)
+Rows stacked absolutely and re-sorted by transform (0.26s, out-curve): a 6px team chip, the code, an 8px bar (ink-2, the leader red), a tabular percentage. Your pick is a yellow row. After the reveal the true driver gets a 3px green inset ring and a green code.
 
-### Tyre gauge (signature)
-An SVG sidewall bleeding off the bottom-left: shaded rubber disc, groove rings, raised lettering on an arc, corner ticks around the rim (taken corners get ink labels), the lap progress band in hard white, throttle arc in hard white and brake arc in wet, speed (900, 64px) and gear (30px) set inside.
+### Telemetry band
+Huge speed numeral with km/h, gear, two 12px meters (throttle ink, brake red) in 2px ink borders, and a lap rule: a 14px bordered bar that fills ink with the lap, with a tick above for every corner that turns red once read.
 
 ### Evidence line
-A debossed pill along the bottom: the corner label (900, wdth 125, underlined 2px), the evidence sentence in ink, and "points to" with driver codes in label type. It flashes a 2px ink-3 ring for 0.9s when new evidence lands.
+An ink tag with the corner ("T7"), the sentence, and "points to" codes. The tag flashes red when new evidence lands.
 
-### Reveal card with ruled caption
-A 26px rubber card (90% opacity) with lift plus deboss, rising 24px and un-blurring over 0.9s. Verdict tags (pill, label type; inter fill for right, a half-filled ink disc for teammate, ink-3 text for wrong), the driver name as headline with a team chip line, stats in label-over-value pairs, then the caption: a groove-ruled list, one row per piece of evidence, a 48px code column and the sentence in ink-2. The team radio strip is a debossed pill with a round ink play button and a 36-bar waveform.
+### Reveal band (signature)
+The who-block floods with the team colour from the left (clip-path, 0.7s): verdict tags, the name as a headline, team, lap and time, career line. Facts: the model's rank and confidence, then a table of how each of the three models ranked the driver (green "Right" where it was first). Why: the three corners that pointed hardest at the driver, the team radio strip (ink play square, waveform) and the auto caption line. Actions: Next lap (red), Race it against X, X's driver DNA, Copy challenge link, Menu.
 
 ### Duel bar
-A centred debossed pill at the bottom: small car swatches (22 by 8, hard for your lap, soft for the rival), codes in display weight, and a large gap figure that turns inter when you are ahead.
+Car swatches in team colours with ink borders, codes, a huge gap numeral (green when ahead), where the gap was measured, and "Back to result".
 
-### Daily grid
-A borderless table ruled with groove lines: label-type heads, ink-2 cells, codes and totals in display weight, 18px rounded squares for results (inter right, half ink and half rubber for a teammate, debossed rubber-3 wrong).
+### Daily card
+A bordered card with a ruled table and 18px squares (green right, half ink for a teammate, hairline wrong).
 
-### DNA panel
-A debossed 22px panel over a 3D field of wheel-nut discs (rubber disc, moulded rim lit ink when selected, raised code, team chip). Style axes are debossed tracks with a raised centre tick and an ink fill that slides on the out-curve; tells are a groove-ruled list.
+### DNA
+A framed 3D field of paper roundels with an ink rim (heavier when selected), the code in ink and a team chip, on range rings. The panel lists seven axes as bars from a centre line, the tells, closest matches and a jump select.
 
-### Telemetry lab
-A reading page in the same rubber: three debossed selects (session, driver, against), then a debossed rubber-2 panel holding an SVG speed trace against distance. The first driver is a 2px hard-white line, the second a dashed ink-3 line; braking shows as wet marks in two rows under the trace; corner ticks in label type, thinned when they would collide. Below, a groove-ruled caption list names each corner's biggest difference in words.
-
-### Teammates header
-In teammate mode the session block gains one line in ink: a 4x14 team chip and "Which <team> driver?". The grid shrinks to the two drivers; nothing else in the HUD changes.
-
-### How charts
-Reading-page bars: label column, a 12px rubber-3 track with an ink fill and a 2px soft line marking chance, a tabular value; the headline rows are 18px tall with 900-weight values. The confusion matrix is drawn to canvas in rubber and ink-3.
-
-### Start lights
-Five circles in a lifted rubber housing, unlit as debossed dark-red discs, lit in soft with a glow, one every 700ms.
+### Lab
+Three bordered selects, an SVG chart on white in a 3px frame: driver A solid ink, driver B dashed red, braking as ink and red marks under the trace.
 
 ### Motion
-One curve, cubic-bezier(0.16, 1, 0.3, 1), for every movement: row re-sort (0.26s), bars and axes (0.6s), HUD exit on reveal (0.8s, fade and 24px drop), reveal rise (0.9s, 24px and 6px blur), evidence flash (0.9s). Colour changes run 0.2 to 0.3s. Under reduced motion every CSS animation and transition collapses to 0.01ms, and the title orbit and the DNA field stop turning on their own.
+One curve, cubic-bezier(0.16, 1, 0.3, 1): row re-sort 0.26s, bars 0.5s, reveal flood 0.7s, evidence flash 0.8s. Under reduced motion all CSS motion collapses to 0.01ms.
 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** keep every hue on the page to the five compounds plus team chips, each compound in its one job.
-- **Do** set anything moulded (display, codes, big numbers) at wdth 125 with the emboss shadow, and reading text at wdth 100.
-- **Do** put panels in as debossed wells and lift only the active or pressable piece.
-- **Do** show state with a mark first (ring, notch under a corner number, half-filled disc), then colour.
-- **Do** rule lists and tables with one-pixel groove lines.
-- **Do** use the single out-curve (cubic-bezier(0.16, 1, 0.3, 1)) for movement and set changing numbers tabular.
+- **Do** frame the 3D stage with a 3px rule and caption it with a paper tab.
+- **Do** give every lap screen a "Menu" exit in the top-left corner and every page the top bar.
+- **Do** set names and numbers wide and heavy, sentences at normal width.
+- **Do** use team colour as a whole field when a driver is named.
 
 ### Don't:
-- **Don't** use team-colour glass panels, chyrons or a blue-black broadcast ground.
-- **Don't** use team colour anywhere except a small chip beside a driver code.
-- **Don't** introduce a sixth hue or lend a compound a second meaning. Soft red belongs to the model's pick (and the start lights); actions, chance markers and the duel gap use ink.
-- **Don't** use backdrop blur or frosted glass for panels; use translucent rubber with deboss.
-- **Don't** set long text in extended width or in uppercase.
+- **Don't** use shadows, gradients, glass, blur or rounded corners.
+- **Don't** float UI over a full-bleed scene; the scene sits in a frame.
+- **Don't** use team colour on buttons, charts or text.
+- **Don't** add a third signal colour; use ink and a mark.

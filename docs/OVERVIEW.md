@@ -18,15 +18,15 @@ the driver's real team radio.
 
 | Surface | What it does |
 |---|---|
-| Title | A random circuit orbits behind the title, with the session's fastest lap drawn as a rubber line on a ground moulded like a tyre sidewall. States the model's real held-out accuracy next to chance. |
-| Play | Start lights, then an anonymous lap in a chase camera (or overhead). Tyre-shaped gauge (lap progress, corner notches, speed, gear, throttle, brake). The model's grid of drivers re-sorts after every corner. An evidence line says what the corner showed ("braked 11 m later than the field") and which drivers it pointed to. 3D captions appear beside the corners the model read. Click a driver to guess. 1x, 2x, 4x playback. Space pauses, C switches camera. |
-| Reveal | Verdicts for you and the model (right, teammate, wrong), driver, team, lap time, the rank the model gave the real driver, the three corners that pointed hardest at them, career totals from F1DB, and the real team radio clip from that session. |
+| Home | A hub. A red block with "Who's driving?" and "Start a lap", a framed 3D view orbiting a random circuit with its fastest lap, four mode tiles (Quick lap, Daily five, Teammates, Pick a circuit), links to DNA, Lab and How, and the best model's real held-out accuracy next to chance. A top bar on every page links all of them. |
+| Play | Start lights, then an anonymous lap in a framed chase camera (or overhead). A "Menu" button top-left always leads back; Escape does too. Under the view, a telemetry band: speed, gear, throttle and brake meters, a lap rule with a tick per corner. The model's grid of drivers re-sorts after every corner, and a switch picks which of the three models it shows. An evidence line says what the corner showed ("braked 11 m later than the field") and which drivers it pointed to. 3D captions appear beside the corners the model read. Click a driver to guess. 1x, 2x, 4x playback. Space pauses, C switches camera. |
+| Reveal | The band under the view floods with the driver's team colour and the car takes the team livery colour. Verdicts for you and the model (right, teammate, wrong), driver, team, lap time, career totals from F1DB; how each of the three models ranked the real driver; the three corners that pointed hardest at them; and the real team radio clip from that session, starting where the speech starts, with auto captions. |
 | Teammates | `#/mates`: the HUD names the team ("Which McLaren driver?"), the grid holds only its two drivers, and you and the model guess. It is the teammate test from section 4.6 as a game. |
 | Duel | Replays the lap against the fastest lap of the driver the model picked (or its runner-up when it was right), as a red ghost car, with a live time gap at the white car's position. |
 | Daily five | The same five laps for every visitor on a given date (seeded), saved per day, with a result grid and a copy-to-clipboard share text. |
 | Challenge link | "Copy challenge link" on the reveal gives a URL (`#/play/<session>.<lap index>`) that opens that exact lap for a friend. The link uses the lap's position in the session file, so it does not reveal the driver. |
 | Driver DNA | Every driver's average corner style as a 3D point (PCA of 30 style dimensions). Drag to turn, click or pick a driver to see seven plain-language style traits, the three habits that give them away, closest matches and career totals. |
-| Telemetry lab | Any session, any two drivers: their fastest laps' speed traces overlaid against distance, braking as blue marks under the trace, and for each corner the single biggest difference between them in words ("VER brakes 15 m earlier than LEC"). |
+| Telemetry lab | Any session, any two drivers: their fastest laps' speed traces overlaid against distance, braking as marks under the trace, and for each corner the single biggest difference between them in words ("VER brakes 15 m earlier than LEC"). |
 | How it knows | The method and the honest numbers: top-1, top-3 and team accuracy as bars against chance, the cross-season result, accuracy per session, the easiest and hardest drivers to spot, a confusion matrix, what the data cannot see, and the GBM comparison. All read from the evaluation report. |
 
 ## 3. Architecture
@@ -48,8 +48,9 @@ F1DB release zip ───►│ careers.py    career totals per driver         
                      │ lap.ts    telemetry interpolation      audio/engine.ts  Web Audio V6 synth    │
                      │ scene/world.ts  Three.js track, car, ghost, rubber-line shader, cameras       │
                      │ scene/textures.ts  asphalt grain, sidewall relief, corner caption sprites     │
-                     │ ui/play.ts  round state machine   ui/lineup.ts  ui/tyre.ts  ui/daily.ts       │
-                     │ ui/dna.ts   ui/how.ts   main.ts  hash router + render loop                    │
+                     │ ui/play.ts  round state machine   ui/lineup.ts  ui/telemetry.ts  ui/daily.ts  │
+                     │ ui/stage.ts  one canvas docked per page   ui/dna.ts  ui/how.ts  ui/lab.ts     │
+                     │ main.ts  hash router, home hub, render loop                                   │
                      └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -225,8 +226,8 @@ the fastest lap's speed trace (7 braking corners each). Las Vegas 2025 qualifyin
 ### 5.1 Stack
 
 Vite 6, TypeScript 5.8 (strict, no unused locals), Three.js 0.170, Web Audio, no UI framework. One
-self-hosted variable font, Archivo, with a width axis: expanded black for moulded lettering,
-condensed for labels. Playwright for end-to-end tests.
+self-hosted variable font, Archivo, with a width axis: expanded black for names and numbers,
+normal width for sentences. Playwright for end-to-end tests.
 
 ### 5.2 Rendering (`scene/world.ts`, `scene/textures.ts`)
 
@@ -235,19 +236,22 @@ condensed for labels. Playwright for end-to-end tests.
   its shadow draws the circuit's shape on the sidewall below. (A first version dropped solid walls to
   the ground; on hilly tracks like Austin they became black cliffs.) Asphalt is a generated grain texture tiled every 14 m. Painted edge lines. Striped
   kerbs on the inside of every corner (inside found from the sign of the tangent's turn).
-- **Ground**: a disc textured as a tyre sidewall: bands of concentric moulding grooves, two raised
-  rims and the session's details moulded in a ring ("BLIND LAP", circuit, length, corners). The same
-  canvas is the bump map, and one low warm directional light rakes across it so the relief shows.
+- **Ground**: a paper plane printed like a poster: a fine grid and the circuit name and year in huge
+  letters, so the track sits on the page it belongs to.
+- **Barriers and brake boards**: red and white barrier blocks every 6 m along both edges, and 150,
+  100 and 50 m boards before every real braking zone. Objects passing at the side are what make
+  speed readable; without them the lap looked like a constant speed.
 - **Rubber line**: a narrow strip on the racing line with per-vertex colour from the real inputs:
-  wet blue under braking, hard white at full throttle, grey otherwise. A custom shader hides what the
+  red under braking, paper white at full throttle, grey otherwise. A custom shader hides what the
   car has not reached, fades what is behind it like a wake, and keeps corners at full strength once
   the model has read them (a per-vertex `aKeep` attribute). At the reveal the whole line lights.
 - **Car**: a stylised low-poly F1 car built from primitives (`scene/car.ts`): floor, tub, nose,
   sidepods, engine cover, airbox, halo, front and rear wings, and four wheels with a painted sidewall
-  band that spin by the real distance travelled. The duel's rival is the same car in soft red.
+  band that spin by the real distance travelled. It is ink during the lap (the livery would give the
+  team away) and takes the team colour at the reveal; in the duel both cars are in team colours.
 - **Corner pulses**: when the model reads a corner, a ring of light spreads across the track from it.
-- **Cameras**: chase (about 13 to 19 m behind and 4 to 6 m up, growing with speed, looking 32 m
-  ahead; the field of view widens with speed and the view tips forward under braking), overhead,
+- **Cameras**: chase (16 m behind plus a little per km/h, 5 m up; it pulls back under acceleration
+  and closes in under braking, and the field of view widens with speed), overhead,
   and an orbit for title and reveal. On-board cameras smooth their offset from the car
   rather than their absolute position, so they never fall behind at 4× playback.
 - **Post**: ACES tone mapping, a restrained bloom pass for the car and the line, 4096 shadow map.
@@ -255,8 +259,9 @@ condensed for labels. Playwright for end-to-end tests.
   comes from. Fog uses the same colour in linear space so ground and sky meet without a seam, and
   its distance changes per camera: close on board, so the far side of the circuit melts away; far
   overhead and in the overview, so the whole sidewall stays visible.
-- **Labels that respect the HUD**: corner labels are projected to the screen each frame and hidden
-  when they would land under the session title, the tyre gauge, the driver grid or the evidence line.
+- **One canvas, many frames**: there is one WebGL canvas. Each page that shows 3D has a frame with a
+  slot, and `ui/stage.ts` moves the canvas into it; a ResizeObserver keeps the renderer at the
+  frame's size. Pages without 3D park the canvas off screen.
 - **Corner labels**: sprites with corner numbers; on board only the next few corners show. Once
   read, a label turns soft red and gains a caption of what the model saw ("BRAKES 11 M LATER").
 
@@ -304,13 +309,14 @@ preference is kept too. Storage is always wrapped in try/catch so a private wind
 ### 5.6 Design
 
 The visual direction was set with the impeccable design skill and recorded in
-`.impeccable/surfaces/web-index-html.md`. The world is a tyre: matte rubber ground, moulded
-lettering lit by one raking light, and the five Pirelli compound colours as the only hues, each with
-one job: soft red is the model's pick, medium yellow is your pick, hard white is data, inter green
-is correct, wet blue is braking. Team colour only appears as a thin chip beside a driver code. This
-deliberately avoids the usual F1 broadcast look (team-colour glass panels and chyrons on
-blue-black). The lap clock is a tyre: the lap is the band round the rim, corners are notches, and
-speed and gear sit on the wheel.
+`.impeccable/surfaces/web-index-html.md`. The first world was a tyre (matte black rubber, moulded
+lettering, compound colours). In the morning the owner found it bland and the navigation confusing,
+and chose "C, bold poster" from three mockups. The shipped world is a race poster you can play:
+light paper, heavy wide black type, F1 red as the one brand block and the primary action, yellow for
+your own pick, green for correct, and team colour only where a named driver owns it (the reveal
+field, chips, the car after the reveal). Sharp corners, 3px rules, no shadows. The 3D view is a
+framed picture on the poster. Every page has a top bar; a lap has a Menu button. DESIGN.md records
+the system.
 
 ### 5.7 Design review
 
@@ -345,17 +351,18 @@ captures; they were not re-scored by the reviewer.
 | `pipeline/careers.py` | Matches game drivers to F1DB by name and writes career totals. |
 | `pipeline/run_all.sh` | Build, train, export, careers and checks for every fully downloaded session. |
 | `pipeline/check.py` | Invariants on the exported data: laps move forward, corners in order, weight shapes match, no impossible values, model beats chance. It caught one lap whose position track and official time disagreed by 3 s, which led to tighter lap validation. |
-| `web/src/main.ts` | Hash router (title, play, daily, DNA, how) and the single render loop. |
+| `web/src/main.ts` | Hash router (home, play, mates, daily, DNA, lab, how), the home hub, the phone menu and the single render loop. |
 | `web/src/data.ts` | Types for every JSON file, cached loaders, career line formatting. |
-| `web/src/lap.ts` | Telemetry interpolation at any time; lap time formatting. |
-| `web/src/model.ts` | In-browser inference, evidence sentences and captions. |
+| `web/src/lap.ts` | Smooth lap motion (integrated speed with a drift correction to the recorded positions), telemetry at any time, lap time formatting. |
+| `web/src/model.ts` | Replays the three models' per-corner scores, evidence sentences and captions. |
 | `web/src/audio/engine.ts` | The engine synthesiser and per-gear ratio estimation. |
 | `web/src/scene/world.ts` | Three.js scene: track, ground, kerbs, rubber-line shader, car, ghost car, labels, cameras, post-processing. |
 | `web/src/scene/car.ts` | The low-poly F1 car and its spinning wheels. |
-| `web/src/scene/textures.ts` | Generated textures: asphalt, sidewall relief and lettering, corner labels with captions. |
+| `web/src/scene/textures.ts` | Generated textures: asphalt, the printed poster ground, brake boards, corner labels with captions. |
 | `web/src/ui/play.ts` | Round state machine, HUD, reveal, team radio, duel, daily integration. |
 | `web/src/ui/lineup.ts` | The model's grid: rows that re-sort with transforms, your pick, the truth. |
-| `web/src/ui/tyre.ts` | The SVG tyre gauge. |
+| `web/src/ui/telemetry.ts` | The telemetry band: speed, gear, pedal meters, lap rule with corner ticks. |
+| `web/src/ui/stage.ts` | Docks the one WebGL canvas into the current page's frame. |
 | `web/src/ui/daily.ts` | Seeded daily plan, per-day storage, summary table and share text. |
 | `web/src/ui/dna.ts` | The DNA 3D view and trait panel. |
 | `web/src/ui/how.ts` | The method page: bars against chance, cross-season result, per-session and per-driver accuracy, confusion matrix canvas. |
@@ -365,8 +372,8 @@ captures; they were not re-scored by the reviewer.
 | `web/scripts/record-engine.mjs` | Records 30 s of the synthesised engine during a real lap (dev server). |
 | `DESIGN.md`, `.impeccable/design.json` | The shipped design system: tokens, rules, components, motion. |
 | `web/src/ui/icons.ts` | A small authored SVG icon set. |
-| `web/src/styles.css` | Tokens (rubber, ink, compounds), lettering, HUD, reveal, pages, responsive rules. |
-| `web/tests/blindlap.spec.ts` | End-to-end tests: title, a full round with guess, reveal and duel, DNA, How, daily share. |
+| `web/src/styles.css` | Poster tokens (paper, ink, red), type, top bar, home hub, play grid, reveal band, pages, phone layout. |
+| `web/tests/blindlap.spec.ts` | Ten end-to-end tests: home, a full round with guess, reveal and duel, DNA, How, daily share, challenge link, lab, circuit picker, teammates, switching between the three models. |
 | `PRODUCT.md`, `.impeccable/` | Product context and the design direction contract. |
 
 ## 7. How it was built (workflow)
@@ -417,7 +424,7 @@ captures; they were not re-scored by the reviewer.
   braking, and does not clip), but no person has listened to it yet: this build ran overnight with
   nobody at the speakers. Treat its character as a first draft and tune it by ear.
 - Split corners keep their letter (Hungaroring has 1 and 1A, 12 and 12A); an early export dropped
-  the letter and showed two corners numbered 1 on the tyre gauge.
+  the letter and showed two corners numbered 1 on the lap gauge.
 - Corners at Madring and Kuala Lumpur are detected, not mapped, so they are numbered 1 to 7 by
   braking zone, not by the official turn numbers.
 
@@ -429,3 +436,18 @@ captures; they were not re-scored by the reviewer.
   than more data, since more data did not help the linear model.
 - Update 2026 after each new qualifying: `BLINDLAP_YEAR=2026 fetch.py` then `run_all.sh`.
 - Deploy to the portfolio domain: the site is static, `npm run build` and upload `web/dist`.
+
+## 10. Changes after the owner's first look (2026-10-23, morning)
+
+| Feedback | What changed |
+|---|---|
+| The car moved stop-start and the sound was not in sync | The car used to move between position samples (about 4 a second), so its speed jumped. Now its distance is the integral of the recorded speed, corrected twice with a moving average towards the recorded positions so it cannot drift. Measured error between motion and speed went from about ±53 km/h to ±1.5 km/h, and the engine follows the same speed. |
+| The car shakes left and right on straights | Heading is taken over ±8 m of a smoothed centreline instead of from neighbouring points. Measured on-screen jitter is now under half a pixel. |
+| It does not feel faster or slower | Barriers every 6 m, brake boards before real braking zones, and a camera that pulls back under acceleration and closes in under braking. |
+| Is the car on the right part of the track? | OpenF1 positions are already snapped to one line, so the data has no per-driver racing line. The car follows the shared line; this is a limit of the data, not of the alignment. |
+| Team radio: only the second half was audible | Most clips start with silence. `pipeline/radio.py` measures where speech starts (ffmpeg silencedetect), playback starts there, and the engine cuts out first. |
+| Captions | `pipeline/captions.py` transcribes every clip with faster-whisper (small.en); 334 of 348 clips have text, shown under the radio as it plays. |
+| Louder radio | Not possible without rehosting the clips: the F1 audio server sends no CORS headers, so the page cannot route it through Web Audio for gain. Left for the owner to decide. |
+| Why logistic regression, not a random forest? | All three now run: gradient-boosted trees (42.9% top-1), random forest (40.3%), logistic regression (34.7%). Each is evaluated leave-one-circuit-out; per-lap, per-corner scores for all three are exported, and the game switches between them live and compares them on the reveal and the How page. |
+| Space to pause broke things; sound stuck after a pause or when the tab was hidden | Pause is one state for Space and the button; the engine's mute and active state are separate; a hidden tab pauses the lap and suspends audio. |
+| Bland, all black, confusing navigation | The full redesign in 5.6: a home hub, a top bar on every page, a Menu button in every lap, Escape to leave, and the poster world. |

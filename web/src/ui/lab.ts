@@ -41,7 +41,7 @@ export class LabView {
     this.root.innerHTML = `
       <article class="prose wide">
         <h1 class="display">Telemetry<br>lab</h1>
-        <p>Put two drivers' fastest qualifying laps from the same session on top of each other. The trace is speed against distance; the blue marks under it are braking. Below, each corner says what the model would notice first.</p>
+        <p>Put two drivers' fastest qualifying laps from the same session on top of each other. The trace is speed against distance; the marks under it are braking (black for the first driver, red for the second). Below, each corner says what the model would notice first.</p>
         <div class="lab-controls">
           <label class="caps">Session<select data-k="session">${options}</select></label>
           <label class="caps">Driver<select data-k="a"></select></label>
@@ -111,7 +111,7 @@ export class LabView {
       lastLabel = x(c.s);
       el("text", { x: x(c.s), y: H - 8, class: "tick", "text-anchor": "middle" }).textContent = `T${c.n}`;
     }
-    // Braking as wet-blue marks under the trace, one row per driver.
+    // Braking as marks under the trace, one row per driver.
     const brakeRow = (lap: LapData, row: number) => {
       for (let i = 0; i < lap.s.length - 1; i++) {
         if (lap.brk[i] > 0) el("rect", { x: x(lap.s[i]), y: H - PAD.b + 8 + row * 9, width: Math.max(x(lap.s[i + 1]) - x(lap.s[i]), 1), height: 6, class: `brake ${row ? "b" : "a"}` });

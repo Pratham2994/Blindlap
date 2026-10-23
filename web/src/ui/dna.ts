@@ -3,6 +3,7 @@ import * as THREE from "three";
 import type { Careers, Dna, DnaDriver } from "../data";
 import { careerLine } from "../data";
 import type { World } from "../scene/world";
+import { dockStage } from "./stage";
 
 const SCALE = 60;
 
@@ -15,13 +16,13 @@ function discTexture(code: string, colour: string, lit = false): THREE.CanvasTex
   const c = document.createElement("canvas");
   c.width = c.height = 256;
   const g = c.getContext("2d")!;
-  // A wheel nut seen face-on: rubber disc, moulded rim, raised code, team colour as a small chip.
-  g.fillStyle = "#151515";
+  // A printed roundel: paper disc, ink rim (heavier when selected), the code, a team-colour chip.
+  g.fillStyle = "#ffffff";
   g.beginPath();
   g.arc(128, 128, 118, 0, Math.PI * 2);
   g.fill();
-  g.lineWidth = 8;
-  g.strokeStyle = lit ? "#f2f0ea" : "#3a3a3a";
+  g.lineWidth = lit ? 16 : 6;
+  g.strokeStyle = lit ? "#111111" : "#bdbab3";
   g.beginPath();
   g.arc(128, 128, 110, 0, Math.PI * 2);
   g.stroke();
@@ -31,9 +32,7 @@ function discTexture(code: string, colour: string, lit = false): THREE.CanvasTex
   (g as CanvasRenderingContext2D & { fontStretch: string }).fontStretch = "expanded";
   g.textAlign = "center";
   g.textBaseline = "middle";
-  g.fillStyle = "#000";
-  g.fillText(code, 128, 132);
-  g.fillStyle = "#f2f0ea";
+  g.fillStyle = "#111111";
   g.fillText(code, 128, 130);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
@@ -66,21 +65,26 @@ export class DnaView {
     this.root.className = "page dna";
     const pct = Math.round(dna.explained.reduce((a, v) => a + v, 0) * 100);
     this.root.innerHTML = `
-      <div class="dna-head">
-        <h1 class="display">Driver<br>DNA</h1>
+      <header class="page-head">
+        <h1 class="display">Driver DNA</h1>
         <p>Every driver's average corner, scored against the field: where they brake, how much speed they carry, when they get back on the power. Drivers who sit close together attack corners alike.</p>
-      </div>
-      <aside class="dna-panel" aria-live="polite"></aside>
-      <p class="dna-legend">Drag to turn. Select a driver to read their style. The three directions shown hold ${pct}% of the differences between drivers; lines join each driver to their closest match. Built from qualifying push laps.</p>`;
+      </header>
+      <div class="dna-grid">
+        <figure class="frame dna-stage">
+          <div class="stage-slot"></div>
+          <figcaption class="caps">Drag to turn · select a driver · lines join closest matches · the three directions hold ${pct}% of the differences</figcaption>
+        </figure>
+        <aside class="dna-panel" aria-live="polite"></aside>
+      </div>`;
     this.panel = this.root.querySelector(".dna-panel")!;
 
-    this.scene.background = new THREE.Color("#0e0e0e");
-    this.scene.fog = new THREE.Fog("#0e0e0e", 160, 320);
-    // Concentric grooves as the floor of the space, the same sidewall the track sits on.
+    this.scene.background = new THREE.Color("#f1f0ec");
+    this.scene.fog = new THREE.Fog("#f1f0ec", 180, 360);
+    // Rings on the floor of the space, like range rings on a printed chart.
     for (let r = 20; r <= 100; r += 20) {
       const ring = new THREE.Mesh(
         new THREE.RingGeometry(r - 0.15, r + 0.15, 160),
-        new THREE.MeshBasicMaterial({ color: "#2b2b2b", side: THREE.DoubleSide }),
+        new THREE.MeshBasicMaterial({ color: "#cfccc5", side: THREE.DoubleSide }),
       );
       ring.rotation.x = -Math.PI / 2;
       ring.position.y = -SCALE * 1.05;
@@ -98,7 +102,7 @@ export class DnaView {
       // Stalk down to the floor so depth reads.
       const stalk = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints([sprite.position.clone(), sprite.position.clone().setY(-SCALE * 1.05)]),
-        new THREE.LineBasicMaterial({ color: "#2b2b2b" }),
+        new THREE.LineBasicMaterial({ color: "#cfccc5" }),
       );
       this.group.add(stalk);
       const n = byCode.get(d.neighbours[0]);
@@ -106,12 +110,13 @@ export class DnaView {
     }
     const lg = new THREE.BufferGeometry();
     lg.setAttribute("position", new THREE.Float32BufferAttribute(linkPts, 3));
-    this.links = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: "#f2f0ea", transparent: true, opacity: 0.28 }));
+    this.links = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: "#111111", transparent: true, opacity: 0.35 }));
     this.group.add(this.links);
     this.scene.add(this.group);
 
     this.bind();
     this.select(focus && byCode.has(focus) ? focus : dna.drivers[0].code);
+    dockStage(this.root.querySelector(".stage-slot"));
   }
 
   private on(target: EventTarget, type: string, fn: EventListener) {
@@ -125,7 +130,7 @@ export class DnaView {
     let ly = 0;
     let moved = 0;
     this.on(this.root, "pointerdown", ((e: PointerEvent) => {
-      if ((e.target as HTMLElement).closest(".dna-panel, .dna-head")) return;
+      if (!(e.target as HTMLElement).closest(".dna-stage")) return;
       this.dragging = true;
       this.auto = false;
       lx = e.clientX;
@@ -196,9 +201,6 @@ export class DnaView {
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
     this.camera.aspect = w / h;
-    // On phones the heading and panel own the top and bottom; push the map into the band between.
-    if (w <= 860) this.camera.setViewOffset(w, h, 0, -h * 0.06, w, h);
-    else this.camera.clearViewOffset();
     this.camera.updateProjectionMatrix();
     this.declutter(w, h);
     this.world.renderer.render(this.scene, this.camera);

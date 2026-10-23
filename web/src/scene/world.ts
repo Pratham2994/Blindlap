@@ -7,23 +7,20 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import type { LapData, Session } from "../data";
 import { makeF1Car } from "./car";
-import { asphaltTexture, boardTexture, labelTexture, sidewallTextures } from "./textures";
+import { asphaltTexture, boardTexture, labelTexture, posterGround } from "./textures";
 
-export const COMPOUND = {
-  soft: new THREE.Color("#e8312a"),
-  medium: new THREE.Color("#f5c518"),
-  hard: new THREE.Color("#f2f0ea"),
-  inter: new THREE.Color("#3fae49"),
-  wet: new THREE.Color("#2f7fe0"),
-};
+// The poster palette in the scene: ink, paper, F1 red.
+export const INK = new THREE.Color("#141414");
+const PAPER = new THREE.Color("#f3f2ee");
+const RED = new THREE.Color("#e10600");
 
 // Haze colour in linear space, equal to the sky shader's horizon so ground and sky meet without a seam.
-const HAZE = new THREE.Color().setRGB(0.022, 0.022, 0.023, THREE.LinearSRGBColorSpace);
+const HAZE = new THREE.Color().setRGB(0.62, 0.61, 0.58, THREE.LinearSRGBColorSpace);
 
 const REDUCED_MOTION = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 
-const BARRIER_LIGHT = "#e9e7e2";
-const BARRIER_DARK = "#1c1c1c";
+const BARRIER_LIGHT = "#f3f2ee";
+const BARRIER_DARK = "#e10600";
 
 const ELEVATION = 2; // vertical exaggeration so hills read from the chase camera
 const TRACK_WIDTH = 13;
@@ -79,11 +76,11 @@ export class World {
     this.renderer.toneMappingExposure = 1.05;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.scene.background = new THREE.Color("#0b0b0b");
+    this.scene.background = new THREE.Color("#dcdad4");
     this.scene.fog = new THREE.Fog(HAZE, 1500, 6000);
     this.scene.add(this.makeSky());
 
-    this.scene.add(new THREE.HemisphereLight("#d8d4cc", "#050505", 0.55));
+    this.scene.add(new THREE.HemisphereLight("#ffffff", "#8c8a84", 1.4));
     // One low raking light, like late sun across a moulded sidewall: it makes the relief read.
     this.sun = new THREE.DirectionalLight("#fff4e6", 3.2);
     this.sun.castShadow = true;
@@ -91,8 +88,8 @@ export class World {
     this.sun.shadow.bias = -0.0004;
     this.scene.add(this.sun, this.sun.target);
 
-    this.car = this.makeCar();
-    this.ghost = this.makeCar(COMPOUND.soft);
+    this.car = this.makeCar(INK);
+    this.ghost = this.makeCar(RED);
     this.ghost.visible = false;
     this.scene.add(this.ghost);
     this.carLight = new THREE.PointLight("#fff2dc", 7, 28, 1.8);
@@ -108,6 +105,8 @@ export class World {
     this.composer.addPass(new OutputPass());
     this.resize();
     window.addEventListener("resize", () => this.resize());
+    // The canvas moves between frames on different pages; follow whatever size its frame gives it.
+    new ResizeObserver(() => this.resize()).observe(canvas);
   }
 
   resize() {
@@ -140,11 +139,11 @@ export class World {
           float h = vDir.y;
           // Haze is a touch brighter on the side the light sits (+x), and thins quickly with height.
           float sun = max(dot(normalize(vDir.xz), normalize(vec2(0.9, 0.35))), 0.0);
-          vec3 zenith = vec3(0.004, 0.004, 0.0045);
-          vec3 horizon = mix(vec3(0.022, 0.022, 0.023), vec3(0.04, 0.039, 0.038), pow(sun, 8.0));
+          vec3 zenith = vec3(0.78, 0.78, 0.76);
+          vec3 horizon = mix(vec3(0.62, 0.61, 0.58), vec3(0.7, 0.68, 0.64), pow(sun, 8.0));
           float t = smoothstep(-0.02, 0.28, h);
           vec3 c = mix(horizon, zenith, t);
-          if (h < -0.02) c = vec3(0.022, 0.022, 0.023);
+          if (h < -0.02) c = vec3(0.62, 0.61, 0.58);
           gl_FragColor = vec4(c, 1.0);
         }`,
     });
@@ -169,7 +168,7 @@ export class World {
     else this.camera.clearViewOffset();
   }
 
-  private makeCar(colour: THREE.Color = COMPOUND.hard): THREE.Group {
+  private makeCar(colour: THREE.Color): THREE.Group {
     const car = makeF1Car(colour);
     this.wheels.push(...car.wheels);
     return car.group;
@@ -249,23 +248,13 @@ export class World {
   }
 
   private buildGround(session: Session): THREE.Mesh {
-    const words = [
-      "BLIND LAP",
-      `${session.circuit.toUpperCase()} · ${session.date.slice(0, 4)}`,
-      "QUALIFYING",
-      `${(session.length / 1000).toFixed(3)} KM`,
-      "WHO IS DRIVING",
-      `${session.corners.length} CORNERS`,
-    ];
-    const { map, bump } = sidewallTextures(words);
     const size = this.radius * 2.9;
     const ground = new THREE.Mesh(
-      new THREE.CircleGeometry(size / 2, 256),
-      new THREE.MeshStandardMaterial({ map, bumpMap: bump, bumpScale: 6, roughness: 0.92, metalness: 0 }),
+      new THREE.PlaneGeometry(size, size),
+      new THREE.MeshStandardMaterial({ map: posterGround(session.circuit, session.date.slice(0, 4)), roughness: 0.95 }),
     );
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
-    // Circle UVs are planar on [0,1], so the texture's rings stay concentric with the disc.
     return ground;
   }
 
@@ -419,8 +408,8 @@ export class World {
   private buildKerbs(session: Session): THREE.Group {
     const g = new THREE.Group();
     const mats = [
-      new THREE.MeshStandardMaterial({ color: COMPOUND.hard, roughness: 0.6 }),
-      new THREE.MeshStandardMaterial({ color: "#2a2a2a", roughness: 0.6 }),
+      new THREE.MeshStandardMaterial({ color: PAPER, roughness: 0.6 }),
+      new THREE.MeshStandardMaterial({ color: RED, roughness: 0.6 }),
     ];
     const box = new THREE.BoxGeometry(3.2, 0.35, 1.6);
     for (const c of session.corners) {
@@ -440,7 +429,7 @@ export class World {
     return g;
   }
 
-  /** Paint the lap's rubber line: wet blue under braking, hard white at full throttle. */
+  /** Paint the lap's rubber line: red under braking, paper white at full throttle. */
   setLap(lap: LapData) {
     if (this.line) this.trackGroup.remove(this.line);
     const f = this.frame!;
@@ -457,7 +446,7 @@ export class World {
       while (j < lap.s.length - 2 && lap.s[j + 1] < sv) j++;
       const brake = lap.brk[j] > 0;
       const thr = lap.thr[j];
-      const c = brake ? COMPOUND.wet : thr >= 95 ? COMPOUND.hard : new THREE.Color("#8a8780");
+      const c = brake ? RED : thr >= 95 ? PAPER : new THREE.Color("#8a8780");
       const p = f.pos[k];
       const sd = f.side[k];
       pos.push(p.x + sd.x * w, p.y + 0.08, p.z + sd.z * w, p.x - sd.x * w, p.y + 0.08, p.z - sd.z * w);
@@ -517,7 +506,7 @@ export class World {
     const at = this.pointAt((lo + hi) / 2);
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(0.9, 1, 64).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: COMPOUND.hard, transparent: true, opacity: 0.8, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ color: INK, transparent: true, opacity: 0.8, depthWrite: false }),
     );
     ring.position.copy(at).setY(at.y + 0.3);
     this.trackGroup.add(ring);
@@ -526,7 +515,7 @@ export class World {
     if (l) {
       const m = l.sprite.material as THREE.SpriteMaterial;
       // State is a mark, not a hue: a read corner gains a notch and, on board, a caption.
-      m.map = labelTexture(`T${l.n}`, "#f2f0ea", note, true);
+      m.map = labelTexture(`T${l.n}`, "#111111", note, true);
       l.aspect = note ? 8 : 2;
       m.opacity = 1;
       m.needsUpdate = true;
@@ -603,6 +592,20 @@ export class World {
     // Offset sideways a little so two cars on the same line never sit inside each other.
     this.ghost.position.copy(p).addScaledVector(this.sideAt(s), 2.2);
     this.ghost.rotation.y = Math.atan2(-t.z, t.x);
+  }
+
+  /** Paint the cars: ink while the driver is hidden, team colours once they are known. */
+  setCarColours(car: THREE.ColorRepresentation, ghost: THREE.ColorRepresentation = RED) {
+    const paint = (g: THREE.Group, c: THREE.ColorRepresentation) =>
+      g.traverse((o) => {
+        const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+        if (m && m.userData.paint) {
+          m.color.set(c);
+          m.emissive.set(c);
+        }
+      });
+    paint(this.car, car);
+    paint(this.ghost, ghost);
   }
 
   showCar(on: boolean) {

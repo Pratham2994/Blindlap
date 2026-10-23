@@ -1,257 +1,191 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-23T00:00:00Z",
+  "generatedAt": "2026-10-23T12:00:00Z",
   "title": "Design System: Blind Lap",
   "extensions": {
     "colorMeta": {
-      "rubber": {
+      "paper": {
         "role": "neutral",
-        "displayName": "Rubber",
-        "canonical": "#0e0e0e",
+        "displayName": "Paper: page ground",
+        "canonical": "#f1f0ec",
         "tonalRamp": [
-          "#030303",
-          "#060606",
-          "#080808",
-          "#0b0b0b",
-          "#323232",
-          "#6e6e6e",
-          "#ababab",
-          "#e2e2e2"
+          "#1a1913",
+          "#353227",
+          "#4f4b3a",
+          "#6a644e",
+          "#a8a28a",
+          "#c7c3b3",
+          "#e1dfd6",
+          "#f4f3f0"
         ]
       },
-      "rubber-2": {
+      "paper-2": {
         "role": "neutral",
-        "displayName": "Rubber Two",
-        "canonical": "#151515",
+        "displayName": "Paper Two: stage frame, hover, tracks",
+        "canonical": "#e6e4de",
         "tonalRamp": [
-          "#040404",
-          "#080808",
-          "#0d0d0d",
-          "#111111",
-          "#383838",
-          "#737373",
-          "#adadad",
-          "#e3e3e3"
+          "#1a1914",
+          "#343128",
+          "#4e4a3b",
+          "#68624f",
+          "#a7a08b",
+          "#c6c1b4",
+          "#e0ded6",
+          "#f4f3f0"
         ]
       },
-      "rubber-3": {
+      "paper-3": {
         "role": "neutral",
-        "displayName": "Rubber Three",
-        "canonical": "#1e1e1e",
+        "displayName": "Paper Three: hairlines",
+        "canonical": "#d9d6cf",
         "tonalRamp": [
-          "#060606",
-          "#0c0c0c",
-          "#121212",
-          "#181818",
-          "#404040",
-          "#787878",
-          "#b0b0b0",
-          "#e4e4e4"
-        ]
-      },
-      "groove": {
-        "role": "neutral",
-        "displayName": "Groove",
-        "canonical": "#2b2b2b",
-        "tonalRamp": [
-          "#090909",
-          "#111111",
-          "#1a1a1a",
-          "#222222",
-          "#4b4b4b",
-          "#808080",
-          "#b5b5b5",
-          "#e6e6e6"
-        ]
-      },
-      "raised": {
-        "role": "neutral",
-        "displayName": "Raised",
-        "canonical": "#3a3a3a",
-        "tonalRamp": [
-          "#0c0c0c",
-          "#171717",
-          "#232323",
-          "#2e2e2e",
-          "#585858",
-          "#898989",
-          "#bababa",
-          "#e7e7e7"
+          "#1a1814",
+          "#333029",
+          "#4d483d",
+          "#666051",
+          "#a59e8d",
+          "#c4c0b5",
+          "#dfddd7",
+          "#f4f3f1"
         ]
       },
       "ink": {
         "role": "neutral",
-        "displayName": "Ink",
-        "canonical": "#f2f0ea",
+        "displayName": "Ink: type, rules, active states",
+        "canonical": "#111111",
         "tonalRamp": [
-          "#30302f",
-          "#61605e",
-          "#91908c",
-          "#c2c0bb",
-          "#f4f2ed",
-          "#f7f6f2",
-          "#fafaf8",
-          "#fdfdfc"
+          "#171717",
+          "#2e2e2e",
+          "#454545",
+          "#5c5c5c",
+          "#999999",
+          "#bdbdbd",
+          "#dbdbdb",
+          "#f2f2f2"
         ]
       },
       "ink-2": {
         "role": "neutral",
-        "displayName": "Ink Two",
-        "canonical": "#c2bfb7",
+        "displayName": "Ink Two: body text",
+        "canonical": "#3a3936",
         "tonalRamp": [
-          "#272625",
-          "#4e4c49",
-          "#74736e",
-          "#9b9992",
-          "#cbc9c2",
-          "#dad9d4",
-          "#eae9e6",
-          "#f8f7f6"
+          "#181716",
+          "#302f2c",
+          "#474642",
+          "#5f5d59",
+          "#9d9b95",
+          "#bfbeba",
+          "#dddcda",
+          "#f3f2f2"
         ]
       },
       "ink-3": {
         "role": "neutral",
-        "displayName": "Ink Three",
-        "canonical": "#8f8c85",
+        "displayName": "Ink Three: labels and meta",
+        "canonical": "#5f5d58",
         "tonalRamp": [
-          "#1d1c1b",
-          "#393835",
-          "#565450",
-          "#72706a",
-          "#a09d97",
-          "#bcbab6",
-          "#d8d7d4",
-          "#f2f1f0"
+          "#181716",
+          "#302f2c",
+          "#474642",
+          "#5f5d58",
+          "#9d9b95",
+          "#bfbeba",
+          "#dddcda",
+          "#f3f2f2"
         ]
       },
-      "soft": {
+      "red": {
         "role": "primary",
-        "displayName": "Soft Red: the model's pick",
-        "canonical": "#e8312a",
+        "displayName": "F1 Red: brand block and primary action",
+        "canonical": "#e10600",
         "tonalRamp": [
-          "#2e0a08",
-          "#5d1411",
-          "#8b1d19",
-          "#ba2722",
-          "#eb504a",
-          "#f1837f",
-          "#f7b7b4",
-          "#fce6e5"
+          "#2e0100",
+          "#5c0200",
+          "#8a0400",
+          "#b80500",
+          "#ff3833",
+          "#ff7e7a",
+          "#ffbab8",
+          "#ffe6e5"
         ]
       },
-      "medium": {
+      "red-deep": {
+        "role": "primary",
+        "displayName": "Red Deep: pressed red",
+        "canonical": "#b00500",
+        "tonalRamp": [
+          "#2e0100",
+          "#5c0300",
+          "#8a0400",
+          "#b80500",
+          "#ff3933",
+          "#ff7e7a",
+          "#ffbab8",
+          "#ffe6e5"
+        ]
+      },
+      "yellow": {
         "role": "secondary",
-        "displayName": "Medium Yellow: your pick",
+        "displayName": "Yellow: your own input",
         "canonical": "#f5c518",
         "tonalRamp": [
-          "#312705",
-          "#624f0a",
-          "#93760e",
-          "#c49e13",
-          "#f6ce3b",
-          "#f9dc74",
-          "#fcebae",
-          "#fef8e3"
+          "#2c2302",
+          "#584604",
+          "#846906",
+          "#b08b08",
+          "#f7ce3b",
+          "#f9df80",
+          "#fceebb",
+          "#fef9e7"
         ]
       },
-      "hard": {
+      "green": {
         "role": "tertiary",
-        "displayName": "Hard White: data",
-        "canonical": "#f2f0ea",
+        "displayName": "Green: correct",
+        "canonical": "#11803d",
         "tonalRamp": [
-          "#30302f",
-          "#61605e",
-          "#91908c",
-          "#c2c0bb",
-          "#f4f2ed",
-          "#f7f6f2",
-          "#fafaf8",
-          "#fdfdfc"
-        ]
-      },
-      "inter": {
-        "role": "tertiary",
-        "displayName": "Inter Green: correct",
-        "canonical": "#3fae49",
-        "tonalRamp": [
-          "#0d230f",
-          "#19461d",
-          "#26682c",
-          "#328b3a",
-          "#5cba64",
-          "#8cce92",
-          "#bce3bf",
-          "#e8f5e9"
-        ]
-      },
-      "wet": {
-        "role": "tertiary",
-        "displayName": "Wet Blue: braking",
-        "canonical": "#2f7fe0",
-        "tonalRamp": [
-          "#09192d",
-          "#13335a",
-          "#1c4c86",
-          "#2666b3",
-          "#4e92e5",
-          "#82b2ec",
-          "#b6d2f4",
-          "#e6f0fb"
+          "#052913",
+          "#0b5127",
+          "#107a3a",
+          "#16a24d",
+          "#4be789",
+          "#8aefb2",
+          "#c0f7d6",
+          "#e8fcf0"
         ]
       }
     },
     "typographyMeta": {
       "display": {
         "displayName": "Display",
-        "purpose": "Title, page heads and the HUD circuit name; extended, embossed caps."
+        "purpose": "Hero title, page heads, circuit name, mode tiles; 900 wdth 125 caps."
       },
       "headline": {
         "displayName": "Headline",
-        "purpose": "Driver name on the reveal card, DNA panel code, Daily five."
+        "purpose": "Driver name on the reveal, hyphenated when long."
       },
-      "title": {
-        "displayName": "Title",
-        "purpose": "Section heads on reading pages."
+      "numeral": {
+        "displayName": "Numeral",
+        "purpose": "Speed, gear, duel gap, home facts; tabular."
       },
       "code": {
         "displayName": "Code",
-        "purpose": "Three-letter driver codes and big changing numbers; tabular."
+        "purpose": "Three-letter driver codes."
       },
       "body": {
         "displayName": "Body",
-        "purpose": "Reading text at normal width, max 70ch."
+        "purpose": "Reading text at normal width, max 76ch."
       },
       "label": {
         "displayName": "Label",
-        "purpose": "Uppercase panel labels, meta, team lines, table heads."
+        "purpose": "Meta, table heads, frame captions; wdth 112 caps."
       },
       "button": {
         "displayName": "Button",
-        "purpose": "Button lettering."
+        "purpose": "Every button and the Menu link; wdth 118 caps."
       }
     },
-    "shadows": [
-      {
-        "name": "emboss",
-        "value": "0 -1px 0 rgba(0, 0, 0, 0.9), 0 1px 0 rgba(255, 255, 255, 0.07)",
-        "purpose": "text-shadow for raised lettering: display, wordmark, driver codes."
-      },
-      {
-        "name": "deboss",
-        "value": "inset 0 1px 2px rgba(0, 0, 0, 0.85), inset 0 -1px 0 rgba(255, 255, 255, 0.05)",
-        "purpose": "Wells pressed into the rubber: housings, panels, tracks, pressed buttons."
-      },
-      {
-        "name": "lift",
-        "value": "0 6px 18px -6px rgba(0, 0, 0, 0.8), 0 1px 0 rgba(255, 255, 255, 0.04) inset",
-        "purpose": "Raised pieces: buttons at rest, active segment, current nav link, start-light housing."
-      },
-      {
-        "name": "panel-drop",
-        "value": "0 18px 40px -18px rgba(0, 0, 0, 0.9)",
-        "purpose": "Added under the line-up panel so it separates from the 3D scene."
-      }
-    ],
+    "shadows": [],
     "motion": [
       {
         "name": "ease-out",
@@ -261,40 +195,34 @@
       {
         "name": "row-resort",
         "value": "transform 0.26s ease-out",
-        "purpose": "Line-up rows translate to their new rank after each corner."
+        "purpose": "Grid rows move to their new rank after each corner."
       },
       {
-        "name": "bar-fill",
-        "value": "width 0.6s ease-out",
-        "purpose": "Line-up bars and DNA axes."
+        "name": "bars",
+        "value": "width 0.5s ease-out",
+        "purpose": "Probability bars and DNA axes."
       },
       {
-        "name": "hud-exit",
-        "value": "opacity + translateY(24px), 0.8s ease-out",
-        "purpose": "Gauge, evidence and session leave on reveal."
-      },
-      {
-        "name": "reveal-rise",
-        "value": "0.9s ease-out from opacity 0, +24px, blur(6px)",
-        "purpose": "Reveal card entrance."
+        "name": "reveal-flood",
+        "value": "clip-path 0.7s ease-out",
+        "purpose": "The who-block floods with team colour from the left."
       },
       {
         "name": "evidence-flash",
-        "value": "0.9s ease-out, 2px ink-3 ring to transparent",
-        "purpose": "New evidence lands."
+        "value": "background 0.8s ease-out",
+        "purpose": "The corner tag flashes red when new evidence lands."
       },
       {
-        "name": "start-lights",
-        "value": "one light per 700ms, 0.08s switch",
-        "purpose": "Lights out before the lap."
-      },
-      {
-        "name": "reduced-motion",
-        "value": "animation and transition duration 0.01ms",
-        "purpose": "prefers-reduced-motion: reduce (CSS only)."
+        "name": "invert",
+        "value": "background, color 0.15s",
+        "purpose": "Buttons and tiles invert to ink on hover."
       }
     ],
     "breakpoints": [
+      {
+        "name": "tablet",
+        "value": "1100px"
+      },
       {
         "name": "compact",
         "value": "860px"
@@ -307,121 +235,105 @@
   },
   "components": [
     {
-      "name": "Rubber Button",
+      "name": "Poster Button",
       "kind": "button",
       "refersTo": "button",
-      "description": "Raised rubber pill for every action; lifts at rest, debosses on press.",
-      "html": "<button class=\"ds-btn\">Race it against PIA <svg viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 8h9\"/><path d=\"M8.5 4.5L12 8l-3.5 3.5\"/></svg></button>",
-      "css": ".ds-btn { font-family: var(--face, 'Archivo Variable', system-ui, sans-serif); display: inline-flex; align-items: center; gap: 12px; border: 0; border-radius: 999px; padding: 16px 26px 15px; font-weight: 800; font-variation-settings: 'wdth' 120; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.85rem; background: var(--rubber-3, #1e1e1e); color: var(--ink, #f2f0ea); box-shadow: var(--lift, 0 6px 18px -6px rgba(0,0,0,0.8), 0 1px 0 rgba(255,255,255,0.04) inset); cursor: pointer; transition: transform 0.25s cubic-bezier(0.16,1,0.3,1), background 0.2s, box-shadow 0.2s; } .ds-btn svg { width: 16px; height: 16px; } .ds-btn:hover { transform: translateY(-1px); background: #262626; } .ds-btn:active { transform: translateY(1px); box-shadow: var(--deboss, inset 0 1px 2px rgba(0,0,0,0.85), inset 0 -1px 0 rgba(255,255,255,0.05)); } .ds-btn:focus-visible { outline: 2px solid var(--medium, #f5c518); outline-offset: 3px; }"
+      "description": "3px ink border on paper; inverts to ink on hover. Primary is F1 red.",
+      "html": "<button class=\"ds-btn\">Race it against PIA</button> <button class=\"ds-btn ds-primary\">Next lap</button>",
+      "css": ".ds-btn { font-family: var(--face, 'Archivo Variable', system-ui, sans-serif); display: inline-flex; align-items: center; gap: 10px; padding: 13px 20px 12px; border: 3px solid #111; background: #f1f0ec; color: #111; font-weight: 850; font-variation-settings: 'wdth' 118; text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.82rem; cursor: pointer; transition: background 0.15s, color 0.15s; } .ds-btn:hover { background: #111; color: #f1f0ec; } .ds-primary { background: #e10600; border-color: #e10600; color: #fff; } .ds-primary:hover { background: #111; border-color: #111; } .ds-btn:focus-visible { outline: 3px solid #e10600; outline-offset: 2px; }"
     },
     {
       "name": "Segmented Control",
-      "kind": "chip",
+      "kind": "control",
       "refersTo": "segmented",
-      "description": "Debossed pill housing; the pressed option is a lifted rubber pill.",
-      "html": "<div class=\"ds-seg\"><button aria-pressed=\"false\">1x</button><button aria-pressed=\"false\">2x</button><button aria-pressed=\"true\">4x</button></div>",
-      "css": ".ds-seg { display: inline-flex; padding: 3px; border-radius: 999px; background: rgba(14,14,14,0.78); box-shadow: var(--deboss, inset 0 1px 2px rgba(0,0,0,0.85), inset 0 -1px 0 rgba(255,255,255,0.05)); } .ds-seg button { font-family: var(--face, 'Archivo Variable', system-ui, sans-serif); border: 0; background: transparent; padding: 8px 12px; border-radius: 999px; font-weight: 700; font-variation-settings: 'wdth' 112; font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3, #8f8c85); cursor: pointer; } .ds-seg button:hover { color: var(--ink, #f2f0ea); } .ds-seg button[aria-pressed='true'] { background: var(--rubber-3, #1e1e1e); color: var(--ink, #f2f0ea); box-shadow: var(--lift, 0 6px 18px -6px rgba(0,0,0,0.8), 0 1px 0 rgba(255,255,255,0.04) inset); } .ds-seg button:focus-visible { outline: 2px solid var(--medium, #f5c518); outline-offset: 3px; }"
+      "description": "Bordered strip with 3px dividers; the active option is an ink block.",
+      "html": "<div class=\"ds-seg\"><button aria-pressed=\"true\">Boosted trees</button><button aria-pressed=\"false\">Random forest</button><button aria-pressed=\"false\">Logistic</button></div>",
+      "css": ".ds-seg { display: inline-flex; border: 3px solid #111; background: #f1f0ec; } .ds-seg button { font-family: var(--face, 'Archivo Variable', system-ui, sans-serif); border: 0; background: transparent; padding: 8px 12px; font-weight: 750; font-variation-settings: 'wdth' 112; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.7rem; color: #3a3936; cursor: pointer; } .ds-seg button + button { border-left: 3px solid #111; } .ds-seg button[aria-pressed='true'] { background: #111; color: #f1f0ec; }"
     },
     {
-      "name": "Top Bar Navigation",
-      "kind": "nav",
-      "refersTo": "nav-link",
-      "description": "Embossed wordmark and a debossed pill nav; the current page is lifted.",
-      "html": "<header class=\"ds-top\"><a class=\"ds-word\" href=\"#\">BLIND LAP</a><nav class=\"ds-nav\"><a href=\"#\" aria-current=\"page\">Play</a><a href=\"#\">Driver DNA</a><a href=\"#\">How it works</a></nav></header>",
-      "css": ".ds-top { font-family: var(--face, 'Archivo Variable', system-ui, sans-serif); display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 18px 24px; background: var(--rubber, #0e0e0e); } .ds-word { color: var(--ink, #f2f0ea); font-weight: 900; font-variation-settings: 'wdth' 125; letter-spacing: 0.04em; text-decoration: none; text-shadow: var(--emboss, 0 -1px 0 rgba(0,0,0,0.9), 0 1px 0 rgba(255,255,255,0.07)); } .ds-nav { display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: rgba(14,14,14,0.72); box-shadow: var(--deboss, inset 0 1px 2px rgba(0,0,0,0.85), inset 0 -1px 0 rgba(255,255,255,0.05)); } .ds-nav a { text-decoration: none; font-weight: 650; font-variation-settings: 'wdth' 112; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.7rem; padding: 9px 14px; border-radius: 999px; color: var(--ink-2, #c2bfb7); transition: color 0.2s, background 0.2s; } .ds-nav a:hover { color: var(--ink, #f2f0ea); } .ds-nav a[aria-current='page'] { background: var(--rubber-3, #1e1e1e); color: var(--ink, #f2f0ea); box-shadow: var(--lift, 0 6px 18px -6px rgba(0,0,0,0.8), 0 1px 0 rgba(255,255,255,0.04) inset); } .ds-nav a:focus-visible { outline: 2px solid var(--medium, #f5c518); outline-offset: 3px; }"
-    },
-    {
-      "name": "Line-up Rows",
-      "kind": "custom",
+      "name": "Grid Row",
+      "kind": "list-item",
       "refersTo": "lineup-row",
-      "description": "The model's grid: team chip, embossed code, debossed bar, tabular percentage. Leader bar soft, your pick ringed medium, truth ringed inter.",
-      "html": "<ol class=\"ds-lineup\"><li><button class=\"ds-row lead truth\"><span class=\"chip\" style=\"background:#ff8000\"></span><span class=\"code\">NOR</span><span class=\"bar\"><i style=\"width:100%\"></i></span><span class=\"pct\">36%</span></button></li><li><button class=\"ds-row\"><span class=\"chip\" style=\"background:#ff8000\"></span><span class=\"code\">PIA</span><span class=\"bar\"><i style=\"width:92%\"></i></span><span class=\"pct\">33%</span></button></li><li><button class=\"ds-row pick\"><span class=\"chip\" style=\"background:#27f4d2\"></span><span class=\"code\">ANT</span><span class=\"bar\"><i style=\"width:6%\"></i></span><span class=\"pct\">2%</span></button></li></ol>",
-      "css": ".ds-lineup { list-style: none; margin: 0; padding: 14px 10px 10px; width: 300px; border-radius: 22px; background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(255,255,255,0.018) 3px 4px), var(--rubber-2, #151515); box-shadow: var(--deboss, inset 0 1px 2px rgba(0,0,0,0.85), inset 0 -1px 0 rgba(255,255,255,0.05)), 0 18px 40px -18px rgba(0,0,0,0.9); } .ds-row { font-family: var(--face, 'Archivo Variable', system-ui, sans-serif); width: 100%; height: 34px; display: grid; grid-template-columns: 4px 46px 1fr 44px; align-items: center; gap: 10px; padding: 0 8px; border: 0; border-radius: 10px; background: var(--rubber-2, #151515); color: var(--ink, #f2f0ea); text-align: left; cursor: pointer; transition: background 0.2s; } .ds-row:hover { background: var(--rubber-3, #1e1e1e); } .ds-row:focus-visible { outline: 2px solid var(--medium, #f5c518); outline-offset: 3px; } .ds-row .chip { width: 4px; height: 16px; border-radius: 2px; } .ds-row .code { font-weight: 850; font-variation-settings: 'wdth' 125; font-size: 0.86rem; letter-spacing: 0.02em; text-shadow: var(--emboss, 0 -1px 0 rgba(0,0,0,0.9), 0 1px 0 rgba(255,255,255,0.07)); } .ds-row .bar { height: 8px; border-radius: 4px; background: var(--rubber-3, #1e1e1e); box-shadow: var(--deboss, inset 0 1px 2px rgba(0,0,0,0.85), inset 0 -1px 0 rgba(255,255,255,0.05)); overflow: hidden; } .ds-row .bar i { display: block; height: 100%; border-radius: 4px; background: var(--ink-3, #8f8c85); transition: width 0.6s cubic-bezier(0.16,1,0.3,1); } .ds-row.lead .bar i { background: var(--soft, #e8312a); } .ds-row .pct { text-align: right; font-size: 0.76rem; font-variant-numeric: tabular-nums; } .ds-row.pick { background: linear-gradient(rgba(245,197,24,0.12), rgba(245,197,24,0.12)), var(--rubber-2, #151515); box-shadow: inset 0 0 0 1.5px var(--medium, #f5c518); } .ds-row.pick .code { color: var(--medium, #f5c518); } .ds-row.truth { background: linear-gradient(rgba(63,174,73,0.16), rgba(63,174,73,0.16)), var(--rubber-2, #151515); box-shadow: inset 0 0 0 1.5px var(--inter, #3fae49); }"
+      "description": "Team chip, wide code, bar, tabular percentage. Yellow when picked; green ring for the truth.",
+      "html": "<div class=\"ds-row\"><i style=\"background:#ff8000\"></i><b>NOR</b><span><em style=\"width:62%\"></em></span><small>18%</small></div><div class=\"ds-row pick\"><i style=\"background:#3671c6\"></i><b>VER</b><span><em style=\"width:40%\"></em></span><small>12%</small></div>",
+      "css": ".ds-row { font-family: var(--face, 'Archivo Variable', system-ui, sans-serif); display: grid; grid-template-columns: 6px 46px 1fr 40px; gap: 10px; align-items: center; height: 30px; padding: 0 6px; background: #f1f0ec; color: #111; } .ds-row i { height: 16px; } .ds-row b { font-weight: 900; font-variation-settings: 'wdth' 125; font-size: 0.86rem; } .ds-row span { height: 8px; background: #d9d6cf; } .ds-row em { display: block; height: 100%; background: #e10600; } .ds-row small { text-align: right; font-weight: 700; font-size: 0.76rem; font-variant-numeric: tabular-nums; } .ds-row.pick { background: #f5c518; } .ds-row.pick em { background: #3a3936; }"
     },
     {
-      "name": "Evidence Line",
-      "kind": "custom",
-      "refersTo": "evidence-line",
-      "description": "Debossed pill naming the corner, the evidence and who it points to.",
-      "html": "<div class=\"ds-evidence\"><span class=\"t\">T16</span><span class=\"what\">Carried 12 km/h more through the apex.</span><span class=\"who\">points to <b>NOR</b> <b>PIA</b></span></div>",
-      "css": ".ds-evidence { font-family: var(--face, 'Archivo Variable', system-ui, sans-serif); display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 16px; padding: 14px 20px; min-height: 56px; max-width: 760px; border-radius: 999px; background: rgba(14,14,14,0.82); box-shadow: var(--deboss, inset 0 1px 2px rgba(0,0,0,0.85), inset 0 -1px 0 rgba(255,255,255,0.05)); color: var(--ink, #f2f0ea); } .ds-evidence .t { font-weight: 900; font-variation-settings: 'wdth' 125; font-size: 1.1rem; text-decoration: underline 2px; text-underline-offset: 5px; } .ds-evidence .what { font-size: 0.95rem; } .ds-evidence .who { display: flex; gap: 8px; color: var(--ink-3, #8f8c85); font-weight: 650; font-variation-settings: 'wdth' 112; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.72rem; } .ds-evidence .who b { color: var(--ink, #f2f0ea); font-weight: 800; font-variation-settings: 'wdth' 120; }"
-    },
-    {
-      "name": "Reveal Card with Ruled Caption",
+      "name": "Who Block",
       "kind": "card",
-      "refersTo": "reveal-card",
-      "description": "Verdict tags, embossed driver name with team chip, and a groove-ruled caption naming each piece of evidence.",
-      "html": "<article class=\"ds-reveal\"><div class=\"verdicts\"><span class=\"ds-tag\">You: ANT · wrong</span><span class=\"ds-tag win\">Model: NOR · right</span></div><h2>Lando<br>Norris</h2><p class=\"team\"><span class=\"chip\" style=\"background:#ff8000\"></span>McLaren · lap 19</p><ul class=\"caption\"><li><b>T7</b><span>Coasted 21 m more.</span></li><li><b>T16</b><span>Carried 12 km/h more through the apex (no braking).</span></li></ul></article>",
-      "css": ".ds-reveal { font-family: var(--face, 'Archivo Variable', system-ui, sans-serif); width: 520px; padding: 30px 32px 28px; border-radius: 26px; background: rgba(14,14,14,0.9); color: var(--ink, #f2f0ea); box-shadow: var(--lift, 0 6px 18px -6px rgba(0,0,0,0.8), 0 1px 0 rgba(255,255,255,0.04) inset), var(--deboss, inset 0 1px 2px rgba(0,0,0,0.85), inset 0 -1px 0 rgba(255,255,255,0.05)); animation: ds-rise 0.9s cubic-bezier(0.16,1,0.3,1) both; } @keyframes ds-rise { from { opacity: 0; transform: translateY(24px); filter: blur(6px); } } .ds-reveal .verdicts { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 22px; } .ds-tag { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px 6px; border-radius: 999px; font-weight: 750; font-variation-settings: 'wdth' 112; font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; background: var(--rubber-3, #1e1e1e); color: var(--ink-3, #8f8c85); } .ds-tag.win { background: var(--inter, #3fae49); color: #04140a; } .ds-reveal h2 { margin: 0; font-size: 3.4rem; font-weight: 850; font-variation-settings: 'wdth' 125; text-transform: uppercase; letter-spacing: 0.01em; line-height: 0.92; text-shadow: var(--emboss, 0 -1px 0 rgba(0,0,0,0.9), 0 1px 0 rgba(255,255,255,0.07)); } .ds-reveal .team { margin: 10px 0 0; color: var(--ink-2, #c2bfb7); font-weight: 650; font-variation-settings: 'wdth' 112; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.72rem; } .ds-reveal .chip { display: inline-block; width: 4px; height: 14px; border-radius: 2px; margin-right: 10px; vertical-align: -3px; } .ds-reveal .caption { margin: 22px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--groove, #2b2b2b); } .ds-reveal .caption li { display: grid; grid-template-columns: 48px 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--groove, #2b2b2b); font-size: 0.92rem; line-height: 1.4; color: var(--ink-2, #c2bfb7); } .ds-reveal .caption b { font-weight: 900; font-variation-settings: 'wdth' 125; color: var(--ink, #f2f0ea); } @media (prefers-reduced-motion: reduce) { .ds-reveal { animation-duration: 0.01ms; } }"
+      "refersTo": "who-block",
+      "description": "The reveal: a full field of the team colour with the name as a headline.",
+      "html": "<div class=\"ds-who\" style=\"--team:#ff8000;--on-team:#111\"><span class=\"ds-tag\">You: NOR · right</span><h2>Lando Norris</h2><p>McLaren · Lap 14 · 1:15.672</p></div>",
+      "css": ".ds-who { font-family: var(--face, 'Archivo Variable', system-ui, sans-serif); padding: 18px 28px 20px; background: var(--team); color: var(--on-team); } .ds-who h2 { margin: 12px 0 10px; font-weight: 900; font-variation-settings: 'wdth' 125; text-transform: uppercase; line-height: 0.9; font-size: 3rem; } .ds-who p { margin: 0; font-weight: 700; font-variation-settings: 'wdth' 112; text-transform: uppercase; letter-spacing: 0.07em; font-size: 0.72rem; } .ds-tag { display: inline-block; padding: 5px 9px 4px; background: #11803d; color: #fff; font-weight: 800; font-size: 0.66rem; letter-spacing: 0.06em; text-transform: uppercase; }"
     },
     {
-      "name": "Start Lights",
-      "kind": "custom",
-      "refersTo": "",
-      "description": "Five lights in a lifted rubber housing; unlit discs are debossed, lit ones soft red.",
-      "html": "<div class=\"ds-lights\" role=\"img\" aria-label=\"Start lights\"><i class=\"on\"></i><i class=\"on\"></i><i class=\"on\"></i><i></i><i></i></div>",
-      "css": ".ds-lights { display: inline-flex; gap: 18px; padding: 22px 26px; border-radius: 24px; background: rgba(14,14,14,0.85); box-shadow: var(--lift, 0 6px 18px -6px rgba(0,0,0,0.8), 0 1px 0 rgba(255,255,255,0.04) inset); } .ds-lights i { width: 48px; aspect-ratio: 1; border-radius: 50%; background: #241010; box-shadow: var(--deboss, inset 0 1px 2px rgba(0,0,0,0.85), inset 0 -1px 0 rgba(255,255,255,0.05)); transition: background 0.08s, box-shadow 0.08s; } .ds-lights i.on { background: var(--soft, #e8312a); box-shadow: 0 10px 24px -4px rgba(232,49,42,0.6), inset 0 2px 4px rgba(255,255,255,0.35); }"
+      "name": "Telemetry Meter",
+      "kind": "indicator",
+      "refersTo": "meter",
+      "description": "12px bar in a 2px ink border; ink for throttle, red for brake.",
+      "html": "<span class=\"ds-meter\"><em style=\"width:80%\"></em></span><span class=\"ds-meter brk\"><em style=\"width:30%\"></em></span>",
+      "css": ".ds-meter { display: block; width: 200px; height: 12px; margin: 6px 0; border: 2px solid #111; background: #f1f0ec; } .ds-meter em { display: block; height: 100%; background: #111; } .ds-meter.brk em { background: #e10600; }"
     },
     {
-      "name": "DNA Axis",
-      "kind": "custom",
-      "refersTo": "dna-panel",
-      "description": "Debossed style-axis track with a raised centre tick and a sliding ink fill.",
-      "html": "<div class=\"ds-dna\"><div class=\"axis\"><span>Brakes late</span><span class=\"track\"><i style=\"left:50%;width:28%\"></i></span></div><div class=\"axis\"><span>Coasts</span><span class=\"track\"><i style=\"left:34%;width:16%\"></i></span></div></div>",
-      "css": ".ds-dna { font-family: var(--face, 'Archivo Variable', system-ui, sans-serif); width: 340px; padding: 22px; border-radius: 22px; background: rgba(14,14,14,0.86); box-shadow: var(--deboss, inset 0 1px 2px rgba(0,0,0,0.85), inset 0 -1px 0 rgba(255,255,255,0.05)); } .ds-dna .axis { display: grid; grid-template-columns: 112px 1fr; align-items: center; gap: 12px; padding: 7px 0; font-size: 0.8rem; color: var(--ink-2, #c2bfb7); } .ds-dna .track { position: relative; height: 10px; border-radius: 5px; background: var(--rubber-3, #1e1e1e); box-shadow: var(--deboss, inset 0 1px 2px rgba(0,0,0,0.85), inset 0 -1px 0 rgba(255,255,255,0.05)); } .ds-dna .track::after { content: ''; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--raised, #3a3a3a); } .ds-dna .track i { position: absolute; top: 1px; bottom: 1px; border-radius: 4px; background: var(--ink, #f2f0ea); transition: left 0.6s cubic-bezier(0.16,1,0.3,1), width 0.6s cubic-bezier(0.16,1,0.3,1); }"
+      "name": "Framed Stage",
+      "kind": "media",
+      "refersTo": "frame",
+      "description": "The 3D view as a framed picture with a paper caption tab.",
+      "html": "<figure class=\"ds-frame\"><figcaption>Monza 2025 · fastest lap of the session</figcaption></figure>",
+      "css": ".ds-frame { position: relative; margin: 0; height: 180px; border: 3px solid #111; background: #e6e4de; } .ds-frame figcaption { font-family: var(--face, 'Archivo Variable', system-ui, sans-serif); position: absolute; left: 0; bottom: 0; padding: 8px 12px; background: #f1f0ec; border-top: 3px solid #111; border-right: 3px solid #111; font-weight: 700; font-variation-settings: 'wdth' 112; text-transform: uppercase; letter-spacing: 0.07em; font-size: 0.72rem; }"
     }
   ],
   "narrative": {
-    "northStar": "The Moulded Sidewall",
-    "overview": "Blind Lap is set in vulcanised rubber. The ground is matte black with fine concentric grooves, the lettering is raised from it as if moulded by the same press, and one raking light picks out the relief. Every hue on the page is a tyre compound band, and each band has one job. The world reads the lap the way a tyre reads a track: through grip, not through broadcast chrome.\n\nThe density is instrument-like. The 3D track is full-bleed and carries the story; the UI sits on it as rubber pieces pressed into or lifted out of the surface: a sidewall gauge bleeding off the bottom-left, a line-up of embossed rows down the right edge, a pill-shaped evidence line along the bottom. Reading pages (How it works) keep the same rubber, with a faint radial groove pattern behind a single 70ch column.\n\nThe confirmed rejection is the broadcast look: team-colour glass panels and chyrons on blue-black. Team colour exists only as a thin chip beside a driver code.",
+    "northStar": "The Race Poster",
+    "overview": "Blind Lap is a race poster you can play: light paper, heavy wide ink type, one F1-red brand block, team colours as flat fields owned by a named driver. The 3D circuit is a framed picture on the poster. Every page has a top bar and every lap a Menu exit; the home page is a hub of four ways to play. It replaced an all-black tyre-rubber world the owner found bland and confusing.",
     "keyCharacteristics": [
-      "Rubber-black ground, warm off-white ink, no surface hue.",
-      "Five compound hues, one meaning each.",
-      "Archivo variable with the width axis doing the hierarchy work: extended caps for anything moulded, normal width for reading.",
-      "Depth through emboss, deboss and lift, never through glass or blur panels.",
-      "State shown as a mark (ring, notch, half-filled disc) before it is shown as a colour."
+      "Paper ground, ink type, one red block; no shadows, gradients, glass or rounded corners.",
+      "3px ink rules between panels, 1px hairlines between rows.",
+      "Archivo variable: wdth 125 weight 900 for names and numbers, wdth 100 for sentences.",
+      "The 3D stage is framed and captioned, never full-bleed under floating UI.",
+      "Team colour fills the reveal block and chips, nothing else."
     ],
     "rules": [
       {
-        "name": "The One Compound, One Job Rule",
-        "body": "Each compound hue means one thing everywhere: soft = the model's pick, medium = your pick, hard = data, inter = correct, wet = braking. A new surface that needs a sixth meaning uses ink and a mark, not a new hue or a borrowed one.",
+        "name": "The Owned Colour Rule",
+        "body": "Team colour appears only where a named driver owns it: the who-block field, the chip beside a code, the car after the reveal, duel swatches, DNA chips. Never on buttons, charts or text.",
         "section": "colors"
       },
       {
-        "name": "The Team Chip Rule",
-        "body": "Team colour appears only as a small chip (4px wide by 14 to 16px tall in the UI, a 36 by 8 bar on DNA discs) beside a driver code. It never fills a panel, a bar, a button or text.",
+        "name": "The One Red Rule",
+        "body": "Red is the brand and the primary action, and the strongest live signal (the model's leader, braking). Anything else that wants attention uses ink.",
         "section": "colors"
       },
       {
         "name": "The Width Is Rank Rule",
-        "body": "Hierarchy rides the width axis as much as the size: wdth 125 for anything moulded (display, codes, numbers), 112 to 120 for labels and buttons, 100 for sentences. Never set reading text extended or headings at normal width.",
+        "body": "Names and numbers are wide and heavy; sentences are normal width and never in capitals.",
         "section": "typography"
       },
       {
-        "name": "The Tabular Numbers Rule",
-        "body": "Every changing number (percentages, lap times, counts, speed) is set tabular so the line-up and gauge do not jitter while they update.",
-        "section": "typography"
+        "name": "The Always An Exit Rule",
+        "body": "Every page shows the top bar; the lap hides it and shows a Menu button top-left instead. Escape also returns to the menu.",
+        "section": "layout"
       },
       {
-        "name": "The Pressed Into Rubber Rule",
-        "body": "Containers are wells (deboss); the thing you can press or the option that is on is the raised piece inside them (lift). Pressing a button swaps lift for deboss.",
-        "section": "elevation"
+        "name": "The Framed Picture Rule",
+        "body": "The 3D scene sits in a 3px frame with a caption tab; UI never floats over it except the start lights and the pause banner.",
+        "section": "layout"
       }
     ],
     "dos": [
-      "Do keep every hue on the page to the five compounds plus team chips, each compound in its one job.",
-      "Do set anything moulded (display, codes, big numbers) at wdth 125 with the emboss shadow, and reading text at wdth 100.",
-      "Do put panels in as debossed wells and lift only the active or pressable piece.",
-      "Do show state with a mark first (ring, notch under a corner number, half-filled disc), then colour.",
-      "Do rule lists and tables with one-pixel groove lines.",
-      "Do use the single out-curve (cubic-bezier(0.16, 1, 0.3, 1)) for movement and set changing numbers tabular."
+      "Frame the 3D stage and caption it with a paper tab.",
+      "Give every lap screen a Menu exit top-left.",
+      "Set names and numbers wide and heavy.",
+      "Use team colour as a whole field when a driver is named.",
+      "Invert to ink on hover.",
+      "Use the one out-curve for movement and tabular numerals for changing numbers."
     ],
     "donts": [
-      "Don't use team-colour glass panels, chyrons or a blue-black broadcast ground.",
-      "Don't use team colour anywhere except a small chip beside a driver code.",
-      "Don't introduce a sixth hue or lend a compound a second meaning; new soft-red actions in particular extend a known overlap.",
-      "Don't use backdrop blur or frosted glass for panels; use translucent rubber with deboss.",
-      "Don't set long text in extended width or in uppercase."
+      "Don't use shadows, gradients, glass, blur or rounded corners.",
+      "Don't float UI over a full-bleed scene.",
+      "Don't put team colour on buttons, charts or text.",
+      "Don't add a third signal colour; use ink and a mark.",
+      "Don't set sentences wide or in capitals."
     ]
   }
 }

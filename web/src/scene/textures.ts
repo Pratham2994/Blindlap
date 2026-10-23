@@ -21,91 +21,52 @@ export function asphaltTexture(): THREE.CanvasTexture {
 }
 
 /**
- * The ground is a tyre sidewall seen from above: concentric moulding grooves and raised lettering
- * on a ring. Returned as a colour map and a bump map so the raking light picks out the relief.
+ * The ground is a sheet of poster paper: a fine survey grid and the circuit's name printed huge
+ * across it, the way a race poster sets the venue.
  */
-export function sidewallTextures(lettering: string[]): { map: THREE.CanvasTexture; bump: THREE.CanvasTexture } {
+export function posterGround(name: string, year: string): THREE.CanvasTexture {
   const size = 4096;
-  const make = () => {
-    const c = document.createElement("canvas");
-    c.width = c.height = size;
-    return c;
-  };
-  const bumpCanvas = make();
-  const g = bumpCanvas.getContext("2d")!;
-  const cx = size / 2;
-  g.fillStyle = "#000";
+  const c = document.createElement("canvas");
+  c.width = c.height = size;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#dcdad4";
   g.fillRect(0, 0, size, size);
-
-  // Moulding grooves: bands of fine rings, varied spacing like a real sidewall.
-  const bands: [number, number, number][] = [
-    [0.9, 0.985, 7],
-    [0.62, 0.7, 5],
-    [0.44, 0.47, 4],
-  ];
-  g.strokeStyle = "#5a5a5a";
-  for (const [a, b, step] of bands) {
-    g.lineWidth = 2;
-    for (let r = a * cx; r < b * cx; r += step) {
-      g.beginPath();
-      g.arc(cx, cx, r, 0, Math.PI * 2);
-      g.stroke();
-    }
-  }
-  // Two raised rims.
-  g.lineWidth = 18;
-  g.strokeStyle = "#9a9a9a";
-  for (const r of [0.72, 0.885]) {
+  g.strokeStyle = "#cfccc5";
+  g.lineWidth = 3;
+  for (let x = 0; x <= size; x += 128) {
     g.beginPath();
-    g.arc(cx, cx, r * cx, 0, Math.PI * 2);
+    g.moveTo(x, 0);
+    g.lineTo(x, size);
+    g.stroke();
+    g.beginPath();
+    g.moveTo(0, x);
+    g.lineTo(size, x);
     g.stroke();
   }
-
-  // Raised lettering around the ring, like the brand moulded into a tyre.
-  g.fillStyle = "#ffffff";
-  g.textBaseline = "middle";
+  // The venue, printed across the sheet.
+  g.fillStyle = "#c9c6be";
   g.textAlign = "center";
-  const radius = 0.805 * cx;
-  const items = lettering;
-  const per = (Math.PI * 2) / items.length;
-  items.forEach((word, k) => {
-    const fontPx = k % 2 === 0 ? 150 : 70;
-    g.font = `800 ${fontPx}px "Archivo Variable", sans-serif`;
-    (g as CanvasRenderingContext2D & { fontStretch: string }).fontStretch = "expanded";
-    // Spread characters along the arc.
-    const chars = [...word];
-    const widths = chars.map((ch) => g.measureText(ch).width + fontPx * 0.12);
-    const total = widths.reduce((a, w) => a + w, 0);
-    let ang = per * k - total / radius / 2;
-    for (let i = 0; i < chars.length; i++) {
-      const a = ang + widths[i] / radius / 2;
-      g.save();
-      g.translate(cx + Math.cos(a) * radius, cx + Math.sin(a) * radius);
-      g.rotate(a + Math.PI / 2);
-      g.fillText(chars[i], 0, 0);
-      g.restore();
-      ang += widths[i] / radius;
-    }
-  });
-
-  const bump = new THREE.CanvasTexture(bumpCanvas);
-  bump.anisotropy = 8;
-
-  // Colour map: rubber black that lifts slightly on the raised parts.
-  const mapCanvas = make();
-  const m = mapCanvas.getContext("2d")!;
-  m.fillStyle = "#0e0e0e";
-  m.fillRect(0, 0, size, size);
-  m.globalAlpha = 0.16;
-  m.drawImage(bumpCanvas, 0, 0);
-  const map = new THREE.CanvasTexture(mapCanvas);
-  map.colorSpace = THREE.SRGBColorSpace;
-  map.anisotropy = 8;
-  return { map, bump };
+  g.textBaseline = "middle";
+  const label = name.toUpperCase();
+  let px = 900;
+  const font = (w: number, size: number) => `${w} ${size}px "Archivo Variable", sans-serif`;
+  g.font = font(900, px);
+  (g as CanvasRenderingContext2D & { fontStretch: string }).fontStretch = "expanded";
+  while (g.measureText(label).width > size * 0.92 && px > 200) {
+    px -= 40;
+    g.font = font(900, px);
+  }
+  g.fillText(label, size / 2, size / 2);
+  g.font = font(800, Math.round(px * 0.28));
+  g.fillText(`${year} QUALIFYING · WHO IS DRIVING?`, size / 2, size / 2 + px * 0.68);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
 }
 
 /** A text sprite for corner numbers. */
-export function labelTexture(text: string, colour = "#f2f2f2", note?: string, marked = false): THREE.CanvasTexture {
+export function labelTexture(text: string, colour = "#111111", note?: string, marked = false): THREE.CanvasTexture {
   const c = document.createElement("canvas");
   c.width = note ? 1024 : 256;
   c.height = 128;
@@ -129,7 +90,7 @@ export function labelTexture(text: string, colour = "#f2f2f2", note?: string, ma
     // The corner's evidence, set beside the number like a caption.
     g.textAlign = "left";
     g.font = `700 50px "Archivo Variable", sans-serif`;
-    g.fillStyle = "#f2f0ea";
+    g.fillStyle = "#111111";
     g.fillText(note.toUpperCase(), 262, 70);
   }
   const t = new THREE.CanvasTexture(c);

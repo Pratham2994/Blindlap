@@ -10,6 +10,7 @@ export interface Car {
 export function makeF1Car(colour: THREE.Color): Car {
   const g = new THREE.Group();
   const paint = new THREE.MeshStandardMaterial({ color: colour, roughness: 0.42, metalness: 0.1, emissive: colour, emissiveIntensity: 0.06 });
+  paint.userData.paint = true; // recoloured at the reveal
   const carbon = new THREE.MeshStandardMaterial({ color: "#141414", roughness: 0.65 });
   const rubber = new THREE.MeshStandardMaterial({ color: "#0c0c0c", roughness: 0.95 });
   const add = (geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number) => {

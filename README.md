@@ -39,12 +39,13 @@ F1DB release ─► careers.py        ▼
                 build.py     build/<session>.pkl   (corners detected from speed where no map exists)
                                   │
                                   ▼
-                model.py     leave-one-circuit-out logistic regression (+ GBM baseline, cross-season test)
+                model.py     leave-one-circuit-out: boosted trees, random forest, logistic regression
+                             (+ cross-season test); per-lap, per-corner scores for all three
                 export.py    web/public/data/*.json  (laps, track, fold weights, report, DNA, tells)
                                   │
                                   ▼
 web/  Vite + TypeScript + Three.js + Web Audio
-      model.ts runs the same held-out model in the browser, corner by corner
+      model.ts replays the held-out models' corner scores in the browser, corner by corner
 ```
 
 1. **Data.** Car telemetry (~3.7 Hz), 3D position (~4 Hz) and team radio from
@@ -59,39 +60,46 @@ web/  Vite + TypeScript + Three.js + Web Audio
    coasting distance, each turned into a robust
    z-score against every push lap at that corner in that session: "brakes 9 m later than the field"
    survives a change of circuit.
-4. **Model.** Features go into one block per corner type (slow, medium, fast). A multinomial logistic
-   regression gives P(driver | corner); a lap sums log-probabilities over its corners with a
-   temperature fitted on held-out laps. Evaluation is leave-one-circuit-out across both seasons: the
-   model that guesses at Monza never saw Monza in any year, and the browser uses exactly those models.
-5. **Front end.** A raised asphalt strip floats over a ground moulded like a tyre sidewall. The rubber
-   line is coloured by the real inputs (blue braking, white full throttle) and fades behind the car
-   except at corners the model read. The engine is oscillators at the V6 firing frequency through a
-   soft clipper, with turbo whine, wind and exhaust crackle on lifts.
+4. **Models.** Features go into one block per corner type (slow, medium, fast). Three classifiers each
+   give P(driver | corner): gradient-boosted trees, a random forest and a multinomial logistic
+   regression. A lap sums log-probabilities over its corners with a temperature fitted on held-out
+   laps. Evaluation is leave-one-circuit-out across both seasons: the model that guesses at Monza
+   never saw Monza in any year. All three are computed offline and their per-corner scores are
+   exported, so in the game you can switch model mid-lap or after the reveal and compare them.
+5. **Front end.** A bold race-poster design: paper, heavy black type, one F1-red block, and the
+   3D circuit as a framed picture. On track, red and white barriers and brake boards give a sense of
+   speed, and the chase camera pulls back under acceleration and closes in under braking. The car's
+   motion integrates the recorded speed, so what you see matches what you hear. The rubber line is
+   coloured by the real inputs (red braking, white full throttle). The engine is oscillators at the
+   V6 firing frequency through a soft clipper, with turbo whine, wind and exhaust crackle on lifts;
+   it cuts out for the team radio, which starts where the speech starts and has auto captions.
 
 ## Results
 
 Leave-one-circuit-out over 40 qualifying sessions (23 from 2025, 17 from 2026), 3,669 laps, 24
 drivers. Read live from `pipeline/model_out/report.json` and shown on the How it knows page.
 
-| Model | Top-1 driver | Top-3 driver | Right team |
-|---|---|---|---|
-| Chance | 4.2% | 12.6% | about 9% |
-| Logistic regression (ships) | **34.7%** | **64.2%** | **49.1%** |
-| Gradient-boosted trees | 42.9% | 72.6% | 58.7% |
-| Cross-season: trained on 2025 only, tested on 2026 laps | 25.4% | 55.6% | 40.3% |
+| Model | Top-1 driver | Top-3 driver | Right team | Right teammate |
+|---|---|---|---|---|
+| Chance | 4.2% | 12.6% | about 9% | 50% |
+| Gradient-boosted trees | **42.9%** | **72.6%** | **58.7%** | **73.5%** |
+| Random forest | 40.3% | 68.6% | 56.4% | 69.6% |
+| Logistic regression | 34.7% | 64.2% | 49.1% | 71.4% |
+| Cross-season (logistic): trained on 2025 only, tested on 2026 laps | 25.4% | 55.6% | 40.3% | |
 
-- The shipped model is right about 8 times as often as picking at random, on circuits it never saw.
+- The best model is right about 10 times as often as picking at random, on circuits it never saw.
 - **Style survives new cars.** Trained only on 2025, it still names the driver of a 2026 lap 25% of the
   time against 5% chance, under new regulations and, for some drivers, a new team.
-- **It is not just recognising the car.** Given the car, the model picks the right one of the two
-  teammates on **71.4%** of laps (chance 50%; the tree model gets 73.5%). Two drivers, same car, same
+- **It is not just recognising the car.** Given the car, the models pick the right one of the two
+  teammates on 70 to 74% of laps (chance 50%). Two drivers, same car, same
   session: what is left is how they drive. The confusion matrix still shows the model often finds the
   car before the driver, and the easiest drivers to spot include those in the most unusual cars.
-- The linear model ships because each corner's push toward a driver is a readable sum, which is what
-  the game's evidence line shows, and its weights are a few KB that run in the browser. Adding 18
-  practice sessions as training data left it flat while the tree model gained a point; two new
-  throttle features (how sharply and how smoothly the driver opens up) added 2.7 points. The linear
-  model was limited by its features, not by data.
+- The trees win because driving style is not additive: braking late matters more in a slow corner
+  than in a fast one, and trees find those interactions alone. The linear model stays in the game
+  because each corner's push toward a driver is a readable sum. Adding 18 practice sessions as
+  training data left it flat while the tree model gained a point; two throttle features (how sharply
+  and how smoothly the driver opens up) added 2.7 points. The linear model was limited by its
+  features, not by data.
 
 ## Run it
 
