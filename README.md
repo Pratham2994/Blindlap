@@ -109,6 +109,9 @@ npm run dev        # http://localhost:5173
 npm run build      # static site in web/dist, deployable to any static host
 ```
 
+To publish, push to a GitHub repository with Pages set to "GitHub Actions": `.github/workflows/pages.yml`
+builds `web/` and deploys it. The site uses relative paths and hash routes, so it works on a sub-path.
+
 OpenF1 allows about 30 requests a minute, so each season takes about an hour to download. The
 exported data is committed, so the web app runs without the pipeline.
 
