@@ -39,6 +39,15 @@ async function shoot(width, height, prefix) {
   await page.goto(base + "#/how");
   await wait(800);
   await page.screenshot({ path: `${out}${prefix}-how.png` });
+
+  await page.goto(base + "#/lab");
+  await wait(1800);
+  await page.screenshot({ path: `${out}${prefix}-lab.png` });
+
+  await page.goto(base + "#/mates");
+  await page.locator(".evidence .t").filter({ hasText: /^T\d+/ }).waitFor({ timeout: 40000 });
+  await wait(2500);
+  await page.screenshot({ path: `${out}${prefix}-mates.png` });
   await page.close();
 }
 

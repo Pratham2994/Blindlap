@@ -678,6 +678,27 @@ body.playing .topbar nav {
   box-shadow: 0 10px 24px -4px rgba(232, 49, 42, 0.6), inset 0 2px 4px rgba(255, 255, 255, 0.35);
 }
 
+@media (min-width: 861px) {
+  .hud.mates .lineup {
+    bottom: auto;
+    height: 200px;
+  }
+}
+
+.hud-session .mates {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  font-size: 0.8rem;
+}
+
+.hud-session .mates .chip {
+  width: 4px;
+  height: 14px;
+  border-radius: 2px;
+}
+
 /* ---------- Reveal ---------- */
 
 .hud .tyre,
@@ -1522,29 +1543,15 @@ figcaption {
   .hud-session {
     top: 148px;
   }
-  @media (min-width: 861px) {
-  .hud.mates .lineup {
-    bottom: auto;
-    height: 200px;
-  }
-}
-
-.hud-session .mates {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--ink);
-  font-size: 0.8rem;
-}
-
-.hud-session .mates .chip {
-  width: 4px;
-  height: 14px;
-  border-radius: 2px;
-}
-
-.hud-session .meta {
+  .hud-session .meta {
     font-size: 0.62rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: calc(100vw - 2 * var(--gutter));
+  }
+  .hud.mates .lineup {
+    height: 120px;
   }
   .hud .tyre {
     top: 214px;

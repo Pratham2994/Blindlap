@@ -622,7 +622,7 @@ export class World {
     const h = this.canvas.clientHeight || window.innerHeight;
     const x = ((v.x + 1) / 2) * w;
     const y = ((1 - v.y) / 2) * h;
-    if (w <= 860) return y < 200 || y > h - 320;
+    if (w <= 860) return y < 250 || y > h - 320;
     return (
       (x < 560 && y < 170) || // session title
       (x < 470 && y > h - 470) || // tyre gauge
