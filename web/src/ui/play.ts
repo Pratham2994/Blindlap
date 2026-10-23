@@ -79,6 +79,7 @@ export class PlayView {
   private keyHandler = (e: KeyboardEvent) => this.onKey(e);
 
   private dailyResults: DailyResult[] = [];
+  private nextKey: number | null = null;
 
   constructor(
     private world: World,
@@ -120,11 +121,14 @@ export class PlayView {
     // A challenge link plays its lap first; after that the rounds are random again.
     const planned = this.daily?.plan[this.dailyResults.length] ?? this.challenge ?? undefined;
     this.challenge = null;
-    let summary = sessions.find((s) => s.key === planned?.key);
+    let summary = sessions.find((s) => s.key === (planned?.key ?? this.nextKey));
+    this.nextKey = null;
     if (!summary) {
       const pool = sessions.filter((s) => !recent.includes(String(s.key)));
       const pickFrom = pool.length ? pool : sessions;
       summary = pickFrom[Math.floor(Math.random() * pickFrom.length)];
+    }
+    if (!planned) {
       recent.push(String(summary.key));
       if (recent.length > Math.min(6, sessions.length - 1)) recent.shift();
     }
@@ -372,6 +376,15 @@ export class PlayView {
       }<a class="btn" href="#/dna">See ${truth}'s DNA</a><button type="button" class="btn" data-challenge>Copy challenge link</button></div>
       <p class="caps share-note" aria-live="polite"></p>`;
     this.root.classList.add("revealed");
+    // Fetch the next random circuit while the player reads the reveal.
+    if (!this.daily) {
+      const pool = this.index.sessions.filter((x) => !recent.includes(String(x.key)));
+      const next = pool[Math.floor(Math.random() * pool.length)];
+      if (next) {
+        this.nextKey = next.key;
+        void loadSession(next.key).catch(() => (this.nextKey = null));
+      }
+    }
     this.root.appendChild(card);
     card.querySelector("[data-next]")!.addEventListener("click", () => (lastDaily ? this.showDailySummary() : void this.newRound()));
     if (rival) card.querySelector("[data-duel]")!.addEventListener("click", () => this.startDuel(rival));
