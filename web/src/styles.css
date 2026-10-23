@@ -424,6 +424,68 @@ body.playing .topbar nav {
   color: var(--ink-3);
 }
 
+.model-switch {
+  display: flex;
+  margin: 0 4px 10px;
+}
+
+.model-switch button {
+  flex: 1;
+  justify-content: center;
+  padding: 7px 6px;
+  font-size: 0.64rem;
+}
+
+.model-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 18px;
+  font-size: 0.85rem;
+}
+
+.model-table caption {
+  text-align: left;
+  color: var(--ink-3);
+  padding-bottom: 6px;
+}
+
+.model-table td {
+  padding: 6px 0;
+  border-top: 1px solid var(--groove);
+  color: var(--ink-2);
+}
+
+.model-table td:nth-child(2),
+.model-table td:nth-child(3) {
+  width: 64px;
+  text-align: right;
+  padding-right: 12px;
+}
+
+.model-table td b {
+  color: var(--inter);
+}
+
+.model-table tr.current td:first-child {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.model-table .bar {
+  display: block;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--rubber-3);
+}
+
+.model-table .bar i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--ink-2);
+}
+
 .lineup ol {
   list-style: none;
   margin: 0;
@@ -822,7 +884,12 @@ body.playing .topbar nav {
 }
 
 .reveal h2 {
-  font-size: clamp(2.2rem, 4.6vw, 4rem);
+  font-size: clamp(2rem, 3.6vw, 3.3rem);
+  overflow-wrap: anywhere;
+}
+
+.hud.revealed [data-pause] {
+  visibility: hidden;
 }
 
 .reveal .team {
@@ -1476,6 +1543,51 @@ figcaption {
   bottom: -4px;
   width: 2px;
   background: var(--ink-3);
+}
+
+.compare {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.compare th,
+.compare td {
+  padding: 10px 8px;
+  border-top: 1px solid var(--groove);
+  text-align: right;
+  color: var(--ink-2);
+}
+
+.compare thead th {
+  border-top: 0;
+  font-weight: 650;
+  font-variation-settings: "wdth" 112;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.64rem;
+  color: var(--ink-3);
+}
+
+.compare th[scope="row"],
+.compare thead th:first-child {
+  text-align: left;
+  color: var(--ink);
+}
+
+.compare tbody tr:first-child td {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+@media (max-width: 520px) {
+  .compare {
+    font-size: 0.78rem;
+  }
+  .compare th,
+  .compare td {
+    padding: 8px 4px;
+  }
 }
 
 .confusion {

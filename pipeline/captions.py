@@ -6,8 +6,10 @@ best effort; the page labels it as automatic.
 """
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 
+import numpy as np
 from faster_whisper import WhisperModel
 
 ROOT = Path(__file__).parent
@@ -15,6 +17,13 @@ CACHE = ROOT / "raw" / "radio"
 RADIO = ROOT.parent / "web" / "public" / "data" / "radio.json"
 # F1 words Whisper tends to mishear on radio, nudged with an initial prompt.
 PROMPT = "Formula One team radio. Box box. Copy. Lap. Tyres. P1. Pole. Quali. Push. Delta. Mode. Battery."
+
+
+def decode(path: Path) -> np.ndarray:
+    """16 kHz mono float samples via ffmpeg (faster-whisper's own decoder breaks on newer PyAV)."""
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", str(path), "-ac", "1", "-ar", "16000", "-f", "f32le", "-"],
+                         capture_output=True, check=True).stdout
+    return np.frombuffer(raw, dtype=np.float32)
 
 
 def main():
@@ -26,7 +35,7 @@ def main():
         path = CACHE / (hashlib.sha1(url.encode()).hexdigest()[:16] + ".mp3")
         if not path.exists():
             continue
-        segments, _ = model.transcribe(str(path), language="en", beam_size=1, vad_filter=True,
+        segments, _ = model.transcribe(decode(path), language="en", beam_size=1, vad_filter=True,
                                        initial_prompt=PROMPT, condition_on_previous_text=False)
         entry["lines"] = [
             {"t0": round(s.start, 2), "t1": round(s.end, 2), "text": s.text.strip()}

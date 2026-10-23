@@ -30,7 +30,10 @@ def pick_radio(radios, lap_end):
     return min(pool, key=lambda x: abs(x[0] - lap_end))[1]
 
 
-def export_session(sess, fold, labels):
+MODELS = {"gbm": "Gradient-boosted trees", "forest": "Random forest", "logreg": "Logistic regression"}
+
+
+def export_session(sess, classes, held, labels):
     sk = sess["session"]["session_key"]
     raw_radio = json.loads((ROOT / "raw" / str(sk) / "team_radio.json").read_text())
     radio = defaultdict(list)
@@ -59,6 +62,9 @@ def export_session(sess, fold, labels):
             "brk": r(lap.brake > 0, 0), "gear": r(lap.gear, 0), "rpm": r(lap.rpm, 0), "drs": r(lap.drs, 0),
             "z": r(sess["z"][i], 2),
             "raw": [[None if np.isnan(v) else round(float(v), 1) for v in row] for row in sess["raw"][i]],
+            # Each model's held-out log P(driver | corner) in tenths (-32 means -3.2), corner by corner,
+            # in the order of model.classes. The game replays these instead of running the models.
+            "steps": {m: np.round(np.log(np.clip(held[m][i], 1e-4, 1)) * 10).astype(int).tolist() for m in held},
             "radio": pick_radio(radio.get(lap.driver, []), lap.t0 + lap.lap_time),
         })
 
@@ -88,7 +94,7 @@ def export_session(sess, fold, labels):
         "field": {"med": [[None if np.isnan(v) else round(float(v), 1) for v in row] for row in sess["med"]],
                   "scale": r(sess["scale"], 2)},
         "drivers": drivers,
-        "model": fold,
+        "model": {"classes": classes},
         "laps": laps,
     }
     (OUT / "sessions").mkdir(parents=True, exist_ok=True)
@@ -191,22 +197,26 @@ def driver_dna(sessions, labels):
 
 def main():
     folds = pickle.loads((ROOT / "model_out" / "folds.pkl").read_bytes())
+    held = pickle.loads((ROOT / "model_out" / "probs.pkl").read_bytes())
     report = json.loads((ROOT / "model_out" / "report.json").read_text())
     labels = set(folds["labels"])
     sessions = load_sessions()
     index = []
     for s in sessions:
         sk = str(s["session"]["session_key"])
-        if s["session"]["session_name"] != "Qualifying" or sk not in folds["weights"]:
+        if s["session"]["session_name"] != "Qualifying" or int(sk) not in held["probs"]["logreg"]:
             continue
-        out = export_session(s, folds["weights"][sk], labels)
+        out = export_session(s, held["classes"], {m: held["probs"][m][int(sk)] for m in MODELS}, labels)
         index.append({k: out[k] for k in ("key", "circuit", "country", "location", "date", "meeting", "length")}
                      | {"corners": len(out["corners"]), "laps": len(out["laps"]), "year": int(out["date"][:4])})
         print(f"exported {sk} {out['circuit']}: {len(out['laps'])} laps")
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "index.json").write_text(json.dumps({
-        "seasons": sorted({e["year"] for e in index}), "session": "Qualifying", "tau": folds["tau"], "features": FEATURES,
-        "cornerClasses": CORNER_CLASSES, "classes": folds["weights"][next(iter(folds["weights"]))]["classes"],
+        "seasons": sorted({e["year"] for e in index}), "session": "Qualifying", "features": FEATURES,
+        "cornerClasses": CORNER_CLASSES, "classes": held["classes"],
+        # Best first: the game guesses with the first model and offers the others for comparison.
+        "models": [{"id": m, "name": n, "tau": held["tau"][m], "top1": report[m]["top1"]} for m, n in
+                   sorted(MODELS.items(), key=lambda kv: -report[kv[0]]["top1"])],
         "sessions": index,
     }, separators=(",", ":")))
     (OUT / "report.json").write_text(json.dumps(report, separators=(",", ":")))

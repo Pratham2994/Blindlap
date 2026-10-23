@@ -48,48 +48,57 @@ export class Guesser {
   readonly codes: string[]; // candidates: drivers in this session the model knows
   private cls: number[]; // index of each candidate in the model's classes
   private logp: Float64Array;
+  private read: number[] = []; // corners fed so far, so a model switch can replay them
+  model: string;
   seen = 0;
 
   constructor(
     private session: Session,
     private index: Index,
     only?: string[], // restrict the candidates, e.g. to two teammates
+    model?: string,
   ) {
     const inSession = new Set(Object.values(session.drivers).map((d) => d.code));
     this.codes = session.model.classes.filter((c) => inSession.has(c) && (!only || only.includes(c)));
     this.cls = this.codes.map((c) => session.model.classes.indexOf(c));
     this.logp = new Float64Array(this.codes.length);
+    this.model = model ?? index.models[0].id;
   }
 
   reset() {
     this.logp.fill(0);
+    this.read = [];
     this.seen = 0;
+  }
+
+  /** Switch model mid-lap: replay the corners already read with the other model's numbers. */
+  useModel(model: string, lap: LapData) {
+    const corners = this.read;
+    this.model = model;
+    this.reset();
+    for (const c of corners) this.step(lap, c);
+  }
+
+  /** Add one corner's held-out log-probabilities; returns each candidate's change vs the average. */
+  private step(lap: LapData, c: number): number[] {
+    const row = lap.steps[this.model][c];
+    const step = this.cls.map((k) => row[k] / 10); // stored in tenths
+    const mean = step.reduce((a, v) => a + v, 0) / step.length;
+    step.forEach((v, i) => (this.logp[i] += v));
+    this.read.push(c);
+    this.seen++;
+    return step.map((v) => v - mean);
   }
 
   /** Feed one corner of the lap; returns what it said. */
   ingest(lap: LapData, c: number): Evidence {
-    const { W, b } = this.session.model;
-    const nf = this.index.features.length;
     const corner = this.session.corners[c];
-    const z = lap.z[c];
-    const x = new Float64Array(nf * this.index.cornerClasses.length);
-    for (let f = 0; f < nf; f++) x[corner.cls * nf + f] = z[f];
-
-    // Softmax over every class the model knows, then keep candidates only.
-    const logits = W.map((row, k) => row.reduce((acc, w, j) => acc + w * x[j], b[k]));
-    const m = Math.max(...logits);
-    const lse = m + Math.log(logits.reduce((acc, l) => acc + Math.exp(l - m), 0));
-    const step = this.cls.map((k) => logits[k] - lse);
-    const mean = step.reduce((a, v) => a + v, 0) / step.length;
-    step.forEach((v, i) => (this.logp[i] += v));
-    this.seen++;
-
+    const change = this.step(lap, c);
     const deltas: Record<string, number> = {};
-    step.forEach((v, i) => (deltas[this.codes[i]] = v - mean));
+    change.forEach((v, i) => (deltas[this.codes[i]] = v));
     const movers = Object.keys(deltas)
       .sort((a, b) => deltas[b] - deltas[a])
       .slice(0, 3);
-
     return { corner: c, label: `T${corner.n}`, movers, deltas, ...this.describe(lap, c) };
   }
 
@@ -112,7 +121,7 @@ export class Guesser {
   }
 
   guesses(): Guess[] {
-    const tau = this.index.tau;
+    const tau = this.index.models.find((m) => m.id === this.model)?.tau ?? 2;
     const a = Array.from(this.logp, (v) => v / tau);
     const m = Math.max(...a);
     const e = a.map((v) => Math.exp(v - m));

@@ -121,3 +121,16 @@ test("teammates mode offers exactly the two drivers of one team", async ({ page 
   await expect(page.locator(".reveal")).toBeVisible({ timeout: 90_000 });
   await expect(page.locator(".lineup .row.truth")).toHaveCount(1);
 });
+
+test("three models: switch mid-lap and compare them on the reveal", async ({ page }) => {
+  await page.goto("/#/play/9908");
+  const switcher = page.locator(".model-switch button");
+  await expect(switcher).toHaveCount(3);
+  await expect(page.locator(".evidence .t")).toHaveText(/^T\d+/, { timeout: 30_000 });
+  const before = await page.locator(".lineup .row .pct").allTextContents();
+  await switcher.filter({ hasText: "Logistic" }).click();
+  await expect(switcher.filter({ hasText: "Logistic" })).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(async () => (await page.locator(".lineup .row .pct").allTextContents()).join()).not.toBe(before.join());
+  await expect(page.locator(".reveal")).toBeVisible({ timeout: 90_000 });
+  await expect(page.locator(".model-table tbody tr")).toHaveCount(3);
+});

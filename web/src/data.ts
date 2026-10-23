@@ -13,10 +13,17 @@ export interface SessionSummary {
   year: number;
 }
 
+export interface ModelInfo {
+  id: string; // "gbm" | "forest" | "logreg"
+  name: string;
+  tau: number;
+  top1: number;
+}
+
 export interface Index {
   seasons: number[];
   session: string;
-  tau: number;
+  models: ModelInfo[]; // best first
   features: string[];
   cornerClasses: string[];
   classes: string[];
@@ -56,11 +63,10 @@ export interface LapData {
   z: number[][];
   raw: (number | null)[][];
   radio: string | null;
+  steps: Record<string, number[][]>; // per model: log P(driver | corner) in tenths, corners x model classes
 }
 
 export interface FoldModel {
-  W: number[][];
-  b: number[];
   classes: string[];
 }
 
@@ -110,6 +116,7 @@ export interface ModelReport {
 
 export interface Report {
   logreg: ModelReport;
+  forest: ModelReport;
   gbm: ModelReport;
   crossSeason?: CrossSeason;
 }

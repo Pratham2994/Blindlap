@@ -13,7 +13,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 import numpy as np
-from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 
 from features import CORNER_CLASSES, FEATURES, expand
@@ -64,15 +64,19 @@ def softmax(a, tau):
     return e / e.sum(axis=1, keepdims=True)
 
 
-def evaluate(sessions, labels, make_model, name):
+def evaluate(sessions, labels, make_model, name, keep_models=False):
+    """Leave-one-circuit-out evaluation. Returns the report, the fitted fold models (only when
+    keep_models, since tree ensembles are large) and every held-out probability, per session, as
+    an array of laps x corners x classes, which the game replays instead of running the model."""
     per_session = []
+    probs = {}
     all_scores, all_truth, all_team_truth, all_team_maps = [], [], [], []
     folds = {}
     # Leave one circuit out: every year of the held-out circuit leaves training together, so the
     # model never saw the track it is guessing on.
     circuit = lambda s: s["session"]["circuit_short_name"]
     rows = {s["session"]["session_key"]: corner_rows(s) for s in sessions}
-    models = {}
+    classes = None
     for c in sorted({circuit(s) for s in sessions}):
         Xtr, ytr = [], []
         for s in sessions:
@@ -83,26 +87,27 @@ def evaluate(sessions, labels, make_model, name):
             Xtr.append(X[m]); ytr.append(y[m])
         model = make_model()
         model.fit(np.vstack(Xtr), np.concatenate(ytr))
-        models[c] = model
-    # Practice sessions only add training laps; every score is on qualifying.
-    for held in [s for s in sessions if is_quali(s)]:
-        model = models[circuit(held)]
-        folds[held["session"]["session_key"]] = model
+        classes = classes or list(model.classes_)
+        # Practice sessions only add training laps; every score is on qualifying.
+        for held in [s for s in sessions if is_quali(s) and circuit(s) == c]:
+            sk = held["session"]["session_key"]
+            if keep_models:
+                folds[sk] = model
+            X, li, y = rows[sk]
+            proba = model.predict_proba(X)
+            probs[sk] = proba.reshape(len(held["laps"]), len(held["classes"]), -1).astype(np.float32)
+            scores = lap_scores(proba, li, len(held["laps"]))
+            truth = [acronym(held, l.driver) for l in held["laps"]]
+            keep = np.array([t in labels for t in truth])
+            all_scores.append(scores[keep])
+            all_truth += [t for t, kk in zip(truth, keep) if kk]
+            # Team of each candidate driver in this session (drivers can change team mid-season).
+            tmap = {acronym(held, n): team(held, n) for n in held["drivers"]}
+            all_team_maps += [tmap] * int(keep.sum())
+            all_team_truth += [team(held, l.driver) for l, kk in zip(held["laps"], keep) if kk]
+            label = f'{held["session"]["circuit_short_name"]} {held["session"]["date_start"][:4]}'
+            per_session.append((label, scores[keep], [t for t, kk in zip(truth, keep) if kk]))
 
-        X, li, y = rows[held["session"]["session_key"]]
-        scores = lap_scores(model.predict_proba(X), li, len(held["laps"]))
-        truth = [acronym(held, l.driver) for l in held["laps"]]
-        keep = np.array([t in labels for t in truth])
-        all_scores.append(scores[keep])
-        all_truth += [t for t, kk in zip(truth, keep) if kk]
-        # Team of each candidate driver in this session (drivers can change team mid-season).
-        tmap = {acronym(held, n): team(held, n) for n in held["drivers"]}
-        all_team_maps += [tmap] * int(keep.sum())
-        all_team_truth += [team(held, l.driver) for l, kk in zip(held["laps"], keep) if kk]
-        label = f'{held["session"]["circuit_short_name"]} {held["session"]["date_start"][:4]}'
-        per_session.append((label, scores[keep], [t for t, kk in zip(truth, keep) if kk]))
-
-    classes = list(folds[next(iter(folds))].classes_)
     S = np.vstack(all_scores)
     truth_idx = np.array([classes.index(t) for t in all_truth])
 
@@ -154,9 +159,10 @@ def evaluate(sessions, labels, make_model, name):
 
     print(f"{name:>8}: laps={len(P)} top1={top1:.3f} top3={top3:.3f} team={team_acc:.3f} "
           f"teammate={teammate if teammate is None else round(teammate, 3)} ({mate_n} laps) tau={best_tau:.2f} nll={best_nll:.3f}")
-    return dict(name=name, top1=top1, top3=top3, team=team_acc, teammate=teammate, teammateLaps=mate_n,
+    report = dict(name=name, top1=top1, top3=top3, team=team_acc, teammate=teammate, teammateLaps=mate_n,
                 tau=best_tau, nll=best_nll, laps=len(P),
-                chance=1 / len(classes), classes=classes, sessions=sess_acc, confusion=conf.tolist()), folds
+                  chance=1 / len(classes), classes=classes, sessions=sess_acc, confusion=conf.tolist())
+    return report, folds, probs
 
 
 def is_quali(sess) -> bool:
@@ -222,16 +228,24 @@ def main():
     labels = sorted(d for d, c in counts.items() if c >= MIN_SESSIONS)
     print(f"{len(sessions)} sessions, {len(labels)} drivers: {' '.join(labels)}")
 
-    results = {}
-    lr_report, lr_folds = evaluate(
-        sessions, labels,
-        lambda: LogisticRegression(C=0.1, max_iter=3000, class_weight="balanced"), "logreg")
-    results["logreg"] = lr_report
-    gb_report, _ = evaluate(
-        sessions, labels,
-        lambda: HistGradientBoostingClassifier(max_iter=150, learning_rate=0.06, max_leaf_nodes=15,
-                                               class_weight="balanced", random_state=0), "gbm")
-    results["gbm"] = gb_report
+    # Three models, same features, same held-out test. Logistic regression is the readable
+    # baseline; random forest and gradient-boosted trees were the strongest of the tree ensembles
+    # tried (extra-trees ran out of memory at a size that could match them).
+    candidates = {
+        "logreg": lambda: LogisticRegression(C=0.1, max_iter=3000, class_weight="balanced"),
+        "forest": lambda: RandomForestClassifier(n_estimators=300, min_samples_leaf=3, max_features="sqrt",
+                                                 class_weight="balanced_subsample", n_jobs=-1, random_state=0),
+        "gbm": lambda: HistGradientBoostingClassifier(max_iter=150, learning_rate=0.06, max_leaf_nodes=15,
+                                                      class_weight="balanced", random_state=0),
+    }
+    results, probs, lr_folds = {}, {}, {}
+    for name, make in candidates.items():
+        report, folds, held = evaluate(sessions, labels, make, name, keep_models=name == "logreg")
+        results[name] = report
+        probs[name] = held
+        if name == "logreg":
+            lr_folds = folds
+            lr_report = report
     cross = cross_season(sessions, labels, lr_report["tau"])
     if cross:
         results["crossSeason"] = cross
@@ -243,6 +257,10 @@ def main():
         str(sk): {"W": np.round(m.coef_, 4).tolist(), "b": np.round(m.intercept_, 4).tolist(), "classes": list(m.classes_)}
         for sk, m in lr_folds.items()
     }
+    (out / "probs.pkl").write_bytes(pickle.dumps({
+        "probs": probs, "classes": results["logreg"]["classes"],
+        "tau": {k: v["tau"] for k, v in results.items() if k in candidates},
+    }))
     (out / "folds.pkl").write_bytes(pickle.dumps({"weights": weights, "tau": lr_report["tau"], "labels": labels,
                                                  "features": FEATURES, "corner_classes": CORNER_CLASSES}))
 

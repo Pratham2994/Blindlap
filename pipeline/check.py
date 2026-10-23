@@ -20,8 +20,8 @@ def check(cond: bool, msg: str):
 def main():
     index = json.loads((DATA / "index.json").read_text())
     nf = len(index["features"])
-    dims = nf * len(index["cornerClasses"])
-    check(index["tau"] > 0, "temperature must be positive")
+    models = [m["id"] for m in index["models"]]
+    check(len(models) == 3 and all(m["tau"] > 0 for m in index["models"]), "three models with positive temperatures")
     laps_total = 0
     for summary in index["sessions"]:
         sk = summary["key"]
@@ -30,9 +30,7 @@ def main():
         corners = [c["s"] for c in s["corners"]]
         check(corners == sorted(corners), f"{name}: corners not in lap order")
         check(len(s["corners"]) >= 5, f"{name}: only {len(s['corners'])} corners")
-        W, b, classes = s["model"]["W"], s["model"]["b"], s["model"]["classes"]
-        check(len(W) == len(b) == len(classes), f"{name}: weight rows do not match classes")
-        check(all(len(row) == dims for row in W), f"{name}: weights are not {dims} wide")
+        classes = s["model"]["classes"]
         check(len(s["track"]["x"]) * s["track"]["step"] <= s["length"] + s["track"]["step"], f"{name}: track longer than lap")
         drivers = {d["code"] for d in s["drivers"].values()}
         for lap in s["laps"]:
@@ -47,6 +45,10 @@ def main():
             check(max(lap["rpm"]) < 15500, f"{tag}: rpm out of range")
             check(len(lap["z"]) == len(s["corners"]) and all(len(r) == nf for r in lap["z"]), f"{tag}: feature shape")
             check(all(math.isfinite(v) and abs(v) <= 4 for r in lap["z"] for v in r), f"{tag}: z-score not finite or unclipped")
+            for m in models:
+                steps = lap["steps"][m]
+                check(len(steps) == len(s["corners"]) and all(len(r) == len(classes) for r in steps), f"{tag}: {m} steps shape")
+                check(all(-100 < v <= 0 for r in steps for v in r), f"{tag}: {m} log-probabilities out of range")
     report = json.loads((DATA / "report.json").read_text())
     lr = report["logreg"]
     check(lr["top1"] > 2 * lr["chance"], "model is not clearly better than chance")

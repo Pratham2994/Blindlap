@@ -1,11 +1,12 @@
 // How it works: the method and the honest numbers, read straight from the evaluation report.
-import type { Index, Report } from "../data";
+import type { Index, ModelReport, Report } from "../data";
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 
 export function howView(index: Index, report: Report): HTMLElement {
-  const lr = report.logreg;
-  const gb = report.gbm;
+  // Headline numbers follow the model the game guesses with (the most accurate one).
+  const byId = report as unknown as Record<string, ModelReport>;
+  const lr = byId[index.models[0].id];
   const teamChance = 1 / 10;
   const root = document.createElement("div");
   root.className = "page read";
@@ -51,8 +52,21 @@ export function howView(index: Index, report: Report): HTMLElement {
         : ""
     }
 
-    <h2>Why a simple model</h2>
-    <p>A gradient-boosted tree model on the same features scores <strong>${pct(gb.top1)}</strong> top-1 and <strong>${pct(gb.top3)}</strong> top-3, against <strong>${pct(lr.top1)}</strong> and <strong>${pct(lr.top3)}</strong> for logistic regression. The linear model is ${gb.top1 > lr.top1 ? "slightly behind" : "as good or better"}, and it can say why: every corner's push toward a driver is a sum of weight × feature, which is exactly what the evidence line in the game shows. It is also a few kilobytes of weights, so it runs in your browser.</p>
+    <h2>Three models, one test</h2>
+    <p>The same features went into three models, each tested the same way: leave one circuit out, guess every lap there. The game guesses with the most accurate one and lets you switch to the others mid-lap.</p>
+    <figure>
+      <table class="compare num">
+        <thead><tr><th scope="col">Model</th><th scope="col">Right driver</th><th scope="col">In top 3</th><th scope="col">Right team</th><th scope="col">Right teammate</th><th scope="col">Log loss</th></tr></thead>
+        <tbody>${index.models
+          .map((m) => {
+            const r = byId[m.id];
+            return `<tr><th scope="row">${m.name}</th><td>${pct(r.top1)}</td><td>${pct(r.top3)}</td><td>${pct(r.team)}</td><td>${r.teammate != null ? pct(r.teammate) : "–"}</td><td>${r.nll.toFixed(2)}</td></tr>`;
+          })
+          .join("")}</tbody>
+      </table>
+      <figcaption>Chance: ${pct(lr.chance)} right driver, ${pct(lr.chance * 3)} top 3, 50% teammate. Log loss measures how well the probabilities fit (lower is better; picking at random scores ${Math.log(1 / lr.chance).toFixed(2)}).</figcaption>
+    </figure>
+    <p><strong>Logistic regression</strong> adds up weight × feature for every driver: easy to read, but it can only draw straight lines between drivers. <strong>Random forest</strong> votes over hundreds of decision trees, each grown on a random slice of laps and features, so it finds combinations like "late braker <em>and</em> early throttle". <strong>Gradient-boosted trees</strong> build trees one after another, each fixing the mistakes of the ones before; that is why they win here. None of them runs in your browser: every lap in the game is known in advance, so each model's held-out guess for every corner was computed once and ships with the data. The sentences under the lap ("braked 11 m later than the field") come from the raw measurements, not from a model, so they read the same whichever model guesses.</p>
 
     <h2>Accuracy by session</h2>
     <figure class="two-col">

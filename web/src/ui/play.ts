@@ -54,6 +54,8 @@ function readSpeed(): number {
 const recent: string[] = [];
 
 export class PlayView {
+  /** The model the player last chose; kept across rounds. */
+  static model: string | null = null;
   readonly root: HTMLDivElement;
   private phase: Phase = "loading";
   private session!: Session;
@@ -157,7 +159,7 @@ export class PlayView {
         : laps[Math.floor(Math.random() * laps.length)];
     this.player = new LapPlayer(this.lap);
     this.team = teamOf(this.lap.code);
-    this.guesser = new Guesser(this.session, this.index, this.mates ? [this.lap.code, mateOf(this.lap.code)!] : undefined);
+    this.guesser = new Guesser(this.session, this.index, this.mates ? [this.lap.code, mateOf(this.lap.code)!] : undefined, PlayView.model ?? undefined);
     this.ratios = gearRatios(this.lap.v, this.lap.rpm, this.lap.gear);
     this.evidence = [];
     this.nextCorner = 0;
@@ -233,6 +235,25 @@ export class PlayView {
 
     this.lineup = new Lineup(this.guesser.codes, s.drivers);
     this.lineup.update(this.guesser.guesses(), 0);
+    // Three models read the same corners; the grid follows whichever one you pick.
+    const switcher = document.createElement("div");
+    switcher.className = "seg model-switch";
+    switcher.setAttribute("role", "group");
+    switcher.setAttribute("aria-label", "Which model guesses");
+    const short: Record<string, string> = { gbm: "Boosted", forest: "Forest", logreg: "Logistic" };
+    switcher.innerHTML = this.index.models
+      .map((m) => `<button type="button" data-model="${m.id}" aria-pressed="${m.id === this.guesser.model}" title="${m.name}: right ${Math.round(m.top1 * 100)}% of the time on unseen circuits">${short[m.id] ?? m.name}</button>`)
+      .join("");
+    switcher.addEventListener("click", (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-model]");
+      if (!b || this.phase === "reveal" || this.phase === "duel") return;
+      PlayView.model = b.dataset.model!;
+      this.guesser.useModel(PlayView.model, this.lap);
+      this.lineup.update(this.guesser.guesses(), this.guesser.seen);
+      switcher.querySelectorAll("[data-model]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      b.blur();
+    });
+    this.lineup.root.querySelector("header")!.after(switcher);
 
     this.tyre = new TyreGauge(s);
 
@@ -271,6 +292,20 @@ export class PlayView {
     } else if (e.key === "Enter" && this.phase === "reveal") {
       void this.newRound();
     }
+  }
+
+  /** How each of the three models ranked the real driver after the whole lap. */
+  private modelTable(truth: string): string {
+    const only = this.mates ? this.guesser.codes : undefined;
+    const rows = this.index.models.map((m) => {
+      const g = new Guesser(this.session, this.index, only, m.id);
+      this.session.corners.forEach((_, c) => g.ingest(this.lap, c));
+      const list = g.guesses();
+      const k = list.findIndex((x) => x.code === truth);
+      const p = list[k]?.p ?? 0;
+      return `<tr${m.id === this.guesser.model ? ' class="current"' : ""}><td>${m.name}</td><td class="num">${list[0].code === truth ? "<b>right</b>" : `P${k + 1}`}</td><td class="num">${Math.round(p * 100)}%</td><td><span class="bar"><i style="width:${p * 100}%"></i></span></td></tr>`;
+    });
+    return `<table class="model-table"><caption class="caps">How each model ranked ${truth}</caption><tbody>${rows.join("")}</tbody></table>`;
   }
 
   private setPaused(on: boolean) {
@@ -389,6 +424,7 @@ export class PlayView {
         <span>Model ranked them<b>P${rank} of ${guesses.length}</b></span>
         <span>Final confidence<b>${Math.round((guesses.find((g) => g.code === truth)?.p ?? 0) * 100)}%</b></span>
       </div>
+      ${this.modelTable(truth)}
       <ol class="caption">${best
         .map((e) => `<li><b>${e.label}</b><span>${capitalise(e.sentence)}${cornerById.get(e.corner)?.braked === false ? " (no braking)" : ""}.</span></li>`)
         .join("")}</ol>
