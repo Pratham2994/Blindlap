@@ -24,3 +24,7 @@ pipeline/fetch*.log
 # Local tool config
 .claude/
 .playwright-mcp/
+
+# Raw car model download; the game uses the cleaned copy in web/public/models/lp830
+free__formula_one_lp-830_sdc/
+pipeline/model_out/compare_probs.pkl

@@ -9,12 +9,21 @@
       name="description"
       content="A real F1 qualifying lap with the name taken off. Three models read how the car takes each corner and guess who is driving. So do you."
     />
+    <script>
+      // Set the theme before first paint, so a dark-mode visitor never sees a white flash.
+      try {
+        var t = localStorage.getItem("blindlap.theme.v1");
+        if (t !== "light" && t !== "dark") t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    </script>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23e10600'/%3E%3Cpath d='M7 22h18' stroke='%23f1f0ec' stroke-width='4'/%3E%3C/svg%3E" />
   </head>
   <body>
     <canvas id="stage" aria-hidden="true"></canvas>
     <header class="topbar" id="topbar">
       <a class="wordmark" href="#/" aria-label="Blind Lap, home">BLIND LAP</a>
+      <button type="button" class="theme-toggle" aria-label="Switch to dark mode">Dark</button>
       <button type="button" class="menu-toggle" aria-expanded="false" aria-controls="main-nav">Menu</button>
       <nav aria-label="Main" id="main-nav">
         <a href="#/" data-route="home">Home</a>

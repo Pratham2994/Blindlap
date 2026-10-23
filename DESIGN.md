@@ -128,6 +128,9 @@ This replaced a first world (matte black tyre rubber, moulded lettering, five co
 - **Ink Two** (#3a3936): body text in reading pages, ledes, idle bars.
 - **Ink Three** (#5f5d58): labels, meta, figcaptions.
 
+### Dark theme
+The same poster printed in negative, chosen with the Dark/Light button in the top bar (remembered) or by the system setting. Paper becomes #121212 (paper-2 #1c1c1b, paper-3 #34332f), ink becomes #f1f0ec (ink-2 #c9c7c1, ink-3 #9a978f), green lifts to #2fb062 for contrast. Red, yellow and team colours do not change; text on yellow stays #111 in both themes (`--on-signal`). Ink blocks invert with the tokens, so the active nav link and Quick lap tile become light blocks. The 3D scene follows: a near-black sky and fog, a dark printed ground, paper-coloured corner labels, and a paper car while the driver is hidden.
+
 ### Named Rules
 **The Owned Colour Rule.** Team colour is shown only where a named driver owns it: the reveal's who-block (full field, with text in ink or paper chosen by luminance), the 6px chip beside a code, the car after the reveal, the duel car swatches, DNA disc chips. Never on a button, a chart or body text.
 

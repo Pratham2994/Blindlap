@@ -6,7 +6,7 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import type { LapData, Session } from "../data";
-import { makeF1Car } from "./car";
+import { fitF1Model, loadF1Model, makeF1Car } from "./car";
 import { asphaltTexture, boardTexture, labelTexture, posterGround } from "./textures";
 
 // The poster palette in the scene: ink, paper, F1 red.
@@ -16,16 +16,65 @@ const RED = new THREE.Color("#e10600");
 
 // Haze colour in linear space, equal to the sky shader's horizon so ground and sky meet without a seam.
 const HAZE = new THREE.Color().setRGB(0.62, 0.61, 0.58, THREE.LinearSRGBColorSpace);
+// Dark mode: the same scene at night-print values. Sky and fog meet at the horizon colour.
+const NIGHT = {
+  background: new THREE.Color("#141413"),
+  haze: new THREE.Color().setRGB(0.012, 0.012, 0.011, THREE.LinearSRGBColorSpace),
+  zenith: new THREE.Vector3(0.006, 0.006, 0.006),
+  horizon: new THREE.Vector3(0.012, 0.012, 0.011),
+};
+const DAY = {
+  background: new THREE.Color("#dcdad4"),
+  haze: HAZE,
+  zenith: new THREE.Vector3(0.78, 0.78, 0.76),
+  horizon: new THREE.Vector3(0.62, 0.61, 0.58),
+};
 
 const REDUCED_MOTION = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 
 const BARRIER_LIGHT = "#f3f2ee";
 const BARRIER_DARK = "#e10600";
 
-const ELEVATION = 2; // vertical exaggeration so hills read from the chase camera
+const ELEVATION = 1.25; // slight vertical exaggeration so hills read; at 2x slopes looked like ramps
 const TRACK_WIDTH = 13;
 const STRIP_DEPTH = 3; // the track is a thick strip floating over the sidewall, casting its shadow
 const FLOAT = 10;
+const CLEARANCE = 13; // where the track crosses itself (Suzuka), the upper road clears the lower by this much
+const RAMP = 260; // metres either side of a crossing over which the upper road is lifted
+
+/** Find where the circuit passes over itself and lift the upper road on a smooth ramp. The recorded
+ * heights put Suzuka's bridge only 1 to 2 m above the road under it, so the strips would touch. */
+function raiseCrossings(pos: THREE.Vector3[], step: number) {
+  const n = pos.length;
+  const apart = Math.ceil(400 / step);
+  const near = TRACK_WIDTH * 1.5;
+  const lift = new Float64Array(n);
+  let lastI = -Infinity;
+  for (let i = 0; i < n; i++) {
+    let best = -1;
+    let bestD = near;
+    for (let j = i + apart; j < n; j++) {
+      if (n - (j - i) < apart) break;
+      const d = Math.hypot(pos[i].x - pos[j].x, pos[i].z - pos[j].z);
+      if (d < bestD) {
+        bestD = d;
+        best = j;
+      }
+    }
+    // One lift per crossing: take the first close pair and skip past the rest of that crossing.
+    if (best < 0 || i - lastI < apart) continue;
+    lastI = i;
+    const [lo, hi] = pos[i].y <= pos[best].y ? [i, best] : [best, i];
+    const need = CLEARANCE - (pos[hi].y - pos[lo].y);
+    if (need <= 0) continue;
+    const r = Math.ceil(RAMP / step);
+    for (let k = -r; k <= r; k++) {
+      const idx = (hi + k + n) % n;
+      lift[idx] = Math.max(lift[idx], need * 0.5 * (1 + Math.cos((Math.PI * k) / r)));
+    }
+  }
+  for (let i = 0; i < n; i++) pos[i].y += lift[i];
+}
 
 type CameraMode = "chase" | "heli" | "orbit";
 
@@ -46,13 +95,21 @@ export class World {
   private trackGroup = new THREE.Group();
   private frame: TrackFrame | null = null;
   private car: THREE.Group;
-  private wheels: THREE.Mesh[] = [];
+  private carWheels: THREE.Object3D[] = [];
+  private ghostWheels: THREE.Object3D[] = [];
+  private carColours: [THREE.ColorRepresentation, THREE.ColorRepresentation] = [INK, RED];
   private pulses: { mesh: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>; age: number }[] = [];
   private ghost: THREE.Group;
   private carLight: THREE.PointLight;
   private sun: THREE.DirectionalLight;
   private line: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial> | null = null;
-  private labels: { sprite: THREE.Sprite; n: number | string; s: number; aspect: number }[] = [];
+  private labels: { sprite: THREE.Sprite; n: number | string; s: number; aspect: number; read: boolean; note?: string }[] = [];
+  private dark = false;
+  private hemi!: THREE.HemisphereLight;
+  private sky!: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial>;
+  private groundMat: THREE.MeshStandardMaterial | null = null;
+  private groundText: [string, string] = ["", ""];
+  private liveryHidden = true;
   private radius = 1000;
   private camPos = new THREE.Vector3(0, 800, 800);
   private camLook = new THREE.Vector3();
@@ -64,8 +121,6 @@ export class World {
   private shift = 0;
   private dip = 0;
   private ghostS = 0;
-  private lastSpeed: number | null = null;
-  private accel = 0; // smoothed km/h per second
   private fov = 52;
   carS = 0;
 
@@ -78,9 +133,11 @@ export class World {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.scene.background = new THREE.Color("#dcdad4");
     this.scene.fog = new THREE.Fog(HAZE, 1500, 6000);
-    this.scene.add(this.makeSky());
+    this.sky = this.makeSky();
+    this.scene.add(this.sky);
 
-    this.scene.add(new THREE.HemisphereLight("#ffffff", "#8c8a84", 1.4));
+    this.hemi = new THREE.HemisphereLight("#ffffff", "#8c8a84", 1.4);
+    this.scene.add(this.hemi);
     // One low raking light, like late sun across a moulded sidewall: it makes the relief read.
     this.sun = new THREE.DirectionalLight("#fff4e6", 3.2);
     this.sun.castShadow = true;
@@ -88,8 +145,27 @@ export class World {
     this.sun.shadow.bias = -0.0004;
     this.scene.add(this.sun, this.sun.target);
 
-    this.car = this.makeCar(INK);
-    this.ghost = this.makeCar(RED);
+    const built = makeF1Car(INK);
+    const builtGhost = makeF1Car(RED);
+    this.car = new THREE.Group().add(built.group);
+    this.ghost = new THREE.Group().add(builtGhost.group);
+    this.carWheels = built.wheels;
+    this.ghostWheels = builtGhost.wheels;
+    // Swap in the modelled car when it arrives; keep the built one if it never does.
+    loadF1Model()
+      .then((source) => {
+        const a = fitF1Model(source, new THREE.Color(INK));
+        const b = fitF1Model(source, new THREE.Color(RED));
+        this.car.remove(built.group);
+        this.ghost.remove(builtGhost.group);
+        this.car.add(a.group);
+        this.ghost.add(b.group);
+        this.carWheels = a.wheels;
+        this.ghostWheels = b.wheels;
+        if (this.liveryHidden) this.hideLivery();
+        else this.setCarColours(...this.carColours);
+      })
+      .catch((e) => console.warn("Car model not loaded; keeping the built car.", e));
     this.ghost.visible = false;
     this.scene.add(this.ghost);
     this.carLight = new THREE.PointLight("#fff2dc", 7, 28, 1.8);
@@ -120,12 +196,12 @@ export class World {
   }
 
   /** Dark dome with a low warm haze at the horizon, where the raking light comes from. */
-  private makeSky(): THREE.Mesh {
+  private makeSky(): THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial> {
     const mat = new THREE.ShaderMaterial({
       side: THREE.BackSide,
       depthWrite: false,
       fog: false,
-      uniforms: {},
+      uniforms: { uZenith: { value: DAY.zenith.clone() }, uHorizon: { value: DAY.horizon.clone() } },
       vertexShader: /* glsl */ `
         varying vec3 vDir;
         void main() {
@@ -135,15 +211,16 @@ export class World {
         }`,
       fragmentShader: /* glsl */ `
         varying vec3 vDir;
+        uniform vec3 uZenith;
+        uniform vec3 uHorizon;
         void main() {
           float h = vDir.y;
           // Haze is a touch brighter on the side the light sits (+x), and thins quickly with height.
           float sun = max(dot(normalize(vDir.xz), normalize(vec2(0.9, 0.35))), 0.0);
-          vec3 zenith = vec3(0.78, 0.78, 0.76);
-          vec3 horizon = mix(vec3(0.62, 0.61, 0.58), vec3(0.7, 0.68, 0.64), pow(sun, 8.0));
+          vec3 horizon = mix(uHorizon, uHorizon * 1.12, pow(sun, 8.0));
           float t = smoothstep(-0.02, 0.28, h);
-          vec3 c = mix(horizon, zenith, t);
-          if (h < -0.02) c = vec3(0.62, 0.61, 0.58);
+          vec3 c = mix(horizon, uZenith, t);
+          if (h < -0.02) c = uHorizon;
           gl_FragColor = vec4(c, 1.0);
         }`,
     });
@@ -166,12 +243,6 @@ export class World {
   private applyShift(w: number, h: number) {
     if (this.shift) this.camera.setViewOffset(w, h, -w * this.shift, 0, w, h);
     else this.camera.clearViewOffset();
-  }
-
-  private makeCar(colour: THREE.Color): THREE.Group {
-    const car = makeF1Car(colour);
-    this.wheels.push(...car.wheels);
-    return car.group;
   }
 
   /** Build the circuit for a session. The lap paints the rubber line. */
@@ -209,6 +280,18 @@ export class World {
       pos[i].x = x / 9;
       pos[i].z = zz / 9;
     }
+    // Heights jump by up to a metre between 4 m samples; the car rode those as bumps. Two passes of
+    // a 60 m moving average keep real hills and crests but make the surface a road.
+    const half = Math.round(30 / step);
+    for (let pass = 0; pass < 2; pass++) {
+      const ys = pos.map((p) => p.y);
+      for (let i = 0; i < n; i++) {
+        let sum = 0;
+        for (let k = -half; k <= half; k++) sum += ys[(i + k + n) % n];
+        pos[i].y = sum / (2 * half + 1);
+      }
+    }
+    raiseCrossings(pos, step);
     // Headings over ±12 m, so the car and camera never twitch on a straight.
     const tan = pos.map((_, i) => pos[(i + 3) % n].clone().sub(pos[(i - 3 + n) % n]).setY(0).normalize());
     const side = tan.map((t) => new THREE.Vector3(-t.z, 0, t.x));
@@ -225,14 +308,14 @@ export class World {
     );
     for (const [k, c] of session.corners.entries()) {
       const sprite = new THREE.Sprite(
-        new THREE.SpriteMaterial({ map: labelTexture(`T${c.n}`), transparent: true, opacity: 0.55, depthWrite: false }),
+        new THREE.SpriteMaterial({ map: labelTexture(`T${c.n}`, this.labelInk), transparent: true, opacity: 0.55, depthWrite: false }),
       );
       const p = this.pointAt(c.s);
       const sd = this.sideAt(c.s);
       const turn = this.turnSign(c.s);
       sprite.position.copy(p).addScaledVector(sd, -turn * 34).setY(p.y + 14);
       this.trackGroup.add(sprite);
-      this.labels[k] = { sprite, n: c.n, s: c.s, aspect: 2 };
+      this.labels[k] = { sprite, n: c.n, s: c.s, aspect: 2, read: false };
     }
 
     const r = this.radius;
@@ -244,15 +327,14 @@ export class World {
     sc.far = r * 4;
     sc.updateProjectionMatrix();
     // Close enough that the far side of the circuit melts into the haze from the chase camera.
-    this.scene.fog = new THREE.Fog(HAZE, Math.min(r * 0.9, 900), Math.max(r * 2.6, 2600));
+    this.scene.fog = new THREE.Fog((this.dark ? NIGHT : DAY).haze, Math.min(r * 0.9, 900), Math.max(r * 2.6, 2600));
   }
 
   private buildGround(session: Session): THREE.Mesh {
     const size = this.radius * 2.9;
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(size, size),
-      new THREE.MeshStandardMaterial({ map: posterGround(session.circuit, session.date.slice(0, 4)), roughness: 0.95 }),
-    );
+    this.groundText = [session.circuit, session.date.slice(0, 4)];
+    this.groundMat = new THREE.MeshStandardMaterial({ map: posterGround(...this.groundText, this.dark), roughness: 0.95 });
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(size, size), this.groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     return ground;
@@ -375,6 +457,35 @@ export class World {
     light.count = nl;
     dark.count = nd;
     g.add(light, dark);
+
+    // Catch-fence posts every 12 m with a top rail: tall things at the edge of the view are what
+    // the eye reads speed from, far more than the road itself.
+    const postSpacing = 12;
+    const postCount = Math.floor(f.length / postSpacing);
+    const posts = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(0.16, 4, 0.16),
+      new THREE.MeshStandardMaterial({ color: "#6b6a66", roughness: 0.7 }),
+      postCount * 2,
+    );
+    const offset = TRACK_WIDTH / 2 + 4.6;
+    let np = 0;
+    const rails: THREE.Vector3[][] = [[], []];
+    for (let k = 0; k < postCount; k++) {
+      const s = k * postSpacing;
+      const p = this.pointAt(s);
+      const sd = this.sideAt(s);
+      [1, -1].forEach((sign, r) => {
+        const at = p.clone().addScaledVector(sd, sign * offset);
+        m.makeTranslation(at.x, p.y + 2, at.z);
+        posts.setMatrixAt(np++, m);
+        rails[r].push(at.setY(p.y + 4));
+      });
+    }
+    g.add(posts);
+    for (const pts of rails) {
+      pts.push(pts[0]);
+      g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: "#6b6a66" })));
+    }
     return g;
   }
 
@@ -506,7 +617,7 @@ export class World {
     const at = this.pointAt((lo + hi) / 2);
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(0.9, 1, 64).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: INK, transparent: true, opacity: 0.8, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ color: this.dark ? PAPER : INK, transparent: true, opacity: 0.8, depthWrite: false }),
     );
     ring.position.copy(at).setY(at.y + 0.3);
     this.trackGroup.add(ring);
@@ -515,7 +626,9 @@ export class World {
     if (l) {
       const m = l.sprite.material as THREE.SpriteMaterial;
       // State is a mark, not a hue: a read corner gains a notch and, on board, a caption.
-      m.map = labelTexture(`T${l.n}`, "#111111", note, true);
+      l.read = true;
+      l.note = note;
+      m.map = labelTexture(`T${l.n}`, this.labelInk, note, true);
       l.aspect = note ? 8 : 2;
       m.opacity = 1;
       m.needsUpdate = true;
@@ -554,6 +667,12 @@ export class World {
     return this.pointAt(s + 8).sub(this.pointAt(s - 8)).setY(0).normalize();
   }
 
+  /** Nose-up angle of the road under a car at s, from the height 4 m behind to 4 m ahead. Without it
+   * the car stays level on slopes like the drop into Interlagos T1 and looks as if it is flying. */
+  pitchAt(s: number): number {
+    return Math.atan2(this.pointAt(s + 4).y - this.pointAt(s - 4).y, 8);
+  }
+
   sideAt(s: number): THREE.Vector3 {
     const t = this.tangentAt(s);
     return new THREE.Vector3(-t.z, 0, t.x);
@@ -570,13 +689,14 @@ export class World {
   setCarS(s: number) {
     // Spin the wheels by the distance travelled (radius about 0.37 m).
     const ds = s - this.carS;
-    if (Math.abs(ds) < 50) for (const w of this.wheels.slice(0, 4)) w.rotation.z -= ds / 0.37;
+    if (Math.abs(ds) < 50) for (const w of this.carWheels) w.rotation.z -= ds / 0.37;
     this.carS = s;
     if (!this.frame) return;
     const p = this.pointAt(s);
     const t = this.headingAt(s);
     this.car.position.copy(p);
     this.car.rotation.y = Math.atan2(-t.z, t.x);
+    this.car.rotation.z = this.pitchAt(s);
     if (this.line) this.line.material.uniforms.uCarS.value = s;
   }
 
@@ -585,17 +705,54 @@ export class World {
     this.ghost.visible = s !== null && !!this.frame;
     if (s === null || !this.frame) return;
     const ds = s - this.ghostS;
-    if (Math.abs(ds) < 50) for (const w of this.wheels.slice(4)) w.rotation.z -= ds / 0.37;
+    if (Math.abs(ds) < 50) for (const w of this.ghostWheels) w.rotation.z -= ds / 0.37;
     this.ghostS = s;
     const p = this.pointAt(s);
     const t = this.headingAt(s);
     // Offset sideways a little so two cars on the same line never sit inside each other.
     this.ghost.position.copy(p).addScaledVector(this.sideAt(s), 2.2);
     this.ghost.rotation.y = Math.atan2(-t.z, t.x);
+    this.ghost.rotation.z = this.pitchAt(s);
   }
 
-  /** Paint the cars: ink while the driver is hidden, team colours once they are known. */
+  private get labelInk(): string {
+    return this.dark ? "#f1f0ec" : "#111111";
+  }
+
+  /** Paper or ink to suit the theme, with the night sky, fog, light and ground to match. */
+  setDark(dark: boolean) {
+    this.dark = dark;
+    const p = dark ? NIGHT : DAY;
+    this.scene.background = p.background;
+    (this.scene.fog as THREE.Fog).color.copy(p.haze);
+    this.sky.material.uniforms.uZenith.value.copy(p.zenith);
+    this.sky.material.uniforms.uHorizon.value.copy(p.horizon);
+    this.hemi.intensity = dark ? 0.9 : 1.4;
+    this.hemi.groundColor.set(dark ? "#2a2926" : "#8c8a84");
+    if (this.groundMat) {
+      this.groundMat.map?.dispose();
+      this.groundMat.map = posterGround(...this.groundText, dark);
+      this.groundMat.needsUpdate = true;
+    }
+    for (const l of this.labels) {
+      const m = l.sprite.material as THREE.SpriteMaterial;
+      m.map?.dispose();
+      m.map = labelTexture(`T${l.n}`, this.labelInk, l.note, l.read);
+      m.needsUpdate = true;
+    }
+    if (this.liveryHidden) this.hideLivery();
+  }
+
+  /** The car while the driver is unknown: plain ink, or plain paper on the dark theme. */
+  hideLivery() {
+    this.setCarColours(this.dark ? PAPER : INK);
+    this.liveryHidden = true;
+  }
+
+  /** Paint the cars: plain while the driver is hidden, team colours once they are known. */
   setCarColours(car: THREE.ColorRepresentation, ghost: THREE.ColorRepresentation = RED) {
+    this.liveryHidden = false;
+    this.carColours = [car, ghost];
     const paint = (g: THREE.Group, c: THREE.ColorRepresentation) =>
       g.traverse((o) => {
         const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
@@ -624,19 +781,20 @@ export class World {
     let look: THREE.Vector3;
     if (this.mode === "chase") {
       // Look further ahead the faster the car goes, so slow hairpins keep the car in frame.
-      const ahead = this.pointAt(this.carS + 10 + speedKmh * 0.08);
-      // The camera falls back as the car accelerates and surges in under braking, so changes in
-      // speed are felt, not only read off the gauge.
-      const accel = this.lastSpeed === null ? 0 : (speedKmh - this.lastSpeed) / Math.max(dt, 1e-3);
-      this.accel += (accel - this.accel) * Math.min(dt * 4, 1);
-      this.lastSpeed = speedKmh;
-      const back = 16 + speedKmh * 0.02 + Math.max(-6, Math.min(5, this.accel * 0.05));
-      want = p.clone().addScaledVector(t, -back).setY(p.y + 5 + speedKmh * 0.006);
-      // Under braking the nose dips and the view tips forward a little.
-      this.dip += ((braking ? 1 : 0) - this.dip) * Math.min(dt * 6, 1);
+      const ahead = this.pointAt(this.carS + 8 + speedKmh * 0.05);
+      // Low and close, like a TV chase camera: speed reads from the road and barriers rushing past.
+      // The distance depends on speed only and changes slowly. (It used to jump with acceleration;
+      // that moved the camera up to 11 m against the car, so braking looked like a sudden stop.)
+      const back = 9.5 + speedKmh * 0.012;
+      // Height is taken from the higher of the car and the road under the camera, so going downhill
+      // the camera stays above the road behind instead of sinking into it and looking up at the car.
+      const behindY = this.pointAt(this.carS - back).y;
+      want = p.clone().addScaledVector(t, -back).setY(Math.max(p.y, behindY) + 2.8 + speedKmh * 0.0015);
+      // Under braking the view tips forward a little, easing in and out.
+      this.dip += ((braking ? 1 : 0) - this.dip) * Math.min(dt * 1.5, 1);
       // On phones the driver grid covers the lower screen: aim lower so the car rides higher.
       const narrow = (this.canvas.clientWidth || window.innerWidth) <= 860;
-      look = ahead.setY(ahead.y + 1 - this.dip * 2 - (narrow ? 9 : 0));
+      look = ahead.setY(ahead.y + 0.8 - this.dip * 0.6 - (narrow ? 4 : 0));
     } else if (this.mode === "heli") {
       if (this.ghost.visible) {
         // Duel: frame the midpoint of the two cars, low enough that both read as cars.
@@ -683,8 +841,8 @@ export class World {
     this.camera.position.copy(this.camPos);
     this.camera.lookAt(this.camLook);
     // The view widens with speed on board, so 330 km/h feels faster than 80.
-    const wantFov = this.mode === "chase" && !REDUCED_MOTION ? 50 + Math.min(speedKmh, 340) * 0.055 : 52;
-    this.fov += (wantFov - this.fov) * Math.min(dt * 3, 1);
+    const wantFov = this.mode === "chase" && !REDUCED_MOTION ? 56 + Math.min(speedKmh, 340) * 0.06 : 52;
+    this.fov += (wantFov - this.fov) * Math.min(dt * 1.5, 1);
     if (Math.abs(this.camera.fov - this.fov) > 0.01) {
       this.camera.fov = this.fov;
       this.camera.updateProjectionMatrix();

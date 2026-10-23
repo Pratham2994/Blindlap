@@ -3,6 +3,7 @@ import * as THREE from "three";
 import type { Careers, Dna, DnaDriver } from "../data";
 import { careerLine } from "../data";
 import type { World } from "../scene/world";
+import { isDark } from "../theme";
 import { dockStage } from "./stage";
 
 const SCALE = 60;
@@ -10,19 +11,20 @@ const SCALE = 60;
 const discCache = new Map<string, THREE.CanvasTexture>();
 
 function discTexture(code: string, colour: string, lit = false): THREE.CanvasTexture {
-  const key = `${code}:${lit}`;
+  const dark = isDark();
+  const key = `${code}:${lit}:${dark}`;
   const hit = discCache.get(key);
   if (hit) return hit;
   const c = document.createElement("canvas");
   c.width = c.height = 256;
   const g = c.getContext("2d")!;
   // A printed roundel: paper disc, ink rim (heavier when selected), the code, a team-colour chip.
-  g.fillStyle = "#ffffff";
+  g.fillStyle = dark ? "#1c1c1b" : "#ffffff";
   g.beginPath();
   g.arc(128, 128, 118, 0, Math.PI * 2);
   g.fill();
   g.lineWidth = lit ? 16 : 6;
-  g.strokeStyle = lit ? "#111111" : "#bdbab3";
+  g.strokeStyle = lit ? (dark ? "#f1f0ec" : "#111111") : dark ? "#45443f" : "#bdbab3";
   g.beginPath();
   g.arc(128, 128, 110, 0, Math.PI * 2);
   g.stroke();
@@ -32,7 +34,7 @@ function discTexture(code: string, colour: string, lit = false): THREE.CanvasTex
   (g as CanvasRenderingContext2D & { fontStretch: string }).fontStretch = "expanded";
   g.textAlign = "center";
   g.textBaseline = "middle";
-  g.fillStyle = "#111111";
+  g.fillStyle = dark ? "#f1f0ec" : "#111111";
   g.fillText(code, 128, 130);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
@@ -78,13 +80,16 @@ export class DnaView {
       </div>`;
     this.panel = this.root.querySelector(".dna-panel")!;
 
-    this.scene.background = new THREE.Color("#f1f0ec");
-    this.scene.fog = new THREE.Fog("#f1f0ec", 180, 360);
+    const dark = isDark();
+    const ground = dark ? "#121212" : "#f1f0ec";
+    const faint = dark ? "#2e2d2a" : "#cfccc5";
+    this.scene.background = new THREE.Color(ground);
+    this.scene.fog = new THREE.Fog(ground, 180, 360);
     // Rings on the floor of the space, like range rings on a printed chart.
     for (let r = 20; r <= 100; r += 20) {
       const ring = new THREE.Mesh(
         new THREE.RingGeometry(r - 0.15, r + 0.15, 160),
-        new THREE.MeshBasicMaterial({ color: "#cfccc5", side: THREE.DoubleSide }),
+        new THREE.MeshBasicMaterial({ color: faint, side: THREE.DoubleSide }),
       );
       ring.rotation.x = -Math.PI / 2;
       ring.position.y = -SCALE * 1.05;
@@ -102,7 +107,7 @@ export class DnaView {
       // Stalk down to the floor so depth reads.
       const stalk = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints([sprite.position.clone(), sprite.position.clone().setY(-SCALE * 1.05)]),
-        new THREE.LineBasicMaterial({ color: "#cfccc5" }),
+        new THREE.LineBasicMaterial({ color: faint }),
       );
       this.group.add(stalk);
       const n = byCode.get(d.neighbours[0]);
@@ -110,7 +115,7 @@ export class DnaView {
     }
     const lg = new THREE.BufferGeometry();
     lg.setAttribute("position", new THREE.Float32BufferAttribute(linkPts, 3));
-    this.links = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: "#111111", transparent: true, opacity: 0.35 }));
+    this.links = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: dark ? "#f1f0ec" : "#111111", transparent: true, opacity: 0.35 }));
     this.group.add(this.links);
     this.scene.add(this.group);
 

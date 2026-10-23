@@ -33,6 +33,8 @@ test("a full round: model reads every corner, you guess, reveal, duel", async ({
   await expect(reveal).toContainText(/Ranked\s*P\d+ of \d+/i);
   await expect(page.locator(".lineup .row.truth")).toHaveCount(1);
   await expect(reveal.locator(".caption li")).toHaveCount(3);
+  // When and where in qualifying: the date, the segment, and how the driver's session ended.
+  await expect(reveal.locator(".context")).toHaveText(/\d{4} · Qualifying Q[123] · .*(qualified P\d+|took pole|DNF|DNS|DSQ)/);
 
   // Duel against the model's pick shows a live gap.
   await reveal.getByRole("button", { name: /race it against/i }).click();
@@ -41,6 +43,20 @@ test("a full round: model reads every corner, you guess, reveal, duel", async ({
   await expect(reveal).toBeVisible();
 
   expect(errors).toEqual([]);
+});
+
+test("dark mode switches the page and is remembered", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto("/#/");
+  const html = page.locator("html");
+  await expect(html).toHaveAttribute("data-theme", "light");
+  await page.getByRole("button", { name: /switch to dark mode/i }).click();
+  await expect(html).toHaveAttribute("data-theme", "dark");
+  const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  expect(bg).toBe("rgb(18, 18, 18)");
+  await page.reload();
+  await expect(html).toHaveAttribute("data-theme", "dark");
+  await expect(page.getByRole("button", { name: /switch to light mode/i })).toHaveText("Light");
 });
 
 test("driver DNA lets you switch drivers", async ({ page }) => {

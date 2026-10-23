@@ -136,5 +136,12 @@ npx playwright test   # plays a full round in headless Chromium with WebGL, plus
 
 ## Credits
 
-Telemetry, positions and team radio: OpenF1. Corner maps: MultiViewer. Career totals: F1DB. Blind
+Telemetry, positions and team radio: OpenF1. Corner maps: MultiViewer. Career totals: F1DB.
+
+Car model: this work is based on ["( FREE ) Formula One LP-830 SDC"](https://sketchfab.com/3d-models/free-formula-one-lp-830-sdc-aeebdfa53e294e0390f3c2e8bbfe31b6)
+by [SDC PERFORMANCE](https://sketchfab.com/3Duae), licensed under
+[CC BY 4.0](http://creativecommons.org/licenses/by/4.0/). Changes: textures removed, materials flattened
+and repainted in the game (`web/scripts/prep-car.mjs`). Licence text: `web/public/models/lp830/LICENSE.txt`.
+
+Blind
 Lap is a fan project and is not associated with Formula 1, the FIA or any team.

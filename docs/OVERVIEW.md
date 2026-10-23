@@ -451,3 +451,32 @@ captures; they were not re-scored by the reviewer.
 | Why logistic regression, not a random forest? | All three now run: gradient-boosted trees (42.9% top-1), random forest (40.3%), logistic regression (34.7%). Each is evaluated leave-one-circuit-out; per-lap, per-corner scores for all three are exported, and the game switches between them live and compares them on the reveal and the How page. |
 | Space to pause broke things; sound stuck after a pause or when the tab was hidden | Pause is one state for Space and the button; the engine's mute and active state are separate; a hidden tab pauses the lap and suspends audio. |
 | Bland, all black, confusing navigation | The full redesign in 5.6: a home hub, a top bar on every page, a Menu button in every lap, Escape to leave, and the poster world. |
+| Suzuka: the two roads touch at the crossover | The recorded heights put the bridge only 1 to 2 m over the road below, less than the 3 m thick track strip. The scene now finds every place where the circuit crosses itself and lifts the upper road on a smooth 260 m ramp to 13 m clearance. |
+| Interlagos T1: the car looks airborne downhill | The car only turned left and right. It now pitches to the road's gradient (measured over 6 m), and the chase camera keeps above the road behind it. |
+| Add a dark mode | A Dark/Light button in the top bar, remembered per browser, defaulting to the system setting. The CSS tokens invert; the 3D world, DNA field and confusion matrix follow. |
+| A better car | The car is now "( FREE ) Formula One LP-830 SDC" by SDC PERFORMANCE (CC BY 4.0, credited in the README and on the How page), a fictional modern F1 car. Its textures (a logo livery and a branded tyre wall) are dropped by `web/scripts/prep-car.mjs`; the paint is recoloured in the game. The built car stays as a fallback while it loads or if it fails. |
+| The car bobs as if the road were bumpy | The recorded heights jump by up to 1.2 m between 4 m samples, and the 2x exaggeration doubled that. Heights are now smoothed over about 85 m and exaggerated 1.25x. |
+| Braking and throttle feel stop-start; 300 km/h does not feel fast | Measured: the chase camera moved up to 11 m against the car when braking began (a relative speed of 74 km/h), so the car looked as if it stopped dead. The camera distance now depends on speed only: low and close (about 13 m back, 3.3 m up at 300 km/h), with a wider field of view at speed and catch-fence posts every 12 m. Measured again: at most 6 km/h relative movement. |
+| Show when and where the lap was set | `pipeline/results.py` downloads each session's result from OpenF1 and works out the Q1/Q2/Q3 boundaries (a vote over every driver's best segment laps and the laps of drivers already knocked out, so a red flag inside Q1 is not taken for the break). The reveal shows, for example, "Saturday 5 April 2025 · Qualifying Q3 · their best Q3 lap · took pole". |
+
+### Model comparison (`pipeline/compare_models.py`)
+
+Same leave-one-circuit-out test, same metrics, 3,669 laps. Results in `pipeline/model_out/compare.json`.
+
+| Model | Top-1 | Top-3 | Team | Teammate | Log loss |
+|---|---|---|---|---|---|
+| Blend: boosted trees + forest + logistic | **44.5%** | **74.1%** | **59.8%** | 74.3% | **1.716** |
+| Blend: boosted trees + forest | 44.2% | 73.3% | 59.0% | 73.4% | 1.744 |
+| Blend: boosted trees + lap model | 43.6% | 73.1% | 58.2% | **74.5%** | 1.725 |
+| Boosted trees, tuned | 43.3% | 72.0% | 59.3% | 73.2% | 1.736 |
+| Boosted trees (in the game) | 42.9% | 72.6% | 58.7% | 73.5% | 1.749 |
+| Random forest (in the game) | 40.3% | 68.6% | 56.4% | 69.6% | 1.905 |
+| Neural net (MLP) | 35.4% | 64.1% | 50.1% | 68.5% | 2.179 |
+| Logistic regression (in the game) | 34.7% | 64.2% | 49.2% | 71.4% | 2.078 |
+| Lap model, boosted trees on running means | 33.8% | 62.2% | 48.1% | 69.4% | 2.114 |
+| Lap model, neural net | 28.2% | 54.6% | 43.1% | 65.6% | 2.352 |
+
+Differences under about 1.5 points are within noise: laps from one session are not independent.
+Tuning the boosted trees did not help. The neural net does no better than logistic regression on
+30 features. Lap-level models lose because they get one training row per lap instead of one per
+corner, 15 to 20 times fewer. The best result is an average of the three models already in the game.

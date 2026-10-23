@@ -24,14 +24,14 @@ export function asphaltTexture(): THREE.CanvasTexture {
  * The ground is a sheet of poster paper: a fine survey grid and the circuit's name printed huge
  * across it, the way a race poster sets the venue.
  */
-export function posterGround(name: string, year: string): THREE.CanvasTexture {
+export function posterGround(name: string, year: string, dark = false): THREE.CanvasTexture {
   const size = 4096;
   const c = document.createElement("canvas");
   c.width = c.height = size;
   const g = c.getContext("2d")!;
-  g.fillStyle = "#dcdad4";
+  g.fillStyle = dark ? "#181817" : "#dcdad4";
   g.fillRect(0, 0, size, size);
-  g.strokeStyle = "#cfccc5";
+  g.strokeStyle = dark ? "#232321" : "#cfccc5";
   g.lineWidth = 3;
   for (let x = 0; x <= size; x += 128) {
     g.beginPath();
@@ -44,7 +44,7 @@ export function posterGround(name: string, year: string): THREE.CanvasTexture {
     g.stroke();
   }
   // The venue, printed across the sheet.
-  g.fillStyle = "#c9c6be";
+  g.fillStyle = dark ? "#262523" : "#c9c6be";
   g.textAlign = "center";
   g.textBaseline = "middle";
   const label = name.toUpperCase();
@@ -90,7 +90,7 @@ export function labelTexture(text: string, colour = "#111111", note?: string, ma
     // The corner's evidence, set beside the number like a caption.
     g.textAlign = "left";
     g.font = `700 50px "Archivo Variable", sans-serif`;
-    g.fillStyle = "#111111";
+    g.fillStyle = colour;
     g.fillText(note.toUpperCase(), 262, 70);
   }
   const t = new THREE.CanvasTexture(c);

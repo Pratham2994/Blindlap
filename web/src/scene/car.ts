@@ -1,10 +1,65 @@
-// A stylised low-poly F1 car, about 5.6 m long, facing +x. Built from primitives so it costs no
-// assets: floor, tub, nose, sidepods, engine cover, halo, wings, and four wheels that spin.
+// The F1 car, about 5.5 m long, facing +x. A modelled car (loaded from public/models) replaces the
+// built one once it arrives; the built one, from primitives, shows until then or if loading fails.
 import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 export interface Car {
   group: THREE.Group;
-  wheels: THREE.Mesh[];
+  wheels: THREE.Object3D[];
+}
+
+const MODEL_URL = `${import.meta.env.BASE_URL}models/lp830/car.gltf`;
+const LENGTH = 5.5; // metres, nose to rear wing
+let model: Promise<THREE.Group> | null = null;
+
+/** The modelled car: "( FREE ) Formula One LP-830 SDC" by SDC PERFORMANCE, CC BY 4.0 (see
+ * public/models/lp830/LICENSE.txt), geometry only. Loaded once and shared by both cars. */
+export function loadF1Model(): Promise<THREE.Group> {
+  model ??= new GLTFLoader().loadAsync(MODEL_URL).then((g) => g.scene);
+  return model;
+}
+
+/** A copy of the modelled car fitted to the built car's frame: facing +x, wheels on y = 0, centred,
+ * with its own paint, and one pivot per axle that spins about z like the built car's wheels. */
+export function fitF1Model(source: THREE.Group, colour: THREE.Color): Car {
+  const g = new THREE.Group();
+  const m = source.clone(true);
+  m.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.castShadow = true;
+    const mat = mesh.material as THREE.MeshStandardMaterial;
+    if (mat.name === "paint") {
+      const paint = mat.clone();
+      paint.color.copy(colour);
+      paint.emissive.copy(colour);
+      paint.emissiveIntensity = 0.06;
+      paint.userData.paint = true; // recoloured at the reveal
+      mesh.material = paint;
+    }
+  });
+  // The model's nose points along +z; turn it to +x.
+  m.rotation.y = Math.PI / 2;
+  g.add(m);
+  g.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(m);
+  m.scale.setScalar(LENGTH / (box.max.x - box.min.x));
+  g.updateMatrixWorld(true);
+  box.setFromObject(m);
+  m.position.set(-(box.max.x + box.min.x) / 2, -box.min.y, -(box.max.z + box.min.z) / 2);
+  g.updateMatrixWorld(true);
+  const wheels: THREE.Object3D[] = [];
+  for (const name of ["axle_a", "axle_b"]) {
+    const node = m.getObjectByName(name);
+    if (!node) continue;
+    const pivot = new THREE.Group();
+    new THREE.Box3().setFromObject(node).getCenter(pivot.position);
+    g.add(pivot);
+    g.updateMatrixWorld(true);
+    pivot.attach(node);
+    wheels.push(pivot);
+  }
+  return { group: g, wheels };
 }
 
 export function makeF1Car(colour: THREE.Color): Car {

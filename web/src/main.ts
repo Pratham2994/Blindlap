@@ -10,6 +10,7 @@ import { icons } from "./ui/icons";
 import { LabView } from "./ui/lab";
 import { PlayView } from "./ui/play";
 import { dockStage } from "./ui/stage";
+import { isDark, onTheme, setTheme } from "./theme";
 
 interface View {
   root: HTMLElement;
@@ -39,6 +40,23 @@ toggle.addEventListener("click", () => {
   document.body.classList.toggle("nav-open", open);
   toggle.setAttribute("aria-expanded", String(open));
 });
+
+// Theme: one button in the top bar. The 3D world recolours live; pages that paint their own
+// canvas (DNA, How) are rebuilt.
+const themeButton = document.querySelector<HTMLButtonElement>(".theme-toggle")!;
+function showTheme() {
+  const dark = isDark();
+  themeButton.textContent = dark ? "Light" : "Dark";
+  themeButton.setAttribute("aria-label", dark ? "Switch to light mode" : "Switch to dark mode");
+  world.setDark(dark);
+}
+themeButton.addEventListener("click", () => setTheme(isDark() ? "light" : "dark"));
+onTheme(() => {
+  showTheme();
+  const name = location.hash.replace(/^#\/?/, "").split("/")[0];
+  if (name === "dna" || name === "how") void route();
+});
+showTheme();
 
 function mount(v: View) {
   current?.dispose?.();

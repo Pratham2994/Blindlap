@@ -20,7 +20,24 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --gutter: clamp(16px, 2.6vw, 40px);
 
+  --on-signal: #111111; /* text on yellow stays dark in both themes */
+  --chart: #ffffff;
+
   color-scheme: light;
+}
+
+/* Dark: the same poster printed in negative. Red, yellow and team colours do not change. */
+:root[data-theme="dark"] {
+  --paper: #121212;
+  --paper-2: #1c1c1b;
+  --paper-3: #34332f;
+  --ink: #f1f0ec;
+  --ink-2: #c9c7c1;
+  --ink-3: #9a978f;
+  --green: #2fb062;
+  --chart: #181817;
+
+  color-scheme: dark;
 }
 
 * {
@@ -47,7 +64,7 @@ body.playing {
 
 ::selection {
   background: var(--yellow);
-  color: var(--ink);
+  color: var(--on-signal);
 }
 
 :focus-visible {
@@ -201,6 +218,28 @@ body.playing .topbar {
   color: var(--paper);
 }
 
+.topbar nav,
+.menu-toggle {
+  order: 1;
+}
+
+.theme-toggle {
+  order: 2;
+  border: var(--rule);
+  background: var(--paper);
+  padding: 8px 12px;
+  font-weight: 800;
+  font-variation-settings: "wdth" 112;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-size: 0.7rem;
+}
+
+.theme-toggle:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
 .menu-toggle {
   display: none;
   border: var(--rule);
@@ -314,7 +353,7 @@ body.playing .topbar {
 
 .ctl[aria-pressed="true"][data-pause] {
   background: var(--yellow);
-  color: var(--ink);
+  color: var(--on-signal);
 }
 
 /* ---------- Home ---------- */
@@ -641,7 +680,7 @@ a.mode.quick:hover p {
   display: flex;
   gap: clamp(8px, 1.6vw, 18px);
   padding: 16px 20px;
-  background: var(--ink);
+  background: #0b0b0b;
 }
 
 .lights i {
@@ -663,6 +702,7 @@ a.mode.quick:hover p {
   margin: 0;
   padding: 12px 18px;
   background: var(--yellow);
+  color: var(--on-signal);
   border: var(--rule);
   display: none;
 }
@@ -778,6 +818,17 @@ a.mode.quick:hover p {
 
 .row.pick {
   background: var(--yellow);
+  color: var(--on-signal);
+  /* Snap to yellow: a fade would leave dark text on a dark row for a moment in the dark theme. */
+  transition: transform 0.26s var(--ease-out);
+}
+
+.row.pick .bar {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.row.pick .bar i {
+  background: var(--on-signal);
 }
 
 .row.truth {
@@ -801,7 +852,7 @@ a.mode.quick:hover p {
 .lineup .hint b {
   background: var(--yellow);
   padding: 0 4px;
-  color: var(--ink);
+  color: var(--on-signal);
 }
 
 /* The band under the stage */
@@ -995,11 +1046,15 @@ a.mode.quick:hover p {
   }
 }
 
+/* The name is sized so its longest word fits the block on one line (no browser hyphenates
+   reliably): about 0.8em per extended capital. */
+.who-block {
+  container-type: inline-size;
+}
+
 .who-block h2 {
-  font-size: clamp(2rem, 3.6vw, 3.6rem);
+  font-size: min(3.6rem, calc(100cqi / (var(--longest, 8) * 0.8)));
   margin: 12px 0 10px;
-  hyphens: auto;
-  overflow-wrap: anywhere;
 }
 
 .who-block h2 span {
@@ -1010,8 +1065,18 @@ a.mode.quick:hover p {
   margin: 0;
 }
 
-.who-block .career {
+.who-block .context {
   margin: 8px 0 0;
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+
+.who-block .context span {
+  white-space: nowrap;
+}
+
+.who-block .career {
+  margin: 4px 0 0;
   font-size: 0.88rem;
 }
 
@@ -1693,7 +1758,7 @@ figcaption {
   width: 100%;
   height: auto;
   display: block;
-  background: #fff;
+  background: var(--chart);
   border: var(--rule);
 }
 

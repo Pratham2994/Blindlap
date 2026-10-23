@@ -183,6 +183,14 @@ export interface RadioClip {
   lines?: { t0: number; t1: number; text: string }[];
 }
 export const loadRadio = () => get<Record<string, RadioClip>>("radio.json").catch(() => ({}) as Record<string, RadioClip>);
+/** Qualifying context per session (pipeline/results.py): each game lap's segment, and every
+ * driver's final position and best Q1/Q2/Q3 times, keyed by driver number. */
+export interface SessionResult {
+  segments: Record<string, "Q1" | "Q2" | "Q3">;
+  drivers: Record<string, { pos: number | null; best: (number | null)[] | null; status: string | null }>;
+}
+export const loadResults = () =>
+  get<Record<string, SessionResult>>("results.json").catch(() => ({}) as Record<string, SessionResult>);
 // Optional second dataset: an empty set keeps the game working if the file is missing.
 export const loadCareers = () => get<Careers>("careers.json").catch((): Careers => ({ source: "", drivers: {} }));
 

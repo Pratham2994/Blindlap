@@ -98,7 +98,7 @@ export function howView(index: Index, report: Report): HTMLElement {
     <p>The engine you hear is synthesised in your browser from each lap's gear, speed and throttle: the pitch is the firing frequency of a V6 at that RPM. No engine recordings are used. Team radio clips are the real ones from that session.</p>
 
     <h2>Data</h2>
-    <p>Telemetry, positions and radio: <a href="https://openf1.org">OpenF1</a>. Corner maps: MultiViewer. Blind Lap is a fan project and is not associated with Formula 1 or any team.</p>
+    <p>Telemetry, positions and radio: <a href="https://openf1.org">OpenF1</a>. Corner maps: MultiViewer. Car model: based on <a href="https://sketchfab.com/3d-models/free-formula-one-lp-830-sdc-aeebdfa53e294e0390f3c2e8bbfe31b6">"( FREE ) Formula One LP-830 SDC"</a> by <a href="https://sketchfab.com/3Duae">SDC PERFORMANCE</a>, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>, textures removed and repainted. Blind Lap is a fan project and is not associated with Formula 1 or any team.</p>
   </article>`;
 
   drawConfusion(root.querySelector("canvas")!, lr.classes, lr.confusion);
@@ -120,21 +120,29 @@ function drawConfusion(canvas: HTMLCanvasElement, classes: string[], m: number[]
   const n = classes.length;
   const pad = 56;
   const cell = (canvas.width - pad) / n;
-  g.fillStyle = "#0e0e0e";
+  // Colours come from the page's tokens, so the chart follows the light or dark theme.
+  const css = getComputedStyle(document.documentElement);
+  const paper = css.getPropertyValue("--paper").trim();
+  const ink = css.getPropertyValue("--ink").trim();
+  const ink3 = css.getPropertyValue("--ink-3").trim();
+  const red = css.getPropertyValue("--red").trim();
+  g.fillStyle = paper;
   g.fillRect(0, 0, canvas.width, canvas.height);
   g.font = `700 13px "Archivo Variable", sans-serif`;
   g.textAlign = "right";
   g.textBaseline = "middle";
   for (let i = 0; i < n; i++) {
     const total = m[i].reduce((a, v) => a + v, 0) || 1;
-    g.fillStyle = "#8f8c85";
+    g.fillStyle = ink3;
     g.fillText(classes[i], pad - 8, pad + i * cell + cell / 2);
     for (let j = 0; j < n; j++) {
       const v = m[i][j] / total;
-      // Hard white on the diagonal (right), soft red off it (confused).
+      // Ink on the diagonal (right), red off it (confused).
       const a = Math.min(1, v * 1.6);
-      g.fillStyle = i === j ? `rgba(242,240,234,${0.06 + a * 0.94})` : `rgba(232,49,42,${a})`;
+      g.globalAlpha = i === j ? 0.06 + a * 0.94 : a;
+      g.fillStyle = i === j ? ink : red;
       g.fillRect(pad + j * cell + 1, pad + i * cell + 1, cell - 2, cell - 2);
+      g.globalAlpha = 1;
     }
   }
   g.save();
@@ -143,7 +151,7 @@ function drawConfusion(canvas: HTMLCanvasElement, classes: string[], m: number[]
     g.save();
     g.translate(pad + j * cell + cell / 2, pad - 8);
     g.rotate(-Math.PI / 2);
-    g.fillStyle = "#8f8c85";
+    g.fillStyle = ink3;
     g.fillText(classes[j], 0, 0);
     g.restore();
   }

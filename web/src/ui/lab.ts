@@ -41,7 +41,7 @@ export class LabView {
     this.root.innerHTML = `
       <article class="prose wide">
         <h1 class="display">Telemetry<br>lab</h1>
-        <p>Put two drivers' fastest qualifying laps from the same session on top of each other. The trace is speed against distance; the marks under it are braking (black for the first driver, red for the second). Below, each corner says what the model would notice first.</p>
+        <p>Put two drivers' fastest qualifying laps from the same session on top of each other. The trace is speed against distance; the marks under it are braking, one row per driver. Below, each corner says what the model would notice first.</p>
         <div class="lab-controls">
           <label class="caps">Session<select data-k="session">${options}</select></label>
           <label class="caps">Driver<select data-k="a"></select></label>

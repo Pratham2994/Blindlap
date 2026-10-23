@@ -2,13 +2,12 @@
 // Layout: a bar with the way back, the framed stage, the ranking column, and a band underneath
 // that carries the telemetry during the lap and becomes the reveal afterwards.
 import { gearRatios, EngineSynth } from "../audio/engine";
-import type { DriverInfo, Index, LapData, Session } from "../data";
-import { careerLine, loadCareers, loadRadio, loadSession } from "../data";
+import type { DriverInfo, Index, LapData, Session, SessionResult } from "../data";
+import { careerLine, loadCareers, loadRadio, loadResults, loadSession } from "../data";
 import { formatLapTime, LapPlayer } from "../lap";
 import type { Evidence } from "../model";
 import { Guesser } from "../model";
 import type { World } from "../scene/world";
-import { INK } from "../scene/world";
 import type { DailyLap, DailyResult } from "./daily";
 import { readDaily, shareText, summaryHtml, writeDaily } from "./daily";
 import { icons } from "./icons";
@@ -203,7 +202,7 @@ export class PlayView {
     this.world.setSession(this.session);
     this.world.setLap(this.lap);
     this.world.setCarS(0);
-    this.world.setCarColours(INK);
+    this.world.hideLivery();
     this.world.showCar(true);
     this.world.mode = "chase";
     this.world.snapCamera();
@@ -339,6 +338,29 @@ export class PlayView {
   }
 
   /** How each of the three models ranked the real driver after the whole lap. */
+  /** "Saturday 5 April 2025 · Q3 · their best Q3 lap · qualified P1": when and where in qualifying
+   * the lap was set, and how the driver's session ended. Parts without data are left out. */
+  private sessionLine(result: SessionResult | undefined): string {
+    const date = new Date(`${this.session.date}T12:00:00Z`).toLocaleDateString("en-GB", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+    const parts = [date];
+    const seg = result?.segments[this.lap.id];
+    const fin = result?.drivers[String(this.lap.driver)];
+    if (seg) {
+      const best = fin?.best?.[Number(seg[1]) - 1];
+      parts.push(`Qualifying ${seg}`);
+      if (best && Math.abs(best - this.lap.lapTime) < 0.002) parts.push(`their best ${seg} lap`);
+    }
+    if (fin?.status) parts.push(fin.status.toUpperCase());
+    else if (fin?.pos) parts.push(fin.pos === 1 ? "took pole" : `qualified P${fin.pos}`);
+    return parts.map((p) => `<span>${p}</span>`).join(" · ");
+  }
+
   private modelTable(truth: string): string {
     const only = this.mates ? this.guesser.codes : undefined;
     const rows = this.index.models.map((m) => {
@@ -435,9 +457,10 @@ export class PlayView {
     const truth = this.lap.code;
     const driver = this.driverOf(truth);
     this.world.setCarColours(driver.colour);
-    const careers = await loadCareers();
+    const [careers, results] = await Promise.all([loadCareers(), loadResults()]);
     if (this.disposed) return;
     const career = careerLine(careers.drivers[truth]);
+    const context = this.sessionLine(results[String(this.session.key)]);
     const guesses = this.guesser.guesses();
     const modelPick = guesses[0].code;
     const rank = guesses.findIndex((g) => g.code === truth) + 1;
@@ -474,8 +497,9 @@ export class PlayView {
     this.band.innerHTML = `
       <div class="who-block">
         <div class="verdicts">${verdict("You", you, this.lineup.pick)}${verdict(SHORT_MODEL[this.guesser.model] ?? "Model", model, modelPick)}</div>
-        <h2 class="display"><span>${first}</span> ${rest.join(" ")}</h2>
+        <h2 class="display" style="--longest:${Math.max(...[first, ...rest].map((w) => w.length))}"><span>${first}</span> ${rest.join(" ")}</h2>
         <p class="caps team">${driver.team} · lap ${this.lap.lapNumber} · ${formatLapTime(this.lap.lapTime)}</p>
+        <p class="context num">${context}</p>
         ${career ? `<p class="career num">${career}</p>` : ""}
       </div>
       <div class="facts">

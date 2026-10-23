@@ -1,16 +1,21 @@
 // Capture every surface at desktop and phone size into .impeccable/review/ for design review.
-// Usage: npm run dev (in another shell), then node scripts/capture.mjs
+// Usage: npm run dev (in another shell), then node scripts/capture.mjs [light|dark]
 import { chromium } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 
 const out = new URL("../../.impeccable/review/", import.meta.url).pathname.replace(/^\/(\w:)/, "$1");
 mkdirSync(out, { recursive: true });
 const base = "http://localhost:5173/";
+const theme = process.argv[2] === "dark" ? "dark" : "light";
+const tag = theme === "dark" ? "-dark" : "";
 const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
 
 async function shoot(width, height, prefix) {
   const page = await browser.newPage({ viewport: { width, height } });
-  await page.addInitScript(() => localStorage.setItem("blindlap.speed.v1", "4"));
+  await page.addInitScript((t) => {
+    localStorage.setItem("blindlap.speed.v1", "4");
+    localStorage.setItem("blindlap.theme.v1", t);
+  }, theme);
   const wait = (ms) => page.waitForTimeout(ms);
 
   await page.goto(base + "#/");
@@ -51,7 +56,7 @@ async function shoot(width, height, prefix) {
   await page.close();
 }
 
-await shoot(1440, 900, "desktop");
-await shoot(390, 844, "mobile");
+await shoot(1440, 900, `desktop${tag}`);
+await shoot(390, 844, `mobile${tag}`);
 await browser.close();
 console.log("captured into", out);
