@@ -208,14 +208,15 @@ body.playing .topbar nav {
   box-shadow: var(--deboss);
 }
 
+/* The primary action is ink on rubber: soft red stays the model's pick and nothing else. */
 .btn.primary {
-  background: var(--soft);
-  color: #160403;
-  box-shadow: 0 10px 28px -10px rgba(232, 49, 42, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  background: var(--ink);
+  color: var(--rubber);
+  box-shadow: var(--lift);
 }
 
 .btn.primary:hover {
-  background: #f04038;
+  background: #ffffff;
 }
 
 .btn[disabled] {
@@ -274,7 +275,7 @@ body.playing .topbar nav {
   align-content: end;
   padding: 0 var(--gutter) clamp(28px, 7vh, 80px);
   pointer-events: none;
-  background: linear-gradient(90deg, rgba(14, 14, 14, 0.82) 0%, rgba(14, 14, 14, 0.4) 46%, rgba(14, 14, 14, 0) 70%);
+  background: linear-gradient(90deg, rgba(14, 14, 14, 0.9) 0%, rgba(14, 14, 14, 0.88) 50%, rgba(14, 14, 14, 0) 78%);
 }
 
 .title > * {
@@ -919,6 +920,18 @@ body.playing .topbar nav {
   background: var(--ink);
 }
 
+.radio.none {
+  color: var(--ink-3);
+}
+
+.radio.none .dot {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  box-shadow: var(--deboss);
+  flex: none;
+}
+
 .radio .label {
   font-size: 0.75rem;
   color: var(--ink-3);
@@ -1037,7 +1050,7 @@ body.playing .topbar nav {
   font-size: 1.4rem;
   min-width: 8ch;
   text-align: right;
-  color: var(--soft);
+  color: var(--ink);
 }
 
 .duel .gap.ahead {
@@ -1137,6 +1150,21 @@ body.playing .topbar nav {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+}
+
+.lab-legend .delta {
+  flex-basis: 100%;
+}
+
+@media (max-width: 520px) {
+  .lab-chart {
+    overflow-x: auto;
+    margin-inline: calc(-1 * var(--gutter));
+    padding-inline: var(--gutter);
+  }
+  .lab-chart svg {
+    min-width: 760px;
+  }
 }
 
 .lab-legend b {
@@ -1412,7 +1440,7 @@ figcaption {
   top: -4px;
   bottom: -4px;
   width: 2px;
-  background: var(--soft);
+  background: var(--ink-3);
 }
 
 .confusion {
@@ -1521,7 +1549,7 @@ figcaption {
     gap: 4px;
   }
   .title {
-    background: linear-gradient(0deg, rgba(14, 14, 14, 0.9) 0%, rgba(14, 14, 14, 0.5) 55%, rgba(14, 14, 14, 0) 100%);
+    background: linear-gradient(0deg, rgba(14, 14, 14, 0.94) 0%, rgba(14, 14, 14, 0.94) 70%, rgba(14, 14, 14, 0) 100%);
   }
 }
 
@@ -1543,7 +1571,7 @@ figcaption {
   .hud-session {
     top: 148px;
   }
-  .hud-session .meta {
+  .hud-session .meta:not(.mates) {
     font-size: 0.62rem;
     white-space: nowrap;
     overflow: hidden;
@@ -1629,7 +1657,19 @@ figcaption {
   .radio .wave {
     min-width: 160px;
   }
-  .radio .label {
+  .radio.none {
+  color: var(--ink-3);
+}
+
+.radio.none .dot {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  box-shadow: var(--deboss);
+  flex: none;
+}
+
+.radio .label {
     flex-basis: 100%;
     padding-left: 48px;
   }

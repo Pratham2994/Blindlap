@@ -20,14 +20,30 @@ export function makeF1Car(colour: THREE.Color): Car {
     return m;
   };
 
-  add(new THREE.BoxGeometry(4.7, 0.08, 1.5), carbon, -0.2, 0.12, 0); // floor
-  add(new THREE.BoxGeometry(2.3, 0.5, 0.78), paint, 0.05, 0.45, 0); // tub
-  add(new THREE.CylinderGeometry(0.1, 0.3, 1.7, 10).rotateZ(-Math.PI / 2), paint, 1.95, 0.36, 0); // nose
-  for (const z of [0.68, -0.68]) add(new THREE.BoxGeometry(1.5, 0.46, 0.5), paint, -0.35, 0.38, z); // sidepods
-  add(new THREE.BoxGeometry(1.9, 0.5, 0.5), paint, -1.25, 0.66, 0); // engine cover
-  add(new THREE.BoxGeometry(0.5, 0.42, 0.34), paint, -0.45, 1.0, 0); // airbox
-  add(new THREE.BoxGeometry(0.42, 0.16, 0.42), carbon, 0.35, 0.76, 0); // cockpit opening
-  const halo = add(new THREE.TorusGeometry(0.33, 0.035, 6, 18, Math.PI), carbon, 0.42, 0.78, 0);
+  const floor = add(new THREE.BoxGeometry(4.7, 0.06, 1.5), carbon, -0.2, 0.12, 0);
+  floor.castShadow = false; // a solid slab shadow reads as a block, not a car
+
+  // Body: one extruded side profile, nose tip to gearbox, with the airbox hump behind the driver.
+  const profile = new THREE.Shape();
+  [
+    [2.75, 0.2], [2.1, 0.3], [1.2, 0.48], [0.75, 0.6], [0.25, 0.62], [0.0, 0.78],
+    [-0.25, 1.12], [-0.7, 1.1], [-1.2, 0.84], [-2.05, 0.56], [-2.25, 0.36], [-2.25, 0.16], [2.75, 0.16],
+  ].forEach(([x, y], i) => (i ? profile.lineTo(x, y) : profile.moveTo(x, y)));
+  const body = new THREE.ExtrudeGeometry(profile, { depth: 0.62, bevelEnabled: true, bevelSize: 0.08, bevelThickness: 0.08, bevelSegments: 1 });
+  body.translate(0, 0, -0.31);
+  const shell = add(body, paint, 0, 0, 0);
+  (shell.material as THREE.MeshStandardMaterial).flatShading = true;
+
+  // Sidepods: low wedges that rise toward the cockpit and taper into the floor at the back.
+  const pod = new THREE.Shape();
+  [[0.75, 0.2], [0.65, 0.55], [0.1, 0.6], [-1.3, 0.38], [-1.6, 0.2]].forEach(([x, y], i) => (i ? pod.lineTo(x, y) : pod.moveTo(x, y)));
+  for (const z of [0.38, -0.88]) {
+    const geo = new THREE.ExtrudeGeometry(pod, { depth: 0.5, bevelEnabled: false });
+    geo.translate(0, 0, z);
+    add(geo, paint, 0, 0, 0);
+  }
+  add(new THREE.BoxGeometry(0.42, 0.12, 0.4), carbon, 0.42, 0.66, 0); // cockpit opening
+  const halo = add(new THREE.TorusGeometry(0.33, 0.035, 6, 18, Math.PI), carbon, 0.42, 0.8, 0);
   halo.rotation.set(Math.PI / 2, 0, Math.PI / 2);
 
   add(new THREE.BoxGeometry(0.55, 0.05, 1.95), carbon, 2.65, 0.14, 0); // front wing

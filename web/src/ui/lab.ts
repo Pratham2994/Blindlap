@@ -124,7 +124,7 @@ export class LabView {
     el("path", { d: path(A), class: "trace a" });
 
     const gap = B.lapTime - A.lapTime;
-    this.root.querySelector(".lab-legend")!.innerHTML = `<span class="swatch a"></span><b>${A.code}</b> ${formatLapTime(A.lapTime)} <span class="swatch b"></span><b>${B.code}</b> ${formatLapTime(B.lapTime)} · ${A.code} ${gap >= 0 ? "faster" : "slower"} by ${Math.abs(gap).toFixed(3)} s`;
+    this.root.querySelector(".lab-legend")!.innerHTML = `<span class="swatch a"></span><b>${A.code}</b> ${formatLapTime(A.lapTime)} <span class="swatch b"></span><b>${B.code}</b> ${formatLapTime(B.lapTime)} <span class="delta">${A.code} ${gap >= 0 ? "faster" : "slower"} by ${Math.abs(gap).toFixed(3)} s</span>`;
 
     // Per corner: the biggest difference between the two, in plain words.
     const feats = this.features;

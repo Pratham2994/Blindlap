@@ -90,9 +90,10 @@ export class World {
     this.ghost = this.makeCar(COMPOUND.soft);
     this.ghost.visible = false;
     this.scene.add(this.ghost);
-    this.carLight = new THREE.PointLight("#fff2dc", 14, 30, 1.8);
+    this.carLight = new THREE.PointLight("#fff2dc", 7, 28, 1.8);
     this.car.add(this.carLight);
-    this.carLight.position.set(0, 6, 0);
+    // Ahead of the car, low, so it lights the asphalt it is about to cross, not its own roof.
+    this.carLight.position.set(9, 2.5, 0);
     this.scene.add(this.trackGroup, this.car);
 
     this.composer = new EffectComposer(this.renderer);
@@ -398,7 +399,7 @@ export class World {
           // The line fades behind the car like a wake, except where the model took evidence.
           float wake = max(exp(-max(behind, 0.0) / uFade), 0.12);
           float a = max(max(wake, vKeep * 0.95), uReveal * 0.8);
-          vec3 c = vColor * (1.0 + vKeep * 0.5) * mix(0.85, 0.75, 1.0 - wake);
+          vec3 c = vColor * (1.0 + vKeep * 0.5) * mix(0.62, 0.55, 1.0 - wake);
           gl_FragColor = vec4(c, a);
         }`,
     });
@@ -522,16 +523,23 @@ export class World {
     if (this.mode === "chase") {
       // Look further ahead the faster the car goes, so slow hairpins keep the car in frame.
       const ahead = this.pointAt(this.carS + 10 + speedKmh * 0.08);
-      const back = 13 + speedKmh * 0.02;
-      want = p.clone().addScaledVector(t, -back).setY(p.y + 4.2 + speedKmh * 0.006);
+      const back = 16 + speedKmh * 0.02;
+      want = p.clone().addScaledVector(t, -back).setY(p.y + 5 + speedKmh * 0.006);
       // Under braking the nose dips and the view tips forward a little.
       this.dip += ((braking ? 1 : 0) - this.dip) * Math.min(dt * 6, 1);
       // On phones the driver grid covers the lower screen: aim lower so the car rides higher.
       const narrow = (this.canvas.clientWidth || window.innerWidth) <= 860;
       look = ahead.setY(ahead.y + 1 - this.dip * 2 - (narrow ? 9 : 0));
     } else if (this.mode === "heli") {
-      want = p.clone().addScaledVector(t, -70).add(new THREE.Vector3(0, 125, 0));
-      look = this.pointAt(this.carS + 40);
+      if (this.ghost.visible) {
+        // Duel: frame the midpoint of the two cars, low enough that both read as cars.
+        const mid = p.clone().lerp(this.ghost.position, 0.5);
+        want = mid.clone().addScaledVector(t, -40).add(new THREE.Vector3(0, 70, 0));
+        look = mid.addScaledVector(t, 12);
+      } else {
+        want = p.clone().addScaledVector(t, -70).add(new THREE.Vector3(0, 125, 0));
+        look = this.pointAt(this.carS + 40);
+      }
     } else {
       if (!REDUCED_MOTION) this.orbitAngle += dt * 0.05;
       const r = this.radius * 1.35;

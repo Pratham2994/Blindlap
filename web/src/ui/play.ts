@@ -370,7 +370,11 @@ export class PlayView {
       <ol class="caption">${best
         .map((e) => `<li><b>${e.label}</b><span>${capitalise(e.sentence)}${cornerById.get(e.corner)?.braked === false ? " (no braking)" : ""}.</span></li>`)
         .join("")}</ol>
-      ${this.lap.radio ? `<div class="radio"><button type="button" aria-label="Play team radio">${icons.play}</button><span class="wave">${"<i></i>".repeat(36)}</span><span class="label caps">Team radio, this session</span></div>` : ""}
+      ${
+        this.lap.radio
+          ? `<div class="radio"><button type="button" aria-label="Play team radio">${icons.play}</button><span class="wave">${"<i></i>".repeat(36)}</span><span class="label caps">Team radio, this session</span></div>`
+          : `<div class="radio none"><span class="dot" aria-hidden="true"></span><span class="label caps">No team radio from ${truth} in this session</span></div>`
+      }
       <div class="actions"><button type="button" class="btn primary" data-next>${lastDaily ? "Today's result" : "Next lap"} ${icons.next}</button>${
         rival ? `<button type="button" class="btn" data-duel>Race it against ${rival.code}</button>` : ""
       }<a class="btn" href="#/dna">See ${truth}'s DNA</a><button type="button" class="btn" data-challenge>Copy challenge link</button></div>
@@ -441,6 +445,8 @@ export class PlayView {
     this.paused = false;
     this.root.classList.add("dueling");
     this.world.mode = "heli";
+    // Keep both cars clear of the driver grid on the right.
+    this.world.setFrameShift(window.innerWidth > 860 ? -0.12 : 0);
     this.world.snapCamera();
     this.engine.setVolume(!this.engine.muted);
     const bar = document.createElement("div");
@@ -484,6 +490,7 @@ export class PlayView {
     this.duel = null;
     this.phase = "reveal";
     this.world.setGhostS(null);
+    this.world.setFrameShift(0);
     this.world.setCarS(0);
     this.world.mode = "orbit";
     this.engine.setVolume(false, 1.5);

@@ -156,7 +156,7 @@ export class DnaView {
     const d = this.dna.drivers.find((x) => x.code === code)!;
     for (const s of this.sprites) {
       const on = s.d.code === code || d.neighbours.includes(s.d.code);
-      s.base = on ? 1 : 0.35;
+      s.base = on ? 1 : 0.5;
       s.rank = s.d.code === code ? 2 : on ? 1 : 0;
       s.sprite.scale.setScalar(s.d.code === code ? 15 : 10);
       // The selected driver's rim lights in hard white; everyone else stays moulded grey.
@@ -189,7 +189,7 @@ export class DnaView {
 
   frame(dt: number) {
     if (this.auto && !matchMedia("(prefers-reduced-motion: reduce)").matches) this.yaw += dt * 0.08;
-    const r = 210;
+    const r = (this.world.renderer.domElement.clientWidth || innerWidth) <= 860 ? 280 : 210;
     this.camera.position.set(Math.sin(this.yaw) * Math.cos(this.pitch) * r, Math.sin(this.pitch) * r, Math.cos(this.yaw) * Math.cos(this.pitch) * r);
     this.camera.lookAt(0, -8, 0);
     const canvas = this.world.renderer.domElement;
