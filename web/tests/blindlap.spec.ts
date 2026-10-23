@@ -68,12 +68,12 @@ test("the lap bar seeks, the model forgets corners behind it, and volume is reme
   const seek = page.locator(".tm-seek");
 
   // Back to the start: every corner is un-read, on the grid and on the lap bar.
-  await seek.fill("0.5");
+  await seek.fill("0");
   await expect(count).toHaveText("0 corners read");
   await expect(page.locator(".tm-rule .tick.read")).toHaveCount(0);
 
   // Forward again: the corners passed are read once the lap runs.
-  await seek.fill((Number(await seek.getAttribute("max")) * 0.6).toFixed(1));
+  await seek.fill((Number(await seek.getAttribute("max")) * 0.6).toFixed(0));
   await page.keyboard.press("Space");
   await expect.poll(read).toBeGreaterThanOrEqual(5);
   const before = Number(await seek.inputValue());
@@ -85,6 +85,19 @@ test("the lap bar seeks, the model forgets corners behind it, and volume is reme
   expect(await page.evaluate(() => localStorage.getItem("blindlap.volume.v1"))).toBe("0.3");
   await page.reload();
   await expect(page.getByRole("slider", { name: "Volume" })).toHaveValue("30");
+});
+
+test("C cycles through the five cameras", async ({ page }) => {
+  await page.goto("/#/play/9908");
+  await expect(page.locator(".evidence .t")).toHaveText(/^T\d+/, { timeout: 30_000 });
+  const pressed = page.locator(".seg.cams [aria-pressed=true]");
+  const seen: string[] = [];
+  for (let i = 0; i < 5; i++) {
+    seen.push((await pressed.textContent())!);
+    await page.keyboard.press("c");
+  }
+  expect(seen).toEqual(["Chase", "Onboard", "Side", "TV", "Above"]);
+  await expect(pressed).toHaveText("Chase");
 });
 
 test("driver DNA lets you switch drivers", async ({ page }) => {

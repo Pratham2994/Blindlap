@@ -76,7 +76,7 @@ function raiseCrossings(pos: THREE.Vector3[], step: number) {
   for (let i = 0; i < n; i++) pos[i].y += lift[i];
 }
 
-type CameraMode = "chase" | "heli" | "orbit";
+export type CameraMode = "chase" | "onboard" | "side" | "tv" | "heli" | "orbit";
 
 interface TrackFrame {
   pos: THREE.Vector3[];
@@ -116,7 +116,34 @@ export class World {
   private offset = new THREE.Vector3(0, 400, 400);
   private lookOffset = new THREE.Vector3();
   private orbitAngle = 0;
-  mode: CameraMode = "orbit";
+  private _mode: CameraMode = "orbit";
+  // The visitor's own angle, set by dragging the stage: added to whichever camera is on.
+  private userYaw = 0;
+  private userPitch = 0;
+  // A new circuit: put the camera in place at once instead of flying it from where the car was
+  // on the last circuit (which showed a second or two of bare ground, grey or black).
+  private snap = true;
+
+  get mode(): CameraMode {
+    return this._mode;
+  }
+
+  /** Changing camera starts from that camera's own angle. */
+  set mode(m: CameraMode) {
+    if (m !== this._mode) this.resetView();
+    this._mode = m;
+  }
+
+  /** Drag on the stage: x swings the camera round the car (or the circuit), y raises or lowers it. */
+  nudgeView(dx: number, dy: number) {
+    this.userYaw -= dx * 0.006;
+    this.userPitch = THREE.MathUtils.clamp(this.userPitch + dy * 0.004, -0.8, 1.3);
+  }
+
+  resetView() {
+    this.userYaw = 0;
+    this.userPitch = 0;
+  }
   labelsOn = true;
   private shift = 0;
   private dip = 0;
@@ -247,6 +274,7 @@ export class World {
 
   /** Build the circuit for a session. The lap paints the rubber line. */
   setSession(session: Session) {
+    this.snap = true;
     this.trackGroup.clear();
     this.labels = [];
     this.line = null;
@@ -819,6 +847,22 @@ export class World {
       // On phones the driver grid covers the lower screen: aim lower so the car rides higher.
       const narrow = (this.canvas.clientWidth || window.innerWidth) <= 860;
       look = ahead.setY(ahead.y + 0.8 - this.dip * 0.6 - (narrow ? 4 : 0));
+    } else if (this.mode === "onboard") {
+      // Just above the cockpit, looking down the road: the view from the car.
+      want = p.clone().addScaledVector(t, -0.4).setY(p.y + 1.5);
+      const ahead = this.pointAt(this.carS + 45);
+      look = ahead.setY(ahead.y + 0.5);
+    } else if (this.mode === "side") {
+      // Running alongside, a little ahead, so the car crosses the frame side-on. It stays inside the
+      // track edge: further out it filmed the barrier and the side of the raised track.
+      const sd = this.sideAt(this.carS);
+      want = p.clone().addScaledVector(sd, 5.8).addScaledVector(t, 2).setY(p.y + 1.9);
+      look = p.clone().addScaledVector(t, 1).setY(p.y + 0.5);
+    } else if (this.mode === "tv") {
+      // A broadcast camera: high, behind and to the side, zoomed in (the narrow view is set below).
+      const sd = this.sideAt(this.carS);
+      want = p.clone().addScaledVector(t, -48).addScaledVector(sd, 20).setY(p.y + 24);
+      look = p.clone().addScaledVector(t, 10).setY(p.y);
     } else if (this.mode === "heli") {
       if (this.ghost.visible) {
         // Duel: frame the midpoint of the two cars, low enough that both read as cars.
@@ -832,11 +876,24 @@ export class World {
     } else {
       if (!REDUCED_MOTION) this.orbitAngle += dt * 0.05;
       const r = this.radius * 1.35;
-      want = new THREE.Vector3(Math.cos(this.orbitAngle) * r, this.radius * 0.95, Math.sin(this.orbitAngle) * r);
+      const a = this.orbitAngle + this.userYaw;
+      want = new THREE.Vector3(Math.cos(a) * r, this.radius * 0.95 * (1 + this.userPitch * 0.6), Math.sin(a) * r);
       look = new THREE.Vector3(0, 0, 0);
     }
+    if (this.mode !== "orbit" && (this.userYaw || this.userPitch)) {
+      // The visitor's angle: swing the camera round the car at the same distance, and turn the
+      // view toward the car the further they have dragged.
+      const off = want.clone().sub(p);
+      const L = off.length();
+      const az = Math.atan2(off.z, off.x) + this.userYaw;
+      const el = THREE.MathUtils.clamp(Math.asin(THREE.MathUtils.clamp(off.y / L, -1, 1)) + this.userPitch, 0.04, 1.45);
+      want = p.clone().add(new THREE.Vector3(Math.cos(el) * Math.cos(az) * L, Math.sin(el) * L, Math.cos(el) * Math.sin(az) * L));
+      const w = Math.min(1, (Math.abs(this.userYaw) + Math.abs(this.userPitch)) / 0.3);
+      look = look.lerp(p.clone().setY(p.y + 0.6), w);
+    }
     this.updateLabels();
-    this.updateFog();
+    const snap = this.snap;
+    this.snap = false;
     for (const p of this.pulses) {
       p.age += dt;
       const k = Math.min(p.age / 1.4, 1);
@@ -850,13 +907,14 @@ export class World {
     }
     this.pulses = this.pulses.filter((p) => p.age < 1.4);
     if (this.mode === "orbit") {
-      const k = 1 - Math.exp(-dt * 1.2);
+      const k = snap ? 1 : 1 - Math.exp(-dt * 1.2);
       this.camPos.lerp(want, k);
       this.camLook.lerp(look, k);
     } else {
       // Smooth the camera's offset from the car, not its absolute position, so it never falls
       // behind at 4x playback.
-      const k = 1 - Math.exp(-dt * 4);
+      // On board the camera is part of the car: no lag, or it would swing in every corner.
+      const k = snap || this.mode === "onboard" ? 1 : 1 - Math.exp(-dt * 4);
       this.offset.lerp(want.clone().sub(p), k);
       this.lookOffset.lerp(look.clone().sub(p), k);
       this.camPos.copy(p).add(this.offset);
@@ -864,8 +922,10 @@ export class World {
     }
     this.camera.position.copy(this.camPos);
     this.camera.lookAt(this.camLook);
+    this.updateFog(snap ? 10 : dt);
     // The view widens with speed on board, so 330 km/h feels faster than 80.
-    const wantFov = this.mode === "chase" && !REDUCED_MOTION ? 56 + Math.min(speedKmh, 340) * 0.06 : 52;
+    const fast = (this.mode === "chase" || this.mode === "onboard") && !REDUCED_MOTION;
+    const wantFov = this.mode === "tv" ? 30 : fast ? 56 + Math.min(speedKmh, 340) * 0.06 : 52;
     this.fov += (wantFov - this.fov) * Math.min(dt * 1.5, 1);
     if (Math.abs(this.camera.fov - this.fov) > 0.01) {
       this.camera.fov = this.fov;
@@ -875,14 +935,18 @@ export class World {
   }
 
   /** On board the far side of the circuit melts into the haze; from above or in the overview the
-   * whole sidewall ground stays visible. */
-  private updateFog() {
+   * whole circuit stays visible. The fog is set from how far the camera really is from what it
+   * looks at, so it can never swallow the view: it used to follow the camera mode 5% per frame,
+   * and for seconds after the camera flew out the scene was fog (grey, or black in the dark theme). */
+  private updateFog(dt: number) {
     const fog = this.scene.fog as THREE.Fog;
     const r = this.radius;
+    const d = this.camPos.distanceTo(this.camLook);
     const [near, far] =
-      this.mode === "chase" ? [220, 1100] : this.mode === "heli" ? [1400, 5000] : [Math.min(r * 0.9, 900), Math.max(r * 2.6, 2600)];
-    fog.near += (near - fog.near) * 0.05;
-    fog.far += (far - fog.far) * 0.05;
+      this.mode === "heli" ? [1400, 5000] : this.mode === "orbit" ? [Math.min(r * 0.9, 900), Math.max(r * 2.6, 2600)] : [220, 1100];
+    const k = 1 - Math.exp(-dt * 4);
+    fog.near += (Math.max(near, d * 0.8) - fog.near) * k;
+    fog.far += (Math.max(far, d + r * 2.2) - fog.far) * k;
   }
 
   /** Overview shows every corner number; on board, the corners just behind and ahead of the car.

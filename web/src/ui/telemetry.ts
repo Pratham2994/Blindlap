@@ -14,11 +14,13 @@ export class Telemetry {
   private ticks: HTMLElement[] = [];
   private seek: HTMLInputElement;
 
-  /** onSeek(t) is called when the visitor drags the lap bar or jumps 5 s back or forward. */
+  /** The lap bar measures distance, like its fill and its corner ticks, so the handle sits where
+   * the car is. (Measured in time it ran up to 10% behind the fill: cars spend longer in slow
+   * corners.) onSeek(s) gets a distance in metres; onJump(seconds) the 5 s buttons. */
   constructor(
     private session: Session,
-    duration: number,
-    onSeek: (t: number) => void,
+    onSeek: (s: number) => void,
+    onJump: (seconds: number) => void,
   ) {
     this.root = document.createElement("div");
     this.root.className = "telemetry";
@@ -40,7 +42,7 @@ export class Telemetry {
         </div>
         <div class="tm-rule"><em data-k="progress"></em>${session.corners
           .map((c) => `<span class="tick" style="left:${(c.s / session.length) * 100}%" title="Turn ${c.n}"></span>`)
-          .join("")}<input class="tm-seek" type="range" min="0" max="${duration}" step="0.05" value="0" aria-label="Position in the lap"></div>
+          .join("")}<input class="tm-seek" type="range" min="0" max="${Math.round(session.length)}" step="1" value="0" aria-label="Position in the lap"></div>
       </div>`;
     const q = (k: string) => this.root.querySelector<HTMLElement>(`[data-k=${k}]`)!;
     this.speed = q("speed");
@@ -53,7 +55,7 @@ export class Telemetry {
     this.seek = this.root.querySelector<HTMLInputElement>(".tm-seek")!;
     this.seek.addEventListener("input", () => onSeek(Number(this.seek.value)));
     this.root.querySelectorAll<HTMLButtonElement>("[data-jump]").forEach((b) =>
-      b.addEventListener("click", () => onSeek(Number(this.seek.value) + Number(b.dataset.jump))),
+      b.addEventListener("click", () => onJump(Number(b.dataset.jump))),
     );
   }
 
@@ -71,7 +73,7 @@ export class Telemetry {
     this.progress.style.width = `${Math.max(0, Math.min(1, s / this.session.length)) * 100}%`;
     this.clock.textContent = formatLapTime(Math.max(0, t));
     // Follow the lap, except while the visitor is holding the slider.
-    if (!this.seek.matches(":active")) this.seek.value = String(t);
+    if (!this.seek.matches(":active")) this.seek.value = String(Math.round(s));
   }
 
   markCorner(i: number) {

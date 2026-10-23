@@ -7,7 +7,7 @@ import { careerLine, loadCareers, loadRadio, loadResults, loadSession } from "..
 import { formatLapTime, LapPlayer } from "../lap";
 import type { Evidence } from "../model";
 import { Guesser } from "../model";
-import type { World } from "../scene/world";
+import type { CameraMode, World } from "../scene/world";
 import type { DailyLap, DailyResult } from "./daily";
 import { readDaily, shareText, summaryHtml, writeDaily } from "./daily";
 import { icons } from "./icons";
@@ -25,6 +25,15 @@ interface Score {
 
 const SCORE_KEY = "blindlap.score.v1";
 const SPEED_KEY = "blindlap.speed.v1";
+// The cameras offered during a lap, in the order C cycles through them.
+const CAMERAS: [CameraMode, string, string][] = [
+  ["chase", "Chase", "Behind the car"],
+  ["onboard", "Onboard", "From the cockpit"],
+  ["side", "Side", "Alongside the car"],
+  ["tv", "TV", "A broadcast camera, high and zoomed in"],
+  ["heli", "Above", "From above"],
+];
+
 const SHORT_MODEL: Record<string, string> = { blend: "Blend", gbm: "Boosted trees", forest: "Random forest", logreg: "Logistic" };
 
 function readScore(key = SCORE_KEY): Score {
@@ -153,8 +162,9 @@ export class PlayView {
     this.radio?.pause();
     this.radio = null;
     this.root.dataset.phase = "loading";
-    this.root.innerHTML = `<p class="loading caps">Loading a lap…</p>`;
+    // Park the canvas first: clearing the view while it is inside would take it off the page.
     dockStage(null);
+    this.root.innerHTML = `<p class="loading caps">Loading a lap…</p>`;
     const sessions = this.index.sessions;
     // A challenge link plays its lap first; after that the rounds are random again.
     const planned = this.daily?.plan[this.dailyResults.length] ?? this.challenge ?? undefined;
@@ -239,9 +249,8 @@ export class PlayView {
         <div class="seg" role="group" aria-label="Playback speed">
           ${[1, 2, 4].map((v) => `<button type="button" data-speed="${v}" aria-pressed="${v === this.speed}">${v}×</button>`).join("")}
         </div>
-        <div class="seg" role="group" aria-label="Camera">
-          <button type="button" data-cam="chase" aria-pressed="true" title="Behind the car (C)">${icons.chase}<span>Chase</span></button>
-          <button type="button" data-cam="heli" aria-pressed="false" title="From above (C)">${icons.heli}<span>Above</span></button>
+        <div class="seg cams" role="group" aria-label="Camera">
+          ${CAMERAS.map(([id, label, title]) => `<button type="button" data-cam="${id}" aria-pressed="${id === "chase"}" title="${title} (C to cycle, drag the view to look around)"><span>${label}</span></button>`).join("")}
         </div>
         <button type="button" class="ctl" data-sound aria-pressed="${!this.engine.muted}" aria-label="Engine sound">${this.engine.muted ? icons.soundOff : icons.soundOn}<span>Sound</span></button>
         <label class="volume"><span class="caps">Vol</span><input type="range" min="0" max="100" step="1" value="${Math.round(this.engine.volume * 100)}" aria-label="Volume"></label>
@@ -271,7 +280,7 @@ export class PlayView {
         }
         bar.querySelectorAll("[data-speed]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
       } else if (b.dataset.cam) {
-        this.setCamera(b.dataset.cam as "chase" | "heli");
+        this.setCamera(b.dataset.cam as CameraMode);
       } else if (b.hasAttribute("data-sound")) {
         const on = this.engine.muted;
         this.engine.setMuted(!on);
@@ -287,6 +296,28 @@ export class PlayView {
       <div class="countdown"><div class="lights" role="img" aria-label="Start lights">${"<i></i>".repeat(5)}</div>
         <p class="caps">Watch the lap. Tap the driver you think it is, any time before the flag.</p></div>
       <p class="paused-note caps" aria-live="polite">Paused · Space to resume</p>`;
+
+    // Hold the left button (or a finger) and drag to look around the car; double-click to reset.
+    let drag: { x: number; y: number; id: number } | null = null;
+    stage.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0 || this.phase === "loading" || this.phase === "lights") return;
+      drag = { x: e.clientX, y: e.clientY, id: e.pointerId };
+      stage.setPointerCapture(e.pointerId);
+      stage.classList.add("dragging");
+    });
+    stage.addEventListener("pointermove", (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      this.world.nudgeView(e.clientX - drag.x, e.pointerType === "touch" ? 0 : e.clientY - drag.y);
+      drag.x = e.clientX;
+      drag.y = e.clientY;
+    });
+    const endDrag = () => {
+      drag = null;
+      stage.classList.remove("dragging");
+    };
+    stage.addEventListener("pointerup", endDrag);
+    stage.addEventListener("pointercancel", endDrag);
+    stage.addEventListener("dblclick", () => this.world.resetView());
 
     const side = document.createElement("aside");
     side.className = "side";
@@ -314,7 +345,11 @@ export class PlayView {
 
     this.band = document.createElement("section");
     this.band.className = "band";
-    this.telemetry = new Telemetry(s, this.player.duration, (t) => this.seekTo(t));
+    this.telemetry = new Telemetry(
+      s,
+      (metres) => this.seekTo(this.player.timeAt(metres)),
+      (seconds) => this.seekTo(this.t + seconds),
+    );
     this.telemetry.setSeekable(false);
     const ev = document.createElement("div");
     ev.className = "evidence";
@@ -326,7 +361,7 @@ export class PlayView {
     dockStage(stage.querySelector(".stage-slot"));
   }
 
-  private setCamera(mode: "chase" | "heli") {
+  private setCamera(mode: CameraMode) {
     if (this.phase === "reveal") return;
     this.world.mode = mode;
     if (this.phase === "duel") return;
@@ -345,7 +380,8 @@ export class PlayView {
       if (e.repeat) return;
       if (this.phase === "lap" || this.phase === "duel") this.setPaused(!this.paused);
     } else if (e.key === "c" || e.key === "C") {
-      this.setCamera(this.world.mode === "chase" ? "heli" : "chase");
+      const i = CAMERAS.findIndex(([id]) => id === this.world.mode);
+      this.setCamera(CAMERAS[(i + 1) % CAMERAS.length][0]);
     } else if (e.key === "Escape") {
       location.hash = "#/";
     } else if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && this.phase === "lap") {

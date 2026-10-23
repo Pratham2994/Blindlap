@@ -655,8 +655,15 @@ a.mode.quick:hover p {
   grid-area: stage;
   position: relative;
   overflow: hidden;
+  /* Drag to look around the car; on touch only sideways, so the page still scrolls. */
+  cursor: grab;
+  touch-action: pan-y;
   background: var(--paper-2);
   border-right: var(--rule);
+}
+
+.stage-frame.dragging {
+  cursor: grabbing;
 }
 
 .countdown {
@@ -695,10 +702,11 @@ a.mode.quick:hover p {
 }
 
 .paused-note {
+  /* At the top, not the middle: paused is when you look at the car, so it must not cover it. */
   position: absolute;
   left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  top: 16px;
+  transform: translateX(-50%);
   margin: 0;
   padding: 12px 18px;
   background: var(--yellow);
@@ -2030,9 +2038,11 @@ figcaption {
   .play-bar .controls {
     width: 100%;
   }
-  .ctl span,
-  .seg [data-cam] span {
+  .ctl span {
     display: none;
+  }
+  .seg.cams button {
+    padding: 8px 8px;
   }
   .stage-frame {
     height: 46vh;
