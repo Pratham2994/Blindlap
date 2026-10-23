@@ -128,6 +128,18 @@ def evaluate(sessions, labels, make_model, name):
         team_hits += max(agg, key=lambda k: agg[k]) == tt
     team_acc = team_hits / len(P)
 
+    # Teammate test: given the car, pick between the two drivers of that team (chance 50%). This
+    # isolates driving style from the car, which the other numbers cannot.
+    mate_hits = mate_n = 0
+    for p, tmap, truth, tt in zip(P, all_team_maps, all_truth, all_team_truth):
+        pair = [c for c in classes if tmap.get(c) == tt]
+        if len(pair) != 2 or truth not in pair:
+            continue
+        pick = max(pair, key=lambda c: p[classes.index(c)])
+        mate_hits += pick == truth
+        mate_n += 1
+    teammate = mate_hits / mate_n if mate_n else None
+
     sess_acc = []
     for name_, sc, tr in per_session:
         if not tr:
@@ -140,8 +152,10 @@ def evaluate(sessions, labels, make_model, name):
     for t, r in zip(truth_idx, rank[:, 0]):
         conf[t, r] += 1
 
-    print(f"{name:>8}: laps={len(P)} top1={top1:.3f} top3={top3:.3f} team={team_acc:.3f} tau={best_tau:.2f} nll={best_nll:.3f}")
-    return dict(name=name, top1=top1, top3=top3, team=team_acc, tau=best_tau, nll=best_nll, laps=len(P),
+    print(f"{name:>8}: laps={len(P)} top1={top1:.3f} top3={top3:.3f} team={team_acc:.3f} "
+          f"teammate={teammate if teammate is None else round(teammate, 3)} ({mate_n} laps) tau={best_tau:.2f} nll={best_nll:.3f}")
+    return dict(name=name, top1=top1, top3=top3, team=team_acc, teammate=teammate, teammateLaps=mate_n,
+                tau=best_tau, nll=best_nll, laps=len(P),
                 chance=1 / len(classes), classes=classes, sessions=sess_acc, confusion=conf.tolist()), folds
 
 

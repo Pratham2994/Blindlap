@@ -190,6 +190,11 @@ Leave-one-circuit-out on 40 qualifying sessions (23 from 2025, 17 from 2026), 3,
 | Gradient-boosted trees | 42.9% | 72.6% | 58.7% | 1.75 |
 | Cross-season (train 2025, test 2026) | 25.4% | 55.6% | 40.3% | |
 
+**Teammate test.** For every lap, keep only the two drivers of the right team and ask the model which
+one it was. Same car, same session, so the car cannot help. Logistic regression is right on **71.4%**
+of 3,669 laps and the tree model on 73.5%, against 50% chance. This is the cleanest evidence in the
+project that the model reads the driver and not only the car.
+
 How the number moved during the night, and why:
 
 | Setup | Top-1 (logistic) |

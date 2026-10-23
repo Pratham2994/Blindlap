@@ -82,8 +82,10 @@ drivers. Read live from `pipeline/model_out/report.json` and shown on the How it
 - The shipped model is right about 8 times as often as picking at random, on circuits it never saw.
 - **Style survives new cars.** Trained only on 2025, it still names the driver of a 2026 lap 25% of the
   time against 5% chance, under new regulations and, for some drivers, a new team.
-- **Teammates are the hard case.** The confusion matrix shows the model often finds the car before the
-  driver; the easiest drivers to spot include those in the most unusual cars.
+- **It is not just recognising the car.** Given the car, the model picks the right one of the two
+  teammates on **71.4%** of laps (chance 50%; the tree model gets 73.5%). Two drivers, same car, same
+  session: what is left is how they drive. The confusion matrix still shows the model often finds the
+  car before the driver, and the easiest drivers to spot include those in the most unusual cars.
 - The linear model ships because each corner's push toward a driver is a readable sum, which is what
   the game's evidence line shows, and its weights are a few KB that run in the browser. Adding 18
   practice sessions as training data left it flat while the tree model gained a point; two new

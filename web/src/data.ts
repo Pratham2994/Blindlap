@@ -94,6 +94,8 @@ export interface CrossSeason {
 
 export interface ModelReport {
     name: string;
+    teammate?: number | null;
+    teammateLaps?: number;
     top1: number;
     top3: number;
     team: number;
