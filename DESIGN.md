@@ -171,7 +171,7 @@ A rubber-and-chalk neutral ladder carrying five compound bands, each band a sing
 - **Medium Yellow** (medium): your pick. The ring and code colour of the row you chose, the bold code in the line-up hint, and by extension anything that is your own input: the focus outline and the text selection.
 
 ### Tertiary
-- **Inter Green** (inter): correct. The truth row ring after the reveal, the "right" verdict tag, a right square in the daily grid, the duel gap when you are ahead.
+- **Inter Green** (inter): correct. The truth row ring after the reveal, the "right" verdict tag, a right square in the daily grid, the duel gap when you are ahead (ink otherwise).
 - **Wet Blue** (wet): braking. Only in the lap: brake segments of the rubber line in WebGL and the brake arc inside the tyre gauge.
 - **Hard White** (hard): data. Same value as ink, but named for its role in the instruments: full-throttle segments of the rubber line, the lap progress band and throttle arc on the gauge, the reference car in the duel, chart fills.
 
@@ -243,7 +243,7 @@ Raised rubber slugs with extended caps.
 - **Default:** rubber-3 fill, ink text, button type (800, wdth 120, 0.85rem, 0.06em caps), lift shadow, 16px icon at a 12px gap.
 - **Hover / Active:** rises 1px and lightens slightly; on press drops 1px and swaps lift for deboss; transform on the out-curve over 0.25s.
 - **Disabled:** 45% opacity, no movement.
-- **Primary (as shipped):** the "Start" and "Next lap" action is filled soft red. This overlaps the model's hue; see Do's and Don'ts.
+- **Primary:** the "Start" and "Next lap" action is filled ink with rubber text and the lift shadow. (An earlier build filled it soft red; the finish review flagged the overlap with the model's pick and it was changed.)
 
 ### Segmented controls and navigation
 A debossed pill housing (rubber at 72 to 78% opacity, 3 to 4px padding) holding label-type options in ink-3 (ink-2 in nav). The selected option is a lifted rubber-3 pill in ink. Used for playback speed, camera (with 15px authored icons) and the main nav. On play the nav hides; on reading pages the top bar becomes solid.
@@ -297,6 +297,6 @@ One curve, cubic-bezier(0.16, 1, 0.3, 1), for every movement: row re-sort (0.26s
 ### Don't:
 - **Don't** use team-colour glass panels, chyrons or a blue-black broadcast ground.
 - **Don't** use team colour anywhere except a small chip beside a driver code.
-- **Don't** introduce a sixth hue or lend a compound a second meaning; new soft-red actions in particular extend a known overlap.
+- **Don't** introduce a sixth hue or lend a compound a second meaning. Soft red belongs to the model's pick (and the start lights); actions, chance markers and the duel gap use ink.
 - **Don't** use backdrop blur or frosted glass for panels; use translucent rubber with deboss.
 - **Don't** set long text in extended width or in uppercase.

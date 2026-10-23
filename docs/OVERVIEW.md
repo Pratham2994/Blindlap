@@ -324,6 +324,14 @@ warm haze outside the palette, the ground lost in the overhead view, amber perce
 addressed those, verified with fresh captures rather than a third review round. The open items are
 listed in section 8. DESIGN.md records the shipped system.
 
+After the car, Lab and Teammates mode were added, a third, fresh review of the whole build (all 16
+captures) returned "fix" again with eight items. Persistence, type, material, ground and the play
+first viewport matched. The fixes: soft red was still on the primary button, so it became ink; a
+stronger scrim behind the title copy; the duel camera now frames both cars and sits left of the grid;
+the car body became one extruded side profile instead of stacked boxes; phone Teammates and Lab
+layouts; and an explicit "no team radio" state. All eight were addressed and checked with fresh
+captures; they were not re-scored by the reviewer.
+
 ## 6. File by file
 
 | File | Purpose |
@@ -399,10 +407,12 @@ listed in section 8. DESIGN.md records the shipped system.
   that puts a corner a few metres off. This is the same for every driver, so it does not bias the
   comparison.
 - Daily five plans depend on the exported data; re-exporting changes which laps a date gets.
-- The design review ran two rounds. The last batch of fixes was checked with fresh captures, not
-  by a third review. Known open points: rows in flight during the 4× re-sort still show a frame of
-  overlap; the primary button and the chance tick use soft red outside its "model's pick" job; the
-  duel gap turns soft red when you are behind.
+- The design review ran three times. The last batch of fixes was checked with fresh captures, not
+  re-scored. Known open points: rows in flight during the 4× re-sort can still show a frame of
+  overlap; DNA labels in the back row stay dim rather than being laid out to avoid each other; the
+  car is stylised low-poly, not a modelled F1 car; HTML display type does not carry the embossed,
+  arc-set lettering that the WebGL ground has. The Lab and Teammates mode were added beyond the
+  original direction contract's scope, on the same world.
 - The engine sound was recorded from the app and its spectrogram checked (it follows RPM, shifts and
   braking, and does not clip), but no person has listened to it yet: this build ran overnight with
   nobody at the speakers. Treat its character as a first draft and tune it by ear.
