@@ -176,7 +176,7 @@ A rubber-and-chalk neutral ladder carrying five compound bands, each band a sing
 - **Hard White** (hard): data. Same value as ink, but named for its role in the instruments: full-throttle segments of the rubber line, the lap progress band and throttle arc on the gauge, the reference car in the duel, chart fills.
 
 ### Neutral
-- **Rubber** (rubber): page ground, scene fog, translucent panel bases (at 72 to 97% opacity over the 3D scene).
+- **Rubber** (rubber): page ground and translucent panel bases (at 72 to 97% opacity over the 3D scene). The 3D sky and fog are a neutral haze one step lighter, so the far circuit fades out rather than cutting off.
 - **Rubber Two** (rubber-2): the line-up panel and its rows, the radio strip.
 - **Rubber Three** (rubber-3): raised pieces at rest: buttons, active segments, tags, bar tracks.
 - **Groove** (groove): one-pixel rules in captions, tables, pipeline lists and tells; the reading-mode top bar underline.
@@ -221,7 +221,7 @@ At 860px and below the line-up moves to a 210px strip above the evidence line, t
 
 ## Elevation & Depth
 
-Depth is moulded, not floated. Three tokens carry all of it: emboss on raised lettering, deboss on wells pressed into the rubber, and lift on the one piece that is active or pressable. Panels over the scene are translucent rubber (no backdrop blur), debossed into the surface. The WebGL world matches: the ground is a 4096px sidewall texture with concentric moulding grooves, two raised rims and arc-set lettering, rendered as colour plus bump map (bumpScale 6, roughness 0.92, metalness 0) under a single warm directional key light.
+Depth is moulded, not floated. Three tokens carry all of it: emboss on raised lettering, deboss on wells pressed into the rubber, and lift on the one piece that is active or pressable. Panels over the scene are translucent rubber (no backdrop blur), debossed into the surface. The WebGL world matches: the ground is a 4096px sidewall texture with concentric moulding grooves, two raised rims and arc-set lettering, rendered as colour plus bump map (bumpScale 6, roughness 0.92, metalness 0) under a single warm directional key light. The track is a 3 m asphalt strip floating 10 m above it, so its shadow draws the circuit on the sidewall. The car is a low-poly F1 shape in hard white (the duel rival in soft red) with rubber wheels carrying a painted band, so the spin reads; read corners send out a hard-white pulse ring.
 
 ### Shadow Vocabulary
 - **Emboss** (`text-shadow: 0 -1px 0 rgba(0,0,0,0.9), 0 1px 0 rgba(255,255,255,0.07)`): display type, the wordmark and driver codes, as if raised under a raking light.
