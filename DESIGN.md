@@ -269,6 +269,12 @@ A borderless table ruled with groove lines: label-type heads, ink-2 cells, codes
 ### DNA panel
 A debossed 22px panel over a 3D field of wheel-nut discs (rubber disc, moulded rim lit ink when selected, raised code, team chip). Style axes are debossed tracks with a raised centre tick and an ink fill that slides on the out-curve; tells are a groove-ruled list.
 
+### Telemetry lab
+A reading page in the same rubber: three debossed selects (session, driver, against), then a debossed rubber-2 panel holding an SVG speed trace against distance. The first driver is a 2px hard-white line, the second a dashed ink-3 line; braking shows as wet marks in two rows under the trace; corner ticks in label type, thinned when they would collide. Below, a groove-ruled caption list names each corner's biggest difference in words.
+
+### Teammates header
+In teammate mode the session block gains one line in ink: a 4x14 team chip and "Which <team> driver?". The grid shrinks to the two drivers; nothing else in the HUD changes.
+
 ### How charts
 Reading-page bars: label column, a 12px rubber-3 track with an ink fill and a 2px soft line marking chance, a tabular value; the headline rows are 18px tall with 900-weight values. The confusion matrix is drawn to canvas in rubber and ink-3.
 
