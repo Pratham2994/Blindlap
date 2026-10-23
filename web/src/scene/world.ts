@@ -525,7 +525,9 @@ export class World {
       want = p.clone().addScaledVector(t, -back).setY(p.y + 4.2 + speedKmh * 0.006);
       // Under braking the nose dips and the view tips forward a little.
       this.dip += ((braking ? 1 : 0) - this.dip) * Math.min(dt * 6, 1);
-      look = ahead.setY(ahead.y + 1 - this.dip * 2);
+      // On phones the driver grid covers the lower screen: aim lower so the car rides higher.
+      const narrow = (this.canvas.clientWidth || window.innerWidth) <= 860;
+      look = ahead.setY(ahead.y + 1 - this.dip * 2 - (narrow ? 9 : 0));
     } else if (this.mode === "heli") {
       want = p.clone().addScaledVector(t, -70).add(new THREE.Vector3(0, 125, 0));
       look = this.pointAt(this.carS + 40);
