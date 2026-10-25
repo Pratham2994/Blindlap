@@ -71,6 +71,27 @@ export class Terrain {
         this.heights[j * (n + 1) + i] = sy / sw - below;
       }
     }
+    // The ground must never rise above a road. Where a high and a low part of the track pass
+    // close together (Monaco's hairpin, the climb to Casino) the blend above pulled the ground up
+    // over the low road and buried it. Near every road the ground stays below it and may only
+    // rise away from it gently, like an embankment.
+    const slope = 0.35;
+    // No rise within one and a half grid cells of the road: between grid points the surface is
+    // interpolated, so a point a cell away must not lift the ground over the road.
+    const flat = 8 + 1.5 * (size / n);
+    for (let j = 0; j <= n; j++) {
+      for (let i = 0; i <= n; i++) {
+        const x = -half + (i / n) * size;
+        const z = -half + (j / n) * size;
+        let cap = Infinity;
+        for (const p of samples) {
+          const d = Math.hypot(p.x - x, p.z - z);
+          cap = Math.min(cap, p.y - below - 0.4 + slope * Math.max(0, d - flat));
+        }
+        const k = j * (n + 1) + i;
+        if (this.heights[k] > cap) this.heights[k] = cap;
+      }
+    }
   }
 
   /** Height at scene (x, z), bilinear between grid points. */
@@ -101,6 +122,55 @@ export class Terrain {
   }
 }
 
+const BAY_W = 3; // metres per window bay
+const BAY_H = 3.2; // metres per floor
+const BAYS = 8; // bays per texture side
+
+/** Facade textures, 8 x 8 window bays: `wall` is white wall with glazing (multiplied by each
+ * building's own colour), `lit` is the same windows, a random third of them glowing, for night. */
+export function facadeTextures(): { wall: THREE.CanvasTexture; lit: THREE.CanvasTexture } {
+  const px = 64;
+  const n = px * BAYS;
+  const make = (lit: boolean) => {
+    const c = document.createElement("canvas");
+    c.width = c.height = n;
+    const g = c.getContext("2d")!;
+    g.fillStyle = lit ? "#000000" : "#ffffff";
+    g.fillRect(0, 0, n, n);
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    for (let j = 0; j < BAYS; j++)
+      for (let i = 0; i < BAYS; i++) {
+        const x = i * px;
+        const y = j * px;
+        const r = rnd();
+        if (lit) {
+          if (r < 0.34) {
+            g.fillStyle = r < 0.1 ? "#ffd9a0" : r < 0.22 ? "#ffe9c2" : "#cfe3ff";
+            g.fillRect(x + 16, y + 14, 32, 34);
+          }
+          continue;
+        }
+        // Lintel shadow, glass (a little different window to window), a sill.
+        g.fillStyle = "#d9d6cf";
+        g.fillRect(x + 13, y + 11, 38, 3);
+        const shade = 60 + Math.floor(r * 45);
+        g.fillStyle = `rgb(${shade - 8}, ${shade + 4}, ${shade + 22})`;
+        g.fillRect(x + 16, y + 14, 32, 34);
+        g.fillStyle = "rgba(255,255,255,0.18)";
+        g.fillRect(x + 16, y + 14, 32, 8);
+        g.fillStyle = "#c9c5bc";
+        g.fillRect(x + 14, y + 48, 36, 3);
+      }
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 8;
+    return t;
+  };
+  return { wall: make(false), lit: make(true) };
+}
+
 /** Buildings as one merged mesh per kind: walls and flat roofs, at the mapped heights, in their
  * mapped colours (or a typical colour for the type). `shade` darkens them for the dark theme. */
 export function buildingsMesh(
@@ -113,10 +183,15 @@ export function buildingsMesh(
 ): THREE.Mesh | null {
   const pos: number[] = [];
   const col: number[] = [];
+  const uv: number[] = [];
   const c = new THREE.Color();
   const push = (hex: string, verts: number) => {
     c.set(hex).multiplyScalar(shade);
     for (let k = 0; k < verts; k++) col.push(c.r, c.g, c.b);
+  };
+  // Roofs and undersides sample a plain wall corner of the facade texture.
+  const plain = (verts: number) => {
+    for (let k = 0; k < verts; k++) uv.push(0.004, 0.004);
   };
   for (const [h, minh, stand, flat, wall, roof] of list) {
     if (Boolean(stand) !== stands) continue;
@@ -133,21 +208,34 @@ export function buildingsMesh(
     const ground = terrain.at(cx / pts.length, cz / pts.length);
     const y0 = ground + minh;
     const y1 = ground + h;
-    // Walls: one quad per edge, outward facing.
+    // Walls: one quad per edge, outward facing, with window bays (u along the wall, v per floor)
+    // and darker toward the ground, where streets and neighbours shade a real wall.
+    let run = Math.abs(Math.sin(cx * 0.37 + cz * 0.11)) * BAYS; // each building starts at a different bay
+    const v0 = minh / BAY_H / BAYS;
+    const v1 = h / BAY_H / BAYS;
+    const base = new THREE.Color(wall).multiplyScalar(shade * 0.62);
+    const top = new THREE.Color(wall).multiplyScalar(shade);
     for (let i = 0; i < pts.length; i++) {
       const a = pts[i];
       const b = pts[(i + 1) % pts.length];
+      const u0 = run / BAYS;
+      run += Math.max(1, Math.round(a.distanceTo(b) / BAY_W));
+      const u1 = run / BAYS;
       pos.push(a.x, y0, a.y, b.x, y0, b.y, b.x, y1, b.y, a.x, y0, a.y, b.x, y1, b.y, a.x, y1, a.y);
-      push(wall, 6);
+      uv.push(u0, v0, u1, v0, u1, v1, u0, v0, u1, v1, u0, v1);
+      const low = minh > 0 ? top : base;
+      for (const q of [low, low, top, low, top, top]) col.push(q.r, q.g, q.b);
     }
     // Roof, and the underside for raised roofs (grandstand canopies, pit roofs).
     for (const [i, j, k] of THREE.ShapeUtils.triangulateShape(pts, [])) {
       pos.push(pts[i].x, y1, pts[i].y, pts[k].x, y1, pts[k].y, pts[j].x, y1, pts[j].y);
       // Grandstand roofs are canopies over the seats; the seats show as a coloured roof from above.
       push(stand ? "#c23b30" : roof, 3);
+      plain(3);
       if (minh > 0) {
         pos.push(pts[i].x, y0, pts[i].y, pts[j].x, y0, pts[j].y, pts[k].x, y0, pts[k].y);
         push(wall, 3);
+        plain(3);
       }
     }
   }
@@ -155,6 +243,7 @@ export function buildingsMesh(
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
   geo.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+  geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
   geo.computeVertexNormals();
   const mesh = new THREE.Mesh(geo, material);
   mesh.castShadow = true;

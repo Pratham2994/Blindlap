@@ -5,13 +5,38 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
+import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
+
+/** A light camera grade after tone mapping: a little contrast and saturation, and a soft
+ * vignette, like broadcast footage. */
+const GradeShader = {
+  uniforms: { tDiffuse: { value: null }, uVignette: { value: 0.32 } },
+  vertexShader: /* glsl */ `
+    varying vec2 vUv;
+    void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: /* glsl */ `
+    uniform sampler2D tDiffuse;
+    uniform float uVignette;
+    varying vec2 vUv;
+    void main() {
+      vec4 c = texture2D(tDiffuse, vUv);
+      vec3 col = c.rgb;
+      float l = dot(col, vec3(0.2126, 0.7152, 0.0722));
+      col = mix(vec3(l), col, 1.12);                 // saturation
+      col = (col - 0.5) * 1.06 + 0.5;                // contrast
+      vec2 d = vUv - 0.5;
+      col *= 1.0 - uVignette * smoothstep(0.35, 0.85, length(d * vec2(1.25, 1.0)));
+      gl_FragColor = vec4(clamp(col, 0.0, 1.0), c.a);
+    }`,
+};
 import type { LapData, Session } from "../data";
 import { contactShadow, fitF1Model, loadF1Model, makeF1Car } from "./car";
 import { asphaltTexture, boardTexture, labelTexture, posterGround } from "./textures";
 import type { GroundAreas } from "./textures";
 import { loadEnv, loadEnvIndex } from "../data";
 import type { EnvData, EnvSession } from "./environment";
-import { buildingsMesh, mapToTrack, standsGroup, Terrain, treesGroup, wheelMesh } from "./environment";
+import { buildingsMesh, facadeTextures, mapToTrack, standsGroup, Terrain, treesGroup, wheelMesh } from "./environment";
+import { boards, inside, marshalPosts, Occupancy, rectangle } from "./trackside";
 
 // The poster palette in the scene: ink, paper, F1 red.
 export const INK = new THREE.Color("#141414");
@@ -36,11 +61,13 @@ const DUSK = {
   zenith: new THREE.Vector3(0.03, 0.035, 0.07),
   horizon: new THREE.Vector3(0.42, 0.2, 0.09),
 };
+// A clear day: deep blue overhead, pale at the horizon, and fog in the horizon colour so distance
+// fades into blue air. (A flat grey sky and fog made the scene look like a model under a cloth.)
 const DAY = {
-  background: new THREE.Color("#dcdad4"),
-  haze: HAZE,
-  zenith: new THREE.Vector3(0.78, 0.78, 0.76),
-  horizon: new THREE.Vector3(0.62, 0.61, 0.58),
+  background: new THREE.Color("#a9c8e4"),
+  haze: new THREE.Color().setRGB(0.52, 0.64, 0.78, THREE.LinearSRGBColorSpace),
+  zenith: new THREE.Vector3(0.1, 0.26, 0.58),
+  horizon: new THREE.Vector3(0.56, 0.68, 0.82),
 };
 
 const REDUCED_MOTION = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
@@ -238,19 +265,26 @@ export class World {
   // Real surroundings: which session they are for, how track coordinates reach the scene, and
   // the track heights the terrain is blended from.
   private sessionKey = 0;
+  private session: Session | null = null;
   private toScene: (x: number, y: number) => THREE.Vector2 = (x, y) => new THREE.Vector2(x, y);
   private terrainSamples: { x: number; z: number; y: number }[] = [];
+  terrain: Terrain | null = null; // public for scripts/ground-check.mjs: the ground must stay under every road
   private lightMode: "day" | "dusk" | "night" = "day";
   private floodlights: THREE.Group | null = null;
   private envMats = {
     // Colours come per vertex / per tree (the real or typical colour of each); the material is white.
-    building: new THREE.MeshStandardMaterial({ color: "#ffffff", vertexColors: true, roughness: 0.92, flatShading: true }),
+    building: (() => {
+      const f = facadeTextures();
+      return new THREE.MeshStandardMaterial({ color: "#ffffff", vertexColors: true, roughness: 0.85, flatShading: true, map: f.wall, emissiveMap: f.lit });
+    })(),
     stand: new THREE.MeshStandardMaterial({ color: "#ffffff", vertexColors: true, roughness: 0.8, flatShading: true }),
     crown: new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.95, flatShading: true }),
     trunk: new THREE.MeshStandardMaterial({ color: "#6b5d4f", roughness: 0.95 }),
     wheel: new THREE.MeshStandardMaterial({ color: "#3a3936", roughness: 0.6, metalness: 0.2 }),
     crowd: new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.9 }),
   };
+  private outerMat = new THREE.MeshStandardMaterial({ roughness: 1 });
+  private outerStreet = false;
   private liveryHidden = true;
   private radius = 1000;
   private camPos = new THREE.Vector3(0, 800, 800);
@@ -356,6 +390,7 @@ export class World {
     this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.45, 0.45, 0.88);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
+    this.composer.addPass(new ShaderPass(GradeShader));
     this.resize();
     window.addEventListener("resize", () => this.resize());
     // The canvas moves between frames on different pages; follow whatever size its frame gives it.
@@ -424,6 +459,7 @@ export class World {
 
   /** Build the circuit for a session. The lap paints the rubber line. */
   setSession(session: Session) {
+    this.session = session;
     this.snap = true;
     this.sessionKey = session.key;
     this.groundAreas = undefined;
@@ -551,7 +587,8 @@ export class World {
       return this.toScene(tx, ty);
     };
     const size = this.groundSize;
-    const terrain = new Terrain(size, 160, this.terrainSamples, 0.6);
+    const terrain = new Terrain(size, 200, this.terrainSamples, 0.6);
+    this.terrain = terrain;
     // Water, woods and parks are printed into the ground texture, so they lie on the terrain.
     const px = (polys: number[][][]) =>
       polys.map((rings) =>
@@ -582,6 +619,15 @@ export class World {
       this.groundMesh = terrain.mesh(this.groundMat);
       this.trackGroup.add(this.groundMesh);
     }
+    // Plain ground in the base colour out to the horizon, so the edge of the map never shows.
+    let low = Infinity;
+    for (const h of terrain.heights) low = Math.min(low, h);
+    this.outerStreet = !!env.street;
+    this.applyPalette();
+    const outer = new THREE.Mesh(new THREE.RingGeometry(size * 0.49, 40000, 64, 1).rotateX(-Math.PI / 2), this.outerMat);
+    outer.position.y = low - 0.5;
+    outer.receiveShadow = false;
+    this.trackGroup.add(outer);
     const g = new THREE.Group();
     // Buildings, and grandstand roofs mapped as raised canopies; stands on the ground are seating.
     const plain = buildingsMesh(env.buildings, false, toScene, terrain, this.envMats.building);
@@ -602,13 +648,117 @@ export class World {
       return new THREE.Vector2(best.x, best.z);
     };
     g.add(standsGroup(env.buildings, toScene, terrain, nearest, this.envMats.stand, this.envMats.crowd));
-    g.add(treesGroup(env.trees, toScene, terrain, this.envMats.crown, this.envMats.trunk));
+    // Trackside first, so no tree grows through a stand it places.
+    const lively = this.buildLiveliness(env, toScene, terrain, nearest);
+    g.add(lively.group);
+    const trees: number[] = [];
+    for (let i = 0; i < env.trees.length; i += 2) {
+      const p = toScene(env.trees[i], env.trees[i + 1]);
+      if (!lively.covers(p.x, p.y)) trees.push(env.trees[i], env.trees[i + 1]);
+    }
+    g.add(treesGroup(trees, toScene, terrain, this.envMats.crown, this.envMats.trunk));
     for (const [x, y, h] of env.wheels) {
       const p = toScene(x, y);
       g.add(wheelMesh(p.x, p.y, h, terrain.at(p.x, p.y), this.envMats.wheel));
     }
     this.trackGroup.add(g);
     this.setLight(es.light);
+  }
+
+  /** What every broadcast shows that the map does not: grandstands where the map has few, crowd
+   * banks at the slow corners, boards along the straights, marshal posts. Only on free ground. */
+  private buildLiveliness(
+    env: EnvData,
+    toScene: (x: number, y: number) => THREE.Vector2,
+    terrain: Terrain,
+    nearest: (x: number, z: number) => THREE.Vector2,
+  ): { group: THREE.Group; covers: (x: number, z: number) => boolean } {
+    const f = this.frame!;
+    const g = new THREE.Group();
+    const occ = new Occupancy(this.groundSize);
+    for (const p of f.pos) occ.disc(p.x, p.z, TRACK_WIDTH / 2 + 5);
+    let mappedNear = 0;
+    for (const [, , stand, flat] of env.buildings) {
+      const pts: THREE.Vector2[] = [];
+      for (let i = 0; i < flat.length; i += 2) pts.push(toScene(flat[i], flat[i + 1]));
+      occ.polygon(pts);
+      if (stand && pts.length && nearest(pts[0].x, pts[0].y).distanceTo(pts[0]) < 80) mappedNear++;
+    }
+    for (const rings of env.water) {
+      const r = rings[0];
+      const pts: THREE.Vector2[] = [];
+      for (let i = 0; i < r.length; i += 2) pts.push(toScene(r[i], r[i + 1]));
+      occ.polygon(pts);
+    }
+    const session = this.session!;
+    const placed: EnvData["buildings"] = [];
+    // A stand beside the track at distance s, on side `sign` (+1 = +side): length along the track,
+    // depth away from it, height at the back.
+    const tryStand = (s: number, sign: number, length: number, depth: number, height: number) => {
+      const i = this.nearestIndex(s);
+      const e = sign > 0 ? 0 : 1;
+      if (!f.edges.open[e][i]) return;
+      const p = this.pointAt(s);
+      const t = this.headingAt(s);
+      const sd = this.sideAt(s);
+      const along = new THREE.Vector2(t.x, t.z);
+      const c = new THREE.Vector2(p.x, p.z).addScaledVector(new THREE.Vector2(sd.x, sd.z), sign * (f.edges.wall[e][i] + 7 + depth / 2));
+      if (occ.claim(c, along, length + 6, depth + 4)) placed.push([height, 0, 1, rectangle(c, along, length, depth), "#3d4650", "#c23b30"]);
+    };
+    // Corners with the longest braking: where the overtaking is, and so where the crowds sit.
+    const heavy = session.corners
+      .map((c, k) => ({ c, k, brake: session.field.med[k]?.[0] ?? 0 }))
+      .filter((x) => x.c.braked)
+      .sort((a, b) => (a.brake ?? 0) - (b.brake ?? 0))
+      .slice(0, 6);
+    if (mappedNear < 10) {
+      // Few real stands mapped (street circuits): build them where every circuit has them.
+      for (const s of [-60, 60]) for (const sign of [1, -1]) tryStand((s + f.length) % f.length, sign, 90, 16, 11);
+      for (const { c } of heavy.slice(0, 5)) tryStand(c.s - 45, -this.turnSign(c.s), 80, 14, 10);
+    }
+    // Spectator banks at the slow corners, low terraces behind the fence, at every circuit.
+    for (const { c } of heavy) tryStand(c.s + 10, -this.turnSign(c.s), 50, 8, 3.2);
+    if (placed.length) g.add(standsGroup(placed, (x, y) => new THREE.Vector2(x, y), terrain, nearest, this.envMats.stand, this.envMats.crowd, 9000));
+
+    // Boards on the fence along the straights (where the heading barely changes), every 24 m.
+    const list: { p: THREE.Vector3; yaw: number }[] = [];
+    for (let s = 0; s < f.length; s += 24) {
+      const a = this.headingAt(s - 30);
+      const b = this.headingAt(s + 30);
+      if (a.dot(b) < Math.cos(THREE.MathUtils.degToRad(6))) continue;
+      const i = this.nearestIndex(s);
+      const p = this.pointAt(s);
+      const t = this.headingAt(s);
+      const sd = this.sideAt(s);
+      for (const [sign, e] of [[1, 0], [-1, 1]] as const) {
+        if (!f.edges.open[e][i] || (s / 24 + e) % 2 === 1) continue;
+        list.push({ p: p.clone().addScaledVector(sd, sign * (TRACK_WIDTH / 2 + 4.3)), yaw: Math.atan2(-t.z, t.x) });
+      }
+    }
+    const board = boards(list);
+    if (board) g.add(board);
+
+    // Marshal posts every 300 m, alternating sides, where there is room.
+    const posts: { p: THREE.Vector3; yaw: number }[] = [];
+    for (let s = 150, k = 0; s < f.length; s += 300, k++) {
+      const sign = k % 2 ? 1 : -1;
+      const e = sign > 0 ? 0 : 1;
+      const i = this.nearestIndex(s);
+      if (!f.edges.open[e][i]) continue;
+      const p = this.pointAt(s);
+      const t = this.headingAt(s);
+      const sd = this.sideAt(s);
+      const at = p.clone().addScaledVector(sd, sign * (f.edges.wall[e][i] + 3));
+      if (!occ.claim(new THREE.Vector2(at.x, at.z), new THREE.Vector2(t.x, t.z), 4, 4)) continue;
+      posts.push({ p: at, yaw: Math.atan2(-t.z, t.x) });
+    }
+    g.add(marshalPosts(posts));
+    const footprints = placed.map(([, , , flat]) => {
+      const pts: THREE.Vector2[] = [];
+      for (let i = 0; i < flat.length; i += 2) pts.push(new THREE.Vector2(flat[i], flat[i + 1]));
+      return pts;
+    });
+    return { group: g, covers: (x, z) => footprints.some((pts) => inside(pts, x, z)) };
   }
 
   /** Day, dusk or night, from the session's real start time at the circuit. At night the sky is
@@ -675,10 +825,12 @@ export class World {
     const night = this.lightMode === "night";
     // Floodlit at night: an even, white light from above; the sun becomes a dim moon.
     this.hemi.intensity = night ? 1.6 : dark ? 0.9 : 1.4;
-    this.hemi.color.set(night ? "#f2f4ff" : "#ffffff");
-    this.hemi.groundColor.set(dark ? "#2a2926" : "#8c8a84");
-    this.sun.intensity = night ? 0.5 : this.lightMode === "dusk" ? 2.0 : 3.2;
-    this.sun.color.set(night ? "#b8c6ff" : this.lightMode === "dusk" ? "#ffb070" : "#fff4e6");
+    // Fill light from a blue sky above and green-brown ground below, so shadows have colour.
+    this.hemi.color.set(night ? "#f2f4ff" : dark ? "#ffffff" : "#c4dcf5");
+    this.hemi.groundColor.set(dark ? "#2a2926" : "#7a7556");
+    if (!night && !dark) this.hemi.intensity = 1.15;
+    this.sun.intensity = night ? 0.5 : this.lightMode === "dusk" ? 2.0 : 3.8;
+    this.sun.color.set(night ? "#b8c6ff" : this.lightMode === "dusk" ? "#ffb070" : "#ffefd2");
     const m = this.envMats;
     // In the dark theme or at night the colours stay, dimmed, so the scene keeps its colour.
     const dim = dark ? 0.45 : 1;
@@ -686,11 +838,15 @@ export class World {
     m.stand.color.setScalar(dim);
     m.crown.color.setScalar(dark ? 0.55 : 1);
     m.crowd.color.setScalar(dark ? 0.5 : 1);
+    this.outerMat.color.set(this.outerStreet ? "#c3c0b8" : "#bdbd94");
+    if (dark) this.outerMat.color.multiplyScalar(0.18);
     m.crowd.emissive.set(night ? "#2a2620" : "#000000");
     m.trunk.color.set(dark ? "#3a322b" : "#6b5d4f");
     m.wheel.color.set(dark ? "#8f8c86" : "#3a3936");
     // A city at night is lit: a faint warm glow keeps buildings and stands readable on the dark.
-    m.building.emissive.set(night ? "#2e2920" : "#000000");
+    // At night a share of the windows are lit (the emissive map); the walls stay dark.
+    m.building.emissive.set(night ? "#ffffff" : "#000000");
+    m.building.emissiveIntensity = night ? 0.9 : 0;
     m.stand.emissive.set(night ? "#1f1d1a" : "#000000");
     m.wheel.emissive.set(night ? "#4a4030" : "#000000");
     const key = `${dark}:${this.groundAreas ? this.sessionKey : "plain"}`;

@@ -6,7 +6,7 @@ const [key, s, mode, out] = process.argv.slice(2);
 const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 await page.goto(`http://localhost:5173/#/play/${key}`);
-await page.locator(".evidence .t").filter({ hasText: /^T\d+/ }).waitFor({ timeout: 40000 });
+await page.locator(".evidence .t").filter({ hasText: /^T\d+/ }).waitFor({ timeout: 120000 });
 await page.keyboard.press("Space");
 await page.evaluate(
   ([s, mode, nudge]) => {

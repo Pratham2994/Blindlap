@@ -58,6 +58,18 @@ export function posterGround(name: string, year: string, dark = false, areas?: G
     g.stroke();
   }
   if (areas) {
+    // Real ground instead of the paper sheet: dry grass and earth at a permanent circuit, city
+    // grey at a street circuit, with a fine speckle so it never reads as one flat colour.
+    g.fillStyle = areas.verge.street ? (dark ? "#1d1d1c" : "#c3c0b8") : dark ? "#1c2118" : "#bdbd94";
+    g.fillRect(0, 0, size, size);
+    const img = g.getImageData(0, 0, size, size);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const n = (Math.random() - 0.5) * 18;
+      img.data[i] += n;
+      img.data[i + 1] += n;
+      img.data[i + 2] += n * 0.7;
+    }
+    g.putImageData(img, 0, 0);
     const fill = (polys: number[][][], colour: string) => {
       g.fillStyle = colour;
       for (const rings of polys) {
@@ -87,8 +99,8 @@ export function posterGround(name: string, year: string, dark = false, areas?: G
     fill(areas.tarmac, dark ? "#242424" : "#7c7b78");
     fill(areas.gravel, dark ? "#3a3528" : "#d9c89c");
   }
-  // The venue, printed across the sheet (over the map, faintly, so both read).
-  g.globalAlpha = areas ? 0.55 : 1;
+  // The venue, printed across the sheet; once the real map is drawn the name is left out.
+  g.globalAlpha = areas ? 0 : 1;
   g.fillStyle = dark ? "#262523" : "#c9c6be";
   g.textAlign = "center";
   g.textBaseline = "middle";

@@ -272,7 +272,16 @@ now raked seating facing the nearest track, with up to 22,000 spectators nearest
 are mapped; qualifying always has a crowd). Cost, measured with forced frame sync at Monza (46
 stands): about 520,000 triangles a frame after trimming hidden faces and dropping tree shadows.
 
-Not built, deliberately: temporary grandstands at street circuits, which OpenStreetMap does not map
+**Atmosphere (2026-10-26, owner: "every circuit should feel like it, doesn't have to be 100% real"):**
+the owner relaxed the real-references rule for trackside dressing. `scene/trackside.ts` adds, on an
+occupancy grid so nothing lands on a mapped building, water or another road: grandstands at the
+start straight and the five heaviest braking zones where fewer than 10 real stands are mapped,
+terraces at the six heaviest braking zones, boards along straights, marshal posts every 300 m.
+Lighting: blue sky and haze, warm sun, coloured fill, a camera grade pass. Buildings: window bays
+from a facade texture, darker at the base, lit windows at night. Ground capped below every road
+(`scripts/ground-check.mjs`). Responsive: `scripts/responsive.mjs` (11 sizes, 6 pages each).
+
+Previously not built: temporary grandstands at street circuits, which OpenStreetMap does not map
 (street circuits show only the stands it has), and hand-made landmark models.
 
 ### 7.3 Temporary structures

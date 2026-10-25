@@ -1085,7 +1085,8 @@ a.mode.quick:hover p {
 
 .play[data-phase="reveal"],
 .play[data-phase="duel"] {
-  grid-template-rows: auto minmax(160px, 1fr) auto;
+  /* The 3D view keeps at least a third of the screen; the reveal scrolls inside its band. */
+  grid-template-rows: auto minmax(34vh, 1fr) auto;
 }
 
 .band.reveal {
@@ -1095,7 +1096,7 @@ a.mode.quick:hover p {
     "actions actions actions";
   gap: 0;
   padding: 0;
-  max-height: 62vh;
+  max-height: 54vh;
   overflow-y: auto;
 }
 
@@ -1117,13 +1118,13 @@ a.mode.quick:hover p {
 }
 
 /* The name is sized so its longest word fits the block on one line (no browser hyphenates
-   reliably): about 0.8em per extended capital. */
+   reliably): about 0.95em per extended capital, plus room for the padding. */
 .who-block {
   container-type: inline-size;
 }
 
 .who-block h2 {
-  font-size: min(3.6rem, calc(100cqi / (var(--longest, 8) * 0.8)));
+  font-size: min(3.6rem, calc(100cqi / (var(--longest, 8) * 0.95 + 0.6)));
   margin: 12px 0 10px;
 }
 
@@ -1998,6 +1999,42 @@ figcaption {
   .compare th,
   .compare td {
     padding: 8px 4px;
+  }
+}
+
+/* Phone held sideways: one compact row of controls and the 3D view filling the rest of the screen;
+   telemetry, the grid and the reveal follow below it. */
+@media (max-height: 500px) and (orientation: landscape) {
+  .play-bar {
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 6px 12px;
+    overflow-x: auto;
+  }
+  .play-bar .where h1 {
+    font-size: 1.1rem;
+    white-space: nowrap;
+  }
+  .play-bar .where p,
+  .play-bar .score,
+  .volume,
+  .ctl span {
+    display: none;
+  }
+  .play-bar .controls {
+    width: auto;
+    flex-wrap: nowrap;
+  }
+  .play-bar .back {
+    padding: 6px 10px;
+  }
+  .seg button,
+  .ctl {
+    padding: 6px 8px;
+  }
+  .stage-frame,
+  .play[data-phase="reveal"] .stage-frame {
+    height: calc(100svh - 52px);
   }
 }
 
