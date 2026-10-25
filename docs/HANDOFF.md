@@ -44,7 +44,7 @@ Built in that time:
 - **Honest evaluation**: leave-one-circuit-out across both seasons; a teammate test (same car,
   which of the two drivers); a cross-season test (train on 2025, test on 2026).
 - **Web app**: game loop, 3D scene, engine synth, driver DNA (PCA of driving style), telemetry
-  lab, How it knows page, Daily five, Teammates mode, challenge links, duel replay.
+  lab, How it knows page, Daily five (since removed), Teammates mode, challenge links, duel replay.
 - Three rounds of impeccable finish review, E2E tests, demo media, and `docs/OVERVIEW.md`.
 
 ### Morning and day (10:40 to 18:00): owner feedback, in order
@@ -80,15 +80,15 @@ Built in that time:
 
 ### Product
 
-- **Home**: hub with Start a lap, four ways to play (Quick lap, Daily five, Teammates, Pick a
-  circuit), links to Driver DNA, Telemetry lab, How it knows, and the honest accuracy.
+- **Home**: Start a lap, three ways to play (Quick lap, Teammates, Pick a circuit) and the honest
+  accuracy. Driver DNA, Telemetry lab and How it knows are in the top bar only.
 - **Play**: anonymous lap with start lights; five cameras and drag; model grid with a three-model
   switch; telemetry band (speed, gear, pedals, seekable lap bar); evidence line per corner; pause,
   1×/2×/4×, sound and volume.
 - **Reveal**: team-colour field, verdicts, driver, team, lap time, date, qualifying segment and
   final position, career totals, the rank each model gave, the three corners that gave the driver
   away, team radio with captions; duel replay against the model's pick; challenge link.
-- **Driver DNA**, **Telemetry lab**, **How it knows**, **Daily five**, **Teammates**.
+- **Driver DNA**, **Telemetry lab**, **How it knows**, **Teammates**.
 - Light and dark themes; phone layout.
 
 ### Data
@@ -113,8 +113,8 @@ Tuned trees, a neural net and lap-level models were tested the same way and did 
 
 ### Verification
 
-- `npx playwright test`: 13 E2E tests, all passing (about 2 minutes).
-- `node scripts/sweep.mjs`: 45-step bug sweep over every flow (script errors, missing or blank
+- `npx playwright test`: 12 E2E tests, all passing (about 2 minutes).
+- `node scripts/sweep.mjs`: 44-step bug sweep over every flow (script errors, missing or blank
   stage, layout off screen, lap bar out of step). Passing. It was checked to catch the black-stage
   bug when that fix is removed.
 - `pipeline/check.py`: data invariants. Passing.
@@ -294,7 +294,7 @@ the How page. The exported environment files are a derived database and must sta
 npm install
 npm run dev                  # http://localhost:5173
 npx tsc --noEmit             # typecheck
-npx playwright test          # 13 E2E tests
+npx playwright test          # 12 E2E tests
 node scripts/sweep.mjs       # bug sweep over every flow (dev server running)
 node scripts/capture.mjs     # screenshots of every page, desktop and phone (add "dark" for the dark theme)
 node scripts/shot-spot.mjs <session> <metres> <camera> <out.png> [drag px]   # one spot on one circuit

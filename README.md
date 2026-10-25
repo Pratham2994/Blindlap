@@ -13,7 +13,6 @@ session.
 - **Play**: one anonymous lap, the model's live line-up, your pick, the reveal.
 - **Teammates**: same car, two drivers: which one is it? You against the model, chance 50%.
 - **Duel**: after the reveal, race the lap against the driver the model picked, with a live gap.
-- **Daily five**: the same five laps for everyone each day, with a result grid to share.
 - **Challenge link**: send a friend one exact lap, without giving the driver away.
 - **Driver DNA**: every driver's corner style projected into 3D, with the habits that give them away.
 - **Telemetry lab**: any session, any two drivers, speed traces and braking overlaid corner by corner.
@@ -134,7 +133,7 @@ exported data is committed, so the web app runs without the pipeline.
 ```bash
 cd web
 npm run typecheck
-npx playwright test   # plays a full round in headless Chromium with WebGL, plus duel, DNA, lab, How, daily, challenge links
+npx playwright test   # plays a full round in headless Chromium with WebGL, plus duel, DNA, lab, How, challenge links, cameras, seeking
 ```
 
 ## Credits

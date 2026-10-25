@@ -2,14 +2,12 @@
 // Layout: a bar with the way back, the framed stage, the ranking column, and a band underneath
 // that carries the telemetry during the lap and becomes the reveal afterwards.
 import { gearRatios, EngineSynth, VOLUME_KEY } from "../audio/engine";
-import type { DriverInfo, Index, LapData, Session, SessionResult } from "../data";
+import type { DriverInfo, Index, LapData, LapRef, Session, SessionResult } from "../data";
 import { careerLine, loadCareers, loadRadio, loadResults, loadSession } from "../data";
 import { formatLapTime, LapPlayer } from "../lap";
 import type { Evidence } from "../model";
 import { Guesser } from "../model";
 import type { CameraMode, World } from "../scene/world";
-import type { DailyLap, DailyResult } from "./daily";
-import { readDaily, shareText, summaryHtml, writeDaily } from "./daily";
 import { icons } from "./icons";
 import { Lineup } from "./lineup";
 import { dockStage } from "./stage";
@@ -114,15 +112,13 @@ export class PlayView {
     }
   };
 
-  private dailyResults: DailyResult[] = [];
   private nextKey: number | null = null;
 
   constructor(
     private world: World,
     private engine: EngineSynth,
     private index: Index,
-    private daily: { date: string; plan: DailyLap[] } | null = null,
-    private challenge: DailyLap | null = null,
+    private challenge: LapRef | null = null,
     private mates = false, // teammate mode: same car, two drivers, which one is it?
   ) {
     this.scoreKey = mates ? `${SCORE_KEY}.mates` : SCORE_KEY;
@@ -131,13 +127,6 @@ export class PlayView {
     this.root.className = "play";
     window.addEventListener("keydown", this.keyHandler);
     document.addEventListener("visibilitychange", this.visibilityHandler);
-    if (daily) {
-      this.dailyResults = readDaily(daily.date);
-      if (this.dailyResults.length >= daily.plan.length) {
-        this.showDailySummary();
-        return;
-      }
-    }
     void this.newRound();
   }
 
@@ -152,7 +141,6 @@ export class PlayView {
 
   private modeLabel(): string {
     if (this.mates) return "Teammates";
-    if (this.daily) return `Daily five · lap ${this.dailyResults.length + 1} of ${this.daily.plan.length}`;
     return `Quick lap · round ${this.score.rounds + 1}`;
   }
 
@@ -167,7 +155,7 @@ export class PlayView {
     this.root.innerHTML = `<p class="loading caps">Loading a lap…</p>`;
     const sessions = this.index.sessions;
     // A challenge link plays its lap first; after that the rounds are random again.
-    const planned = this.daily?.plan[this.dailyResults.length] ?? this.challenge ?? undefined;
+    const planned = this.challenge ?? undefined;
     this.challenge = null;
     let summary = sessions.find((s) => s.key === (planned?.key ?? this.nextKey));
     this.nextKey = null;
@@ -559,11 +547,6 @@ export class PlayView {
     const model = grade(modelPick);
     this.score = { you: this.score.you + you, model: this.score.model + model, rounds: this.score.rounds + 1 };
     writeScore(this.score, this.scoreKey);
-    const lastDaily = !!this.daily && this.dailyResults.length + 1 >= this.daily.plan.length;
-    if (this.daily) {
-      this.dailyResults.push({ you, model, truth, circuit: this.session.circuit });
-      writeDaily(this.daily.date, this.dailyResults);
-    }
     this.lineup.reveal(truth);
     const scoreEl = this.root.querySelector(".play-bar .score");
     if (scoreEl) scoreEl.innerHTML = `You <b>${this.score.you}</b> <span>·</span> Model <b>${this.score.model}</b>`;
@@ -606,7 +589,7 @@ export class PlayView {
         }
       </div>
       <div class="actions">
-        <button type="button" class="btn primary" data-next>${lastDaily ? "Today's result" : "Next lap"} ${icons.next}</button>
+        <button type="button" class="btn primary" data-next>Next lap ${icons.next}</button>
         ${rival ? `<button type="button" class="btn" data-duel>Race it against ${rival.code}</button>` : ""}
         <a class="btn" href="#/dna/${truth}">${truth}'s driver DNA</a>
         <button type="button" class="btn" data-challenge>Copy challenge link</button>
@@ -615,16 +598,14 @@ export class PlayView {
       </div>`;
 
     // Fetch the next random circuit while the player reads the reveal.
-    if (!this.daily) {
-      const pool = this.index.sessions.filter((x) => !recent.includes(String(x.key)));
-      const next = pool[Math.floor(Math.random() * pool.length)];
-      if (next) {
-        this.nextKey = next.key;
-        void loadSession(next.key).catch(() => (this.nextKey = null));
-      }
+    const pool = this.index.sessions.filter((x) => !recent.includes(String(x.key)));
+    const next = pool[Math.floor(Math.random() * pool.length)];
+    if (next) {
+      this.nextKey = next.key;
+      void loadSession(next.key).catch(() => (this.nextKey = null));
     }
     const card = this.band;
-    card.querySelector("[data-next]")!.addEventListener("click", () => (lastDaily ? this.showDailySummary() : void this.newRound()));
+    card.querySelector("[data-next]")!.addEventListener("click", () => void this.newRound());
     if (rival) card.querySelector("[data-duel]")!.addEventListener("click", () => this.startDuel(rival));
     card.querySelector("[data-challenge]")!.addEventListener("click", async () => {
       // The link names the lap by its position in the session file, so it does not give the driver away.
@@ -639,37 +620,6 @@ export class PlayView {
     });
     if (this.lap.radio) void this.setupRadio(card.querySelector(".radio")!, this.lap.radio);
     (card.querySelector("[data-next]") as HTMLElement).focus({ preventScroll: true });
-  }
-
-  private showDailySummary() {
-    const d = this.daily!;
-    this.radio?.pause();
-    this.radio = null;
-    this.phase = "reveal";
-    this.engine.setActive(false);
-    dockStage(null);
-    document.body.classList.add("playing");
-    this.root.dataset.phase = "summary";
-    this.root.innerHTML = `
-      <header class="play-bar"><a class="back" href="#/">${icons.back}<span>Menu</span></a>
-        <div class="where"><h1 class="display">Daily five</h1><p class="caps">${d.date}</p></div></header>
-      <section class="daily-card">${summaryHtml(d.date, this.dailyResults)}
-        <div class="actions">
-          <button type="button" class="btn primary" data-copy>Copy result</button>
-          <a class="btn" href="#/play">Quick lap</a>
-          <a class="btn ghost" href="#/">${icons.back} Menu</a>
-        </div>
-        <p class="caps share-note" aria-live="polite">A new five at midnight, your time.</p>
-      </section>`;
-    this.root.querySelector("[data-copy]")!.addEventListener("click", async () => {
-      const note = this.root.querySelector(".share-note")!;
-      try {
-        await navigator.clipboard.writeText(shareText(d.date, this.dailyResults));
-        note.textContent = "Copied. Paste it anywhere.";
-      } catch {
-        note.textContent = "Couldn't reach the clipboard. Select the table and copy it instead.";
-      }
-    });
   }
 
   private startDuel(rival: LapData) {

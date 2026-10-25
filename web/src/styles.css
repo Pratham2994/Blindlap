@@ -406,7 +406,7 @@ body.playing .topbar {
 
 .modes {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   border: var(--rule);
   border-top: 0;
 }
@@ -486,42 +486,6 @@ a.mode.quick:hover p {
   border: var(--rule);
   background: var(--paper);
   font-weight: 650;
-}
-
-.explore {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: var(--gutter);
-  border-top: var(--rule);
-}
-
-.explore a {
-  display: block;
-  padding: 18px 22px 22px 0;
-  text-decoration: none;
-}
-
-.explore a + a {
-  padding-left: 22px;
-  border-left: var(--hair);
-}
-
-.explore h3 {
-  margin: 0 0 6px;
-  font-weight: 900;
-  font-variation-settings: "wdth" 125;
-  text-transform: uppercase;
-  font-size: 1.1rem;
-}
-
-.explore p {
-  margin: 0;
-  color: var(--ink-2);
-  line-height: 1.45;
-}
-
-.explore a:hover h3 {
-  color: var(--red);
 }
 
 .home .facts {
@@ -1435,90 +1399,6 @@ a.mode.quick:hover p {
   margin-right: auto;
 }
 
-/* Daily five summary */
-.play[data-phase="summary"] {
-  grid-template-rows: auto 1fr;
-  grid-template-areas:
-    "bar bar"
-    "card card";
-}
-
-.daily-card {
-  grid-area: card;
-  align-self: start;
-  justify-self: center;
-  width: min(640px, calc(100% - 2 * var(--gutter)));
-  margin-top: var(--gutter);
-  padding: 22px;
-  border: var(--rule);
-}
-
-.daily-card h2 {
-  font-size: clamp(2rem, 4vw, 3rem);
-}
-
-.daily-card .actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 18px;
-}
-
-.daily-grid {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 18px;
-  font-size: 0.92rem;
-}
-
-.daily-grid th {
-  text-align: left;
-  font-weight: 700;
-  font-variation-settings: "wdth" 112;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  font-size: 0.66rem;
-  color: var(--ink-3);
-  padding: 0 0 8px;
-}
-
-.daily-grid td {
-  padding: 10px 0;
-  border-top: var(--hair);
-}
-
-.daily-grid td b {
-  font-weight: 900;
-  font-variation-settings: "wdth" 125;
-}
-
-.daily-grid tfoot td {
-  font-weight: 800;
-  border-top: var(--rule);
-}
-
-.sq {
-  display: inline-block;
-  width: 18px;
-  height: 18px;
-  vertical-align: middle;
-  border: 2px solid var(--ink);
-}
-
-.sq.win {
-  background: var(--green);
-  border-color: var(--green);
-}
-
-.sq.half {
-  background: linear-gradient(90deg, var(--ink) 50%, var(--paper) 50%);
-}
-
-.sq.miss {
-  background: var(--paper);
-  border-color: var(--paper-3);
-}
-
 /* ---------- Reading pages: DNA, Lab, How ---------- */
 
 .page {
@@ -1953,15 +1833,6 @@ figcaption {
 /* ---------- Narrower screens ---------- */
 
 @media (max-width: 1100px) {
-  .modes {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .mode:nth-child(3) {
-    border-left: 0;
-  }
-  .mode:nth-child(n + 3) {
-    border-top: var(--rule);
-  }
   .telemetry {
     grid-template-columns: auto auto minmax(0, 1fr);
   }
@@ -2000,11 +1871,9 @@ figcaption {
     border-top: var(--rule);
     min-height: 260px;
   }
-  .explore,
   .home .facts {
     grid-template-columns: minmax(0, 1fr);
   }
-  .explore a + a,
   .home .facts p + p {
     padding-left: 0;
     border-left: 0;

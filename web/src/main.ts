@@ -3,7 +3,6 @@ import { EngineSynth } from "./audio/engine";
 import type { Index, ModelReport, Report } from "./data";
 import { loadCareers, loadDna, loadIndex, loadReport, loadSession } from "./data";
 import { World } from "./scene/world";
-import { dailyPlan, readDaily, todayKey } from "./ui/daily";
 import { DnaView } from "./ui/dna";
 import { howView } from "./ui/how";
 import { icons } from "./ui/icons";
@@ -82,7 +81,6 @@ async function homeView(): Promise<View> {
   world.labelsOn = false;
 
   const laps = index.sessions.reduce((a, s) => a + s.laps, 0);
-  const dailyDone = readDaily(todayKey()).length >= 5;
   const root = document.createElement("div");
   root.className = "home";
   root.innerHTML = `
@@ -100,7 +98,6 @@ async function homeView(): Promise<View> {
 
     <section class="modes" aria-label="Ways to play">
       <a class="mode quick" href="#/play"><h2 class="display">Quick lap</h2><p>One random lap from ${index.sessions.length} qualifying sessions. Sound on.</p><span class="go">${icons.next}</span></a>
-      <a class="mode" href="#/daily"><h2 class="display">Daily five</h2><p>${dailyDone ? "Done for today. See your grid and share it." : "The same five laps for everyone today. Share your grid."}</p><span class="go">${icons.next}</span></a>
       <a class="mode" href="#/mates"><h2 class="display">Teammates</h2><p>Same car, two drivers. Which one is at the wheel?</p><span class="go">${icons.next}</span></a>
       <label class="mode pick"><h2 class="display">Pick a circuit</h2>
         <select aria-label="Pick a circuit to play">
@@ -121,11 +118,6 @@ async function homeView(): Promise<View> {
       </label>
     </section>
 
-    <section class="explore" aria-label="Explore the data">
-      <a href="#/dna"><h3>Driver DNA</h3><p>Every driver's corner style on one map, and the habits that give them away.</p></a>
-      <a href="#/lab"><h3>Telemetry lab</h3><p>Any two drivers in one session, corner by corner.</p></a>
-      <a href="#/how"><h3>How it knows</h3><p>The data, the three models and the honest numbers.</p></a>
-    </section>
 
     ${
       best
@@ -150,7 +142,7 @@ async function route() {
   const [name, arg] = hash.split("/");
   document.body.classList.remove("nav-open");
   toggle.setAttribute("aria-expanded", "false");
-  setNav(name === "daily" || name === "mates" ? "play" : name || "home");
+  setNav(name === "mates" ? "play" : name || "home");
   document.body.dataset.route = name || "home";
   world.labelsOn = true;
   world.setFrameShift(0);
@@ -165,16 +157,11 @@ async function route() {
       const k = Number(key);
       const lapIndex = lap === undefined ? -1 : Number(lap);
       const challenge = key && Number.isInteger(k) && Number.isInteger(lapIndex) && index.sessions.some((s) => s.key === k) ? { key: k, lapIndex } : null;
-      mount(new PlayView(world, engine, index, null, challenge));
+      mount(new PlayView(world, engine, index, challenge));
     } else if (name === "mates") {
       engine.start();
       engine.setActive(true);
-      mount(new PlayView(world, engine, index, null, null, true));
-    } else if (name === "daily") {
-      engine.start();
-      engine.setActive(true);
-      const date = todayKey();
-      mount(new PlayView(world, engine, index, { date, plan: dailyPlan(index, date) }));
+      mount(new PlayView(world, engine, index, null, true));
     } else if (name === "dna") {
       const [dna, careers] = await Promise.all([loadDna(), loadCareers()]);
       mount(new DnaView(world, dna, arg ?? null, careers));

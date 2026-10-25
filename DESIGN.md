@@ -118,7 +118,7 @@ This replaced a first world (matte black tyre rubber, moulded lettering, five co
 
 ### Signals
 - **Yellow** (#f5c518): your own input. The row you picked, the bold code in the grid hint, the pause banner and the active pause button, text selection.
-- **Green** (#11803d): correct. The true driver's ring after the reveal, "right" verdict tags and model-table marks, a right square in the daily grid, the duel gap when you are ahead.
+- **Green** (#11803d): correct. The true driver's ring after the reveal, "right" verdict tags and model-table marks, the duel gap when you are ahead.
 
 ### Neutrals
 - **Paper** (#f1f0ec): page ground, panels, buttons at rest.
@@ -154,7 +154,7 @@ One family across its width axis.
 
 A sticky 60px top bar on every page except a lap: red wordmark left, nav right, the current page as an ink block. Under 860px the nav folds into a "Menu" button that opens a full-width sheet.
 
-**Home.** A two-column hero framed in a 3px rule: red block with the title, lede and "Start a lap" on the left; a framed orbiting circuit on the right with a caption tab. Under it, four mode tiles in one row (Quick lap in ink, Daily five, Teammates, Pick a circuit with a select). Then three explore links and a facts strip with the real held-out accuracy.
+**Home.** A two-column hero framed in a 3px rule: red block with the title, lede and "Start a lap" on the left; a framed orbiting circuit on the right with a caption tab. Under it, three mode tiles in one row (Quick lap in ink, Teammates, Pick a circuit with a select), then a facts strip with the real held-out accuracy. The reading pages (DNA, Lab, How) are reached from the top bar only, so nothing on the page repeats the navigation.
 
 **Play.** A fixed full-viewport grid: play bar across the top (Menu, circuit and year, mode, score, pause, speed, camera, sound), the framed 3D stage on the left, the model's grid in a right column (260 to 330px), and a band under the stage with the telemetry (speed, gear, throttle and brake meters, a lap rule with a tick per corner) and the evidence line. On the reveal the band becomes three panels (who, facts, why) plus an action row, and the stage shrinks. On a phone the play view becomes one scrolling column: bar, stage, band, then the grid.
 
@@ -193,9 +193,6 @@ The who-block floods with the team colour from the left (clip-path, 0.7s): verdi
 
 ### Duel bar
 Car swatches in team colours with ink borders, codes, a huge gap numeral (green when ahead), where the gap was measured, and "Back to result".
-
-### Daily card
-A bordered card with a ruled table and 18px squares (green right, half ink for a teammate, hairline wrong).
 
 ### DNA
 A framed 3D field of paper roundels with an ink rim (heavier when selected), the code in ink and a team chip, on range rings. The panel lists seven axes as bars from a centre line, the tells, closest matches and a jump select.

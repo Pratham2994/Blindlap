@@ -18,12 +18,11 @@ the driver's real team radio.
 
 | Surface | What it does |
 |---|---|
-| Home | A hub. A red block with "Who's driving?" and "Start a lap", a framed 3D view orbiting a random circuit with its fastest lap, four mode tiles (Quick lap, Daily five, Teammates, Pick a circuit), links to DNA, Lab and How, and the best model's real held-out accuracy next to chance. A top bar on every page links all of them. |
+| Home | A hub. A red block with "Who's driving?" and "Start a lap", a framed 3D view orbiting a random circuit with its fastest lap, three mode tiles (Quick lap, Teammates, Pick a circuit) and the best model's real held-out accuracy next to chance. A top bar on every page links all of them. |
 | Play | Start lights, then an anonymous lap in a framed chase camera (or overhead). A "Menu" button top-left always leads back; Escape does too. Under the view, a telemetry band: speed, gear, throttle and brake meters, a lap rule with a tick per corner. The model's grid of drivers re-sorts after every corner, and a switch picks which of the three models it shows. An evidence line says what the corner showed ("braked 11 m later than the field") and which drivers it pointed to. 3D captions appear beside the corners the model read. Click a driver to guess. 1x, 2x, 4x playback. Space pauses, C switches camera. |
 | Reveal | The band under the view floods with the driver's team colour and the car takes the team livery colour. Verdicts for you and the model (right, teammate, wrong), driver, team, lap time, career totals from F1DB; how each of the three models ranked the real driver; the three corners that pointed hardest at them; and the real team radio clip from that session, starting where the speech starts, with auto captions. |
 | Teammates | `#/mates`: the HUD names the team ("Which McLaren driver?"), the grid holds only its two drivers, and you and the model guess. It is the teammate test from section 4.6 as a game. |
 | Duel | Replays the lap against the fastest lap of the driver the model picked (or its runner-up when it was right), as a red ghost car, with a live time gap at the white car's position. |
-| Daily five | The same five laps for every visitor on a given date (seeded), saved per day, with a result grid and a copy-to-clipboard share text. |
 | Challenge link | "Copy challenge link" on the reveal gives a URL (`#/play/<session>.<lap index>`) that opens that exact lap for a friend. The link uses the lap's position in the session file, so it does not reveal the driver. |
 | Driver DNA | Every driver's average corner style as a 3D point (PCA of 30 style dimensions). Drag to turn, click or pick a driver to see seven plain-language style traits, the three habits that give them away, closest matches and career totals. |
 | Telemetry lab | Any session, any two drivers: their fastest laps' speed traces overlaid against distance, braking as marks under the trace, and for each corner the single biggest difference between them in words ("VER brakes 15 m earlier than LEC"). |
@@ -48,7 +47,7 @@ F1DB release zip ───►│ careers.py    career totals per driver         
                      │ lap.ts    telemetry interpolation      audio/engine.ts  Web Audio V6 synth    │
                      │ scene/world.ts  Three.js track, car, ghost, rubber-line shader, cameras       │
                      │ scene/textures.ts  asphalt grain, sidewall relief, corner caption sprites     │
-                     │ ui/play.ts  round state machine   ui/lineup.ts  ui/telemetry.ts  ui/daily.ts  │
+                     │ ui/play.ts  round state machine   ui/lineup.ts  ui/telemetry.ts               │
                      │ ui/stage.ts  one canvas docked per page   ui/dna.ts  ui/how.ts  ui/lab.ts     │
                      │ main.ts  hash router, home hub, render loop                                   │
                      └──────────────────────────────────────────────────────────────────────────────┘
@@ -351,7 +350,7 @@ captures; they were not re-scored by the reviewer.
 | `pipeline/careers.py` | Matches game drivers to F1DB by name and writes career totals. |
 | `pipeline/run_all.sh` | Build, train, export, careers and checks for every fully downloaded session. |
 | `pipeline/check.py` | Invariants on the exported data: laps move forward, corners in order, weight shapes match, no impossible values, model beats chance. It caught one lap whose position track and official time disagreed by 3 s, which led to tighter lap validation. |
-| `web/src/main.ts` | Hash router (home, play, mates, daily, DNA, lab, how), the home hub, the phone menu and the single render loop. |
+| `web/src/main.ts` | Hash router (home, play, mates, DNA, lab, how), the home hub, the phone menu and the single render loop. |
 | `web/src/data.ts` | Types for every JSON file, cached loaders, career line formatting. |
 | `web/src/lap.ts` | Smooth lap motion (integrated speed with a drift correction to the recorded positions), telemetry at any time, lap time formatting. |
 | `web/src/model.ts` | Replays the three models' per-corner scores, evidence sentences and captions. |
@@ -359,11 +358,10 @@ captures; they were not re-scored by the reviewer.
 | `web/src/scene/world.ts` | Three.js scene: track, ground, kerbs, rubber-line shader, car, ghost car, labels, cameras, post-processing. |
 | `web/src/scene/car.ts` | The low-poly F1 car and its spinning wheels. |
 | `web/src/scene/textures.ts` | Generated textures: asphalt, the printed poster ground, brake boards, corner labels with captions. |
-| `web/src/ui/play.ts` | Round state machine, HUD, reveal, team radio, duel, daily integration. |
+| `web/src/ui/play.ts` | Round state machine, HUD, reveal, team radio, duel, seeking, cameras. |
 | `web/src/ui/lineup.ts` | The model's grid: rows that re-sort with transforms, your pick, the truth. |
 | `web/src/ui/telemetry.ts` | The telemetry band: speed, gear, pedal meters, lap rule with corner ticks. |
 | `web/src/ui/stage.ts` | Docks the one WebGL canvas into the current page's frame. |
-| `web/src/ui/daily.ts` | Seeded daily plan, per-day storage, summary table and share text. |
 | `web/src/ui/dna.ts` | The DNA 3D view and trait panel. |
 | `web/src/ui/how.ts` | The method page: bars against chance, cross-season result, per-session and per-driver accuracy, confusion matrix canvas. |
 | `web/src/ui/lab.ts` | The telemetry lab: SVG speed traces, braking marks, per-corner differences. |
@@ -373,7 +371,7 @@ captures; they were not re-scored by the reviewer.
 | `DESIGN.md`, `.impeccable/design.json` | The shipped design system: tokens, rules, components, motion. |
 | `web/src/ui/icons.ts` | A small authored SVG icon set. |
 | `web/src/styles.css` | Poster tokens (paper, ink, red), type, top bar, home hub, play grid, reveal band, pages, phone layout. |
-| `web/tests/blindlap.spec.ts` | Ten end-to-end tests: home, a full round with guess, reveal and duel, DNA, How, daily share, challenge link, lab, circuit picker, teammates, switching between the three models. |
+| `web/tests/blindlap.spec.ts` | Twelve end-to-end tests: home, a full round with guess, reveal and duel, dark mode, seeking and volume, cameras, DNA, How, challenge link, lab, circuit picker, teammates, switching between the three models. |
 | `PRODUCT.md`, `.impeccable/` | Product context and the design direction contract. |
 
 ## 7. How it was built (workflow)
@@ -389,7 +387,7 @@ captures; they were not re-scored by the reviewer.
    own browser pane was hidden (a hidden pane pauses animation). Fixed what the screenshots showed:
    an over-bright car light, oversized labels, an overflowing driver list, a camera that lagged at
    4×, the mobile layout.
-5. Added depth: the duel replay, Daily five, 3D evidence captions, F1DB careers, end-to-end tests.
+5. Added depth: the duel replay, Daily five (removed later at the owner's request), 3D evidence captions, F1DB careers, end-to-end tests.
 6. Ran the impeccable finish review (two rounds, see 5.7) and fixed what it found; the documenter
    subagent wrote DESIGN.md from the shipped code.
 7. Added the 2026 season. That forced a stricter evaluation (leave-one-circuit-out, because the
@@ -413,7 +411,6 @@ captures; they were not re-scored by the reviewer.
 - Corner positions come from MultiViewer and are projected onto our centreline; on a few circuits
   that puts a corner a few metres off. This is the same for every driver, so it does not bias the
   comparison.
-- Daily five plans depend on the exported data; re-exporting changes which laps a date gets.
 - The design review ran three times. The last batch of fixes was checked with fresh captures, not
   re-scored. Known open points: rows in flight during the 4× re-sort can still show a frame of
   overlap; DNA labels in the back row stay dim rather than being laid out to avoid each other; the

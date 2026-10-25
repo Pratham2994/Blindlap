@@ -184,6 +184,12 @@ export interface RadioClip {
   lines?: { t0: number; t1: number; text: string }[];
 }
 export const loadRadio = () => get<Record<string, RadioClip>>("radio.json").catch(() => ({}) as Record<string, RadioClip>);
+/** One exact lap: a session and the lap's position in it (-1: any lap of that session). */
+export interface LapRef {
+  key: number;
+  lapIndex: number;
+}
+
 /** Qualifying context per session (pipeline/results.py): each game lap's segment, and every
  * driver's final position and best Q1/Q2/Q3 times, keyed by driver number. */
 export interface SessionResult {

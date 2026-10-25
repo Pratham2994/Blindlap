@@ -122,25 +122,6 @@ test("how it works shows metrics against chance and draws the confusion matrix",
   expect(painted).toBeGreaterThan(500);
 });
 
-test("daily five summary and share text", async ({ page, context }) => {
-  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-  await page.addInitScript(() => {
-    const d = new Date();
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    const r = (you: number, model: number, truth: string) => ({ you, model, truth, circuit: "Monza" });
-    localStorage.setItem(`blindlap.daily.${key}`, JSON.stringify([r(3, 0, "VER"), r(1, 3, "NOR"), r(0, 1, "HAM"), r(3, 3, "LEC"), r(0, 0, "ALB")]));
-  });
-  await page.goto("/#/daily");
-  const card = page.locator(".daily-card");
-  await expect(card).toContainText("Daily");
-  await expect(card.locator("tbody tr")).toHaveCount(5);
-  await expect(card.locator("tfoot")).toContainText("7");
-  await card.getByRole("button", { name: /copy result/i }).click();
-  const text = await page.evaluate(() => navigator.clipboard.readText());
-  expect(text).toMatch(/BLIND LAP · daily five/);
-  expect(text.split(/\r?\n/)[1].trimEnd()).toMatch(/^You {3}🟩🟨⬛🟩⬛ 7$/u);
-});
-
 test("a challenge link opens that exact lap without naming the driver", async ({ page }) => {
   const index = await (await page.request.get("/data/index.json")).json();
   const monza = index.sessions.find((s: { circuit: string }) => s.circuit === "Monza");
