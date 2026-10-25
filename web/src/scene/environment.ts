@@ -12,6 +12,9 @@ export interface EnvData {
   water: number[][][]; // polygons: [outer ring, hole rings...], each ring x0, y0, x1, y1...
   wood: number[][][];
   grass: number[][][];
+  gravel?: number[][][]; // gravel traps (older exports have none)
+  tarmac?: number[][][]; // tarmac run-off, pit lane, car parks
+  street?: boolean;
   trees: number[]; // x0, y0, x1, y1...
   wheels: [number, number, number][]; // x, y, height
 }
@@ -173,8 +176,9 @@ export function treesGroup(
   const green = new THREE.Color();
   const n = flat.length / 2;
   if (!n) return g;
-  const crowns = new THREE.InstancedMesh(new THREE.ConeGeometry(2.6, 7, 7).translate(0, 6.5, 0), crown, n);
-  const trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.25, 0.35, 3.2, 5).translate(0, 1.6, 0), trunk, n);
+  // Few sides each: there are thousands of trees. Open-ended so no hidden caps are drawn.
+  const crowns = new THREE.InstancedMesh(new THREE.ConeGeometry(2.6, 7, 6, 1, true).translate(0, 6.5, 0), crown, n);
+  const trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.25, 0.35, 3.2, 4, 1, true).translate(0, 1.6, 0), trunk, n);
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const s = new THREE.Vector3();
@@ -190,7 +194,8 @@ export function treesGroup(
     green.setHSL(0.25 + hash * 0.07, 0.32 + hash * 0.16, (0.3 + hash * 0.12) * shade);
     crowns.setColorAt(i, green);
   }
-  crowns.castShadow = true;
+  // No shadows from trees: one instanced mesh is drawn whole into the shadow map, doubling its cost
+  // for shadows that the close cameras barely show.
   g.add(crowns, trunks);
   return g;
 }
@@ -215,5 +220,129 @@ export function wheelMesh(x: number, z: number, height: number, ground: number, 
   g.position.set(x, ground + height - r, z);
   g.rotation.y = Math.atan2(x, z);
   g.traverse((o) => ((o as THREE.Mesh).castShadow = true));
+  return g;
+}
+
+/** One seated spectator: a block 0.42 m wide, 0.75 m tall, facing -z after placement turns it to
+ * the track. Only the faces that can be seen are drawn: front, top and sides (8 triangles). */
+function spectator(): THREE.BufferGeometry {
+  const geo = new THREE.BoxGeometry(0.42, 0.75, 0.38).translate(0, 0.38, 0);
+  const index = geo.getIndex()!;
+  // BoxGeometry faces in order: +x, -x, +y, -y, +z, -z (6 indices each). Keep +x, -x, +y, +z.
+  const keep = [0, 1, 2, 4];
+  const out: number[] = [];
+  for (const f of keep) for (let k = 0; k < 6; k++) out.push(index.getX(f * 6 + k));
+  geo.setIndex(out);
+  return geo;
+}
+
+const SHIRTS = ["#c23b30", "#e8e4da", "#2f5aa8", "#f0c419", "#1d1d1d", "#e07a2e", "#3f8a4a", "#8e2c6c", "#7fb0d8", "#d9d0c0"];
+
+/** Grandstands that sit on the ground become raked seating, rising away from the track, with a
+ * crowd on it: the stands are mapped, and qualifying always has spectators. `nearest` gives the
+ * closest track point to a scene position; `budget` caps how many spectators are drawn. */
+export function standsGroup(
+  list: EnvData["buildings"],
+  toScene: (x: number, y: number) => THREE.Vector2,
+  terrain: Terrain,
+  nearest: (x: number, z: number) => THREE.Vector2,
+  structure: THREE.Material,
+  people: THREE.Material,
+  budget = 22000,
+): THREE.Group {
+  const g = new THREE.Group();
+  const pos: number[] = [];
+  const col: number[] = [];
+  const c = new THREE.Color();
+  type Seat = { x: number; y: number; z: number; d: number; face: number };
+  const seats: Seat[] = [];
+  for (const [h, minh, stand, flat, wall] of list) {
+    if (!stand || minh > 0) continue;
+    const pts: THREE.Vector2[] = [];
+    for (let i = 0; i < flat.length; i += 2) pts.push(toScene(flat[i], flat[i + 1]));
+    if (pts.length < 3) continue;
+    if (THREE.ShapeUtils.isClockWise(pts)) pts.reverse();
+    const centre = pts.reduce((a, p) => a.add(p), new THREE.Vector2()).multiplyScalar(1 / pts.length);
+    const track = nearest(centre.x, centre.y);
+    const toTrack = track.clone().sub(centre).normalize(); // the front faces the track
+    const across = new THREE.Vector2(-toTrack.y, toTrack.x);
+    const depthOf = (p: THREE.Vector2) => -p.clone().sub(centre).dot(toTrack); // grows away from the track
+    const ds = pts.map(depthOf);
+    const d0 = Math.min(...ds);
+    const depth = Math.max(...ds) - d0 || 1;
+    const ground = terrain.at(centre.x, centre.y);
+    const front = 1.5;
+    const top = Math.max(front + 2, h);
+    const yAt = (p: THREE.Vector2) => ground + front + ((depthOf(p) - d0) / depth) * (top - front);
+    // Side walls, ground to the rake.
+    c.set(wall);
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i];
+      const b = pts[(i + 1) % pts.length];
+      const ya = yAt(a);
+      const yb = yAt(b);
+      pos.push(a.x, ground, a.y, b.x, ground, b.y, b.x, yb, b.y, a.x, ground, a.y, b.x, yb, b.y, a.x, ya, a.y);
+      for (let k = 0; k < 6; k++) col.push(c.r, c.g, c.b);
+    }
+    // The sloped seating deck.
+    c.set("#8d9298");
+    for (const [i, j, k] of THREE.ShapeUtils.triangulateShape(pts, [])) {
+      for (const p of [pts[i], pts[k], pts[j]]) {
+        pos.push(p.x, yAt(p), p.y);
+        col.push(c.r, c.g, c.b);
+      }
+    }
+    // Seats in rows across the stand: 0.9 m between rows, 0.7 m between seats.
+    const poly = pts.map((p) => [p.x, p.y]);
+    const inside = (x: number, z: number) => {
+      let hit = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const [xi, zi] = poly[i];
+        const [xj, zj] = poly[j];
+        if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) hit = !hit;
+      }
+      return hit;
+    };
+    const span = Math.max(...pts.map((p) => Math.abs(p.clone().sub(centre).dot(across)))) + 1;
+    const dist = track.distanceTo(centre);
+    for (let r = d0 + 0.8; r < d0 + depth - 0.4; r += 0.9) {
+      for (let a = -span; a <= span; a += 0.7) {
+        const p = centre.clone().addScaledVector(toTrack, -r).addScaledVector(across, a);
+        if (!inside(p.x, p.y)) continue;
+        seats.push({ x: p.x, y: yAt(p), z: p.y, d: dist + (r - d0), face: Math.atan2(toTrack.x, toTrack.y) });
+      }
+    }
+  }
+  if (pos.length) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+    geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, structure);
+    m.castShadow = m.receiveShadow = true;
+    g.add(m);
+  }
+  // A full house nearest the track, thinning out at the back; the closest seats win the budget.
+  seats.sort((a, b) => a.d - b.d);
+  const crowd: Seat[] = [];
+  for (const s of seats) {
+    const hash = Math.abs(Math.sin(s.x * 12.9898 + s.z * 78.233) * 43758.5453) % 1;
+    if (hash < 0.82) crowd.push(s);
+    if (crowd.length >= budget) break;
+  }
+  if (crowd.length) {
+    const mesh = new THREE.InstancedMesh(spectator(), people, crowd.length);
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const one = new THREE.Vector3(1, 1, 1);
+    crowd.forEach((s, i) => {
+      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), s.face);
+      m.compose(new THREE.Vector3(s.x, s.y, s.z), q, one);
+      mesh.setMatrixAt(i, m);
+      const hash = Math.abs(Math.sin(s.x * 39.346 + s.z * 11.135) * 15731.743) % 1;
+      mesh.setColorAt(i, c.set(SHIRTS[Math.floor(hash * SHIRTS.length)]));
+    });
+    g.add(mesh);
+  }
   return g;
 }

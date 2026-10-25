@@ -26,6 +26,11 @@ export interface GroundAreas {
   water: number[][][];
   wood: number[][][];
   grass: number[][][];
+  gravel: number[][][];
+  tarmac: number[][][];
+  // The base verge along the whole track (grass at a permanent circuit, pavement in the street),
+  // drawn first so the real mapped surfaces sit on top: the track line and its full width, in px.
+  verge: { line: number[]; width: number; street: boolean };
 }
 
 /**
@@ -65,9 +70,22 @@ export function posterGround(name: string, year: string, dark = false, areas?: G
         g.fill("evenodd"); // holes (islands, courtyards) stay ground
       }
     };
+    const v = areas.verge;
+    if (v.line.length > 4) {
+      g.strokeStyle = v.street ? (dark ? "#2b2a28" : "#b9b6af") : dark ? "#1f2a1c" : "#9cc07a";
+      g.lineWidth = v.width;
+      g.lineJoin = g.lineCap = "round";
+      g.beginPath();
+      g.moveTo(v.line[0], v.line[1]);
+      for (let i = 2; i < v.line.length; i += 2) g.lineTo(v.line[i], v.line[i + 1]);
+      g.closePath();
+      g.stroke();
+    }
     fill(areas.grass, dark ? "#1f2a1c" : "#a9c98a");
     fill(areas.wood, dark ? "#182515" : "#7fa865");
     fill(areas.water, dark ? "#0f2233" : "#6fa8c7");
+    fill(areas.tarmac, dark ? "#242424" : "#7c7b78");
+    fill(areas.gravel, dark ? "#3a3528" : "#d9c89c");
   }
   // The venue, printed across the sheet (over the map, faintly, so both read).
   g.globalAlpha = areas ? 0.55 : 1;

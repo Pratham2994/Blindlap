@@ -42,7 +42,7 @@ REACH = 900  # metres from the track: features further out are not used
 MARGIN = 1100  # metres of map fetched around the track
 CORRIDOR = 9  # metres either side of the centreline kept clear (road plus kerb)
 MAX_BUILDINGS = 4500
-MAX_TREES = 9000
+MAX_TREES = 7000
 
 FEATURES = """[out:json][timeout:240];
 (
@@ -60,6 +60,23 @@ FEATURES = """[out:json][timeout:240];
   way["attraction"="big_wheel"]({b});
 );
 out geom;"""
+
+# Right beside the track: gravel traps, tarmac run-off, the pit lane, car parks, verges, bleachers.
+TRACKSIDE = """[out:json][timeout:240];
+(
+  way["natural"~"^(sand|scree|shingle|bare_rock|grassland|scrub|heath)$"]({b});
+  way["surface"~"^(asphalt|concrete|paved|gravel|fine_gravel|sand|grass|compacted|paving_stones)$"]["area"="yes"]({b});
+  way["surface"~"^(asphalt|concrete|paved|gravel|fine_gravel|sand|grass|compacted|paving_stones)$"][!"highway"][!"building"]({b});
+  way["area:highway"]({b});
+  way["amenity"="parking"]({b});
+  relation["amenity"="parking"]({b});
+  way["leisure"~"^(bleachers)$"]({b});
+  way["raceway"="pit_lane"]({b});
+  way["highway"="raceway"]["service"="pit_lane"]({b});
+);
+out geom;"""
+GRAVEL = {"sand", "scree", "shingle", "bare_rock", "gravel", "fine_gravel"}
+TARMAC = {"asphalt", "concrete", "paved", "compacted", "paving_stones"}
 
 DEFAULT_HEIGHT = {
     "grandstand": 12, "stadium": 18, "house": 7, "detached": 7, "semidetached_house": 7, "terrace": 8,
@@ -238,12 +255,12 @@ def refine(track_c, target, M, t):
     return M, t, {"within10": float(np.mean(dist < 10)), "rms": float(np.sqrt(np.mean(np.minimum(dist, 40) ** 2)))}
 
 
-def fetch_features(name, bbox):
+def fetch_features(name, bbox, query=FEATURES, kind="features"):
     CACHE.mkdir(parents=True, exist_ok=True)
-    path = CACHE / f"{name.replace(' ', '_')}-features.json"
+    path = CACHE / f"{name.replace(' ', '_')}-{kind}.json"
     if path.exists():
         return json.loads(path.read_text(encoding="utf-8"))
-    q = FEATURES.replace("{b}", ",".join(f"{v:.6f}" for v in bbox))
+    q = query.replace("{b}", ",".join(f"{v:.6f}" for v in bbox))
     for attempt in range(6):
         r = requests.post(A.OVERPASS, data={"data": q}, headers={"User-Agent": "blindlap-env/0.1"}, timeout=300)
         if r.status_code == 200:
@@ -366,6 +383,38 @@ def main():
             else:
                 grass.append(shape)
 
+        # Trackside surfaces, kept within 250 m of the track where they matter.
+        side = fetch_features(name, (lat_lo, lon_lo, lat_hi, lon_hi), TRACKSIDE, "trackside")
+        gravel, tarmac = [], []
+        close = line.buffer(250)
+        for el in side.get("elements", []):
+            tags = el.get("tags", {})
+            if tags.get("raceway") == "pit_lane" or tags.get("service") == "pit_lane":
+                g = el.get("geometry") or []
+                if len(g) > 1:
+                    tarmac.append(LineString(ring(g, proj)).buffer(6))
+                continue
+            try:
+                shape = way_polygon(el, proj) if el["type"] == "way" else relation_polygon(el, proj)
+            except Exception:
+                broken += 1
+                continue
+            if shape is None or shape.is_empty or not shape.intersects(close):
+                continue
+            surf = tags.get("surface")
+            nat = tags.get("natural")
+            if tags.get("leisure") == "bleachers":
+                h = number(tags.get("height")) or 5
+                for poly in polygons(shape.difference(corridor.buffer(1))):
+                    if poly.area >= 15:
+                        buildings.append((poly.distance(line), poly.simplify(0.6), round(h, 1), 0, True, "#3d4650", "#c23b30"))
+            elif nat in GRAVEL or surf in GRAVEL:
+                gravel.append(shape)
+            elif surf in TARMAC or "area:highway" in tags or tags.get("amenity") == "parking":
+                tarmac.append(shape)
+            else:  # grassland, scrub, heath, surface=grass
+                grass.append(shape)
+
         sea_shape = sea(coast, frame, proj)
         if sea_shape is not None:
             water.append(sea_shape)
@@ -375,6 +424,8 @@ def main():
         grass_u = unary_union(grass).intersection(near).difference(clear) if grass else None
         if water_u is not None and wood_u is not None:
             wood_u = wood_u.difference(water_u)
+        gravel_u = unary_union(gravel).intersection(close).difference(clear) if gravel else None
+        tarmac_u = unary_union(tarmac).intersection(close).difference(clear) if tarmac else None
 
         # Trees inside mapped woods, on a jittered 12 m grid, nearest the track first.
         rng = np.random.default_rng(7)
@@ -405,13 +456,17 @@ def main():
             "water": [rings_of(p.simplify(1.5)) for p in polygons(water_u) if p.area > 200],
             "wood": [rings_of(p.simplify(3)) for p in polygons(wood_u) if p.area > 400],
             "grass": [rings_of(p.simplify(3)) for p in polygons(grass_u) if p.area > 300],
+            "gravel": [rings_of(p.simplify(1)) for p in polygons(gravel_u) if p.area > 40],
+            "tarmac": [rings_of(p.simplify(1)) for p in polygons(tarmac_u) if p.area > 40],
+            # A street circuit (matched on public roads) has pavement beside it; a permanent one grass.
+            "street": al["source"] != "raceway",
             "trees": flat(trees),
             "wheels": wheels,
         }
         path = OUT / f"{slug(name)}.json"
         path.write_text(json.dumps(env, separators=(",", ":")), encoding="utf-8")
         stands = sum(1 for b in buildings if b[4])
-        line_out = (f"{name:>20}: {len(buildings)} buildings ({stands} grandstands), {len(env['water'])} water, "
+        line_out = (f"{name:>20}: {len(buildings)} buildings ({stands} stands), {len(env['gravel'])} gravel, {len(env['tarmac'])} tarmac, {len(env['water'])} water, "
                     f"{len(env['wood'])} woods, {len(trees)} trees, {len(env['grass'])} grass, {len(wheels)} wheels, "
                     f"{path.stat().st_size // 1024} KB" + (f", {broken} malformed features skipped" if broken else ""))
         print(line_out, flush=True)

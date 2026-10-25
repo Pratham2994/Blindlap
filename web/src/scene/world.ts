@@ -11,7 +11,7 @@ import { asphaltTexture, boardTexture, labelTexture, posterGround } from "./text
 import type { GroundAreas } from "./textures";
 import { loadEnv, loadEnvIndex } from "../data";
 import type { EnvData, EnvSession } from "./environment";
-import { buildingsMesh, mapToTrack, Terrain, treesGroup, wheelMesh } from "./environment";
+import { buildingsMesh, mapToTrack, standsGroup, Terrain, treesGroup, wheelMesh } from "./environment";
 
 // The poster palette in the scene: ink, paper, F1 red.
 export const INK = new THREE.Color("#141414");
@@ -249,6 +249,7 @@ export class World {
     crown: new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.95, flatShading: true }),
     trunk: new THREE.MeshStandardMaterial({ color: "#6b5d4f", roughness: 0.95 }),
     wheel: new THREE.MeshStandardMaterial({ color: "#3a3936", roughness: 0.6, metalness: 0.2 }),
+    crowd: new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.9 }),
   };
   private liveryHidden = true;
   private radius = 1000;
@@ -563,7 +564,18 @@ export class World {
           return out;
         }),
       );
-    this.groundAreas = { water: px(env.water), wood: px(env.wood), grass: px(env.grass) };
+    const k = 4096 / size;
+    const f = this.frame!;
+    const verge = f.pos.flatMap((p) => [(p.x + size / 2) * k, (p.z + size / 2) * k]);
+    this.groundAreas = {
+      water: px(env.water),
+      wood: px(env.wood),
+      grass: px(env.grass),
+      gravel: px(env.gravel ?? []),
+      tarmac: px(env.tarmac ?? []),
+      // Verges: about 35 m of grass each side at a permanent circuit, 12 m of pavement in a street.
+      verge: { line: verge, width: (env.street ? 24 : 70) * k + TRACK_WIDTH * k, street: !!env.street },
+    };
     if (this.groundMesh && this.groundMat) {
       this.trackGroup.remove(this.groundMesh);
       this.groundMesh.geometry.dispose();
@@ -571,10 +583,25 @@ export class World {
       this.trackGroup.add(this.groundMesh);
     }
     const g = new THREE.Group();
-    for (const [stands, mat] of [[false, this.envMats.building], [true, this.envMats.stand]] as const) {
-      const mesh = buildingsMesh(env.buildings, stands, toScene, terrain, mat);
-      if (mesh) g.add(mesh);
-    }
+    // Buildings, and grandstand roofs mapped as raised canopies; stands on the ground are seating.
+    const plain = buildingsMesh(env.buildings, false, toScene, terrain, this.envMats.building);
+    if (plain) g.add(plain);
+    const canopies = buildingsMesh(env.buildings.filter((b) => b[1] > 0), true, toScene, terrain, this.envMats.stand);
+    if (canopies) g.add(canopies);
+    const pts = f.pos;
+    const nearest = (x: number, z: number) => {
+      let best = pts[0];
+      let bd = Infinity;
+      for (let i = 0; i < pts.length; i += 2) {
+        const d = (pts[i].x - x) ** 2 + (pts[i].z - z) ** 2;
+        if (d < bd) {
+          bd = d;
+          best = pts[i];
+        }
+      }
+      return new THREE.Vector2(best.x, best.z);
+    };
+    g.add(standsGroup(env.buildings, toScene, terrain, nearest, this.envMats.stand, this.envMats.crowd));
     g.add(treesGroup(env.trees, toScene, terrain, this.envMats.crown, this.envMats.trunk));
     for (const [x, y, h] of env.wheels) {
       const p = toScene(x, y);
@@ -658,6 +685,8 @@ export class World {
     m.building.color.setScalar(dim);
     m.stand.color.setScalar(dim);
     m.crown.color.setScalar(dark ? 0.55 : 1);
+    m.crowd.color.setScalar(dark ? 0.5 : 1);
+    m.crowd.emissive.set(night ? "#2a2620" : "#000000");
     m.trunk.color.set(dark ? "#3a322b" : "#6b5d4f");
     m.wheel.color.set(dark ? "#8f8c86" : "#3a3936");
     // A city at night is lit: a faint warm glow keeps buildings and stands readable on the dark.

@@ -262,6 +262,16 @@ track's height, extruded buildings in vertex colour, instanced trees, wheels, fl
 night palette at night races. Costs measured on Interlagos (4,500 buildings): about 50 ms to place,
 and the software-rendered test frame went from 16 to 21 ms.
 
+**Trackside (2026-10-26, owner: "still looks empty near the track"):** a second OSM query per circuit
+adds what lies right beside the track: gravel traps (natural=sand/scree/shingle, surface=gravel), tarmac
+run-off and car parks (surface=asphalt areas, area:highway, amenity=parking), the pit lane, grass, and
+bleachers (as stands). Under them a base verge is painted along the whole track, about 35 m of grass
+each side at permanent circuits and 12 m of pavement at street circuits: not a mapped object, but
+every real circuit has one, and the mapped surfaces are drawn over it. Grandstands on the ground are
+now raked seating facing the nearest track, with up to 22,000 spectators nearest the track (stands
+are mapped; qualifying always has a crowd). Cost, measured with forced frame sync at Monza (46
+stands): about 520,000 triangles a frame after trimming hidden faces and dropping tree shadows.
+
 Not built, deliberately: temporary grandstands at street circuits, which OpenStreetMap does not map
 (street circuits show only the stands it has), and hand-made landmark models.
 
