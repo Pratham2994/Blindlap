@@ -236,6 +236,20 @@ Risks: OSM may hold several layouts (pick the loop that matches); street circuit
 Singapore, Las Vegas, Miami, Jeddah, Melbourne, Madring) are mapped as ordinary roads, not
 raceways, so the matching roads must be stitched first.
 
+**Step 1 result (done, 2026-10-25):** `pipeline/align.py` aligns **all 26 circuits**: 98-100% of
+each centreline lies within 10 m of the real track, average errors 1.8-3.9 m. Findings that matter
+for the next steps:
+
+- OpenF1's frame is effectively **east/north at true scale**: rotations within ±2.3°, scale
+  0.99-1.00, never mirrored. The search is therefore limited to ±10° and no mirror; a full search
+  produced false matches in dense cities (Baku, Singapore).
+- 19 circuits match on the OSM raceway alone; street circuits need the public roads too
+  (Baku, Las Vegas, Madring, Monaco, Singapore, Melbourne on roads only).
+- The 2026 "Kuala Lumpur" data matches Sepang International Circuit.
+- Transforms: `pipeline/model_out/alignment.json` (world = M · (track − offset) + t, in metres
+  east/north of lat0/lon0). Report with overlays: `docs/alignment/index.html`.
+- Raw OSM downloads are cached in `pipeline/raw/osm/` (git-ignored).
+
 ### 7.3 Temporary structures
 
 Grandstands at street circuits are temporary and usually missing from OSM. For those, use the
