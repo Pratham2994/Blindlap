@@ -279,7 +279,7 @@ start straight and the five heaviest braking zones where fewer than 10 real stan
 terraces at the six heaviest braking zones, boards along straights, marshal posts every 300 m.
 Lighting: blue sky and haze, warm sun, coloured fill, a camera grade pass. Buildings: window bays
 from a facade texture, darker at the base, lit windows at night. Ground capped below every road
-(`scripts/ground-check.mjs`). Responsive: `scripts/responsive.mjs` (11 sizes, 6 pages each).
+(`scripts/track-check.mjs`). Responsive: `scripts/responsive.mjs` (11 sizes, 6 pages each).
 
 Previously not built: temporary grandstands at street circuits, which OpenStreetMap does not map
 (street circuits show only the stands it has), and hand-made landmark models.

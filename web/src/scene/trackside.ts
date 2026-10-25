@@ -147,3 +147,89 @@ export function marshalPosts(list: { p: THREE.Vector3; yaw: number }[]): THREE.G
   g.add(cabin, roof);
   return g;
 }
+
+/** Keeps everything from the map clear of the track. The map is fitted to within a few metres and
+ * its buildings can reach the kerb (Shanghai's main grandstand did), so in the scene nothing from
+ * the surroundings may come closer to the centreline than CLEAR: the fence stands at about 11 m. */
+export class TrackClearance {
+  static readonly CLEAR = 13;
+  private cells = new Map<string, number[]>();
+  private readonly cell = 40;
+
+  constructor(private pts: THREE.Vector3[]) {
+    pts.forEach((p, i) => {
+      const k = this.key(p.x, p.z);
+      const list = this.cells.get(k);
+      if (list) list.push(i);
+      else this.cells.set(k, [i]);
+    });
+  }
+
+  private key(x: number, z: number) {
+    return `${Math.floor(x / this.cell)},${Math.floor(z / this.cell)}`;
+  }
+
+  /** Nearest centreline point to (x, z) within 80 m, and the distance to it (Infinity if none). */
+  near(x: number, z: number): { d: number; p: THREE.Vector3 | null } {
+    const cx = Math.floor(x / this.cell);
+    const cz = Math.floor(z / this.cell);
+    let best = Infinity;
+    let bp: THREE.Vector3 | null = null;
+    for (let dz = -2; dz <= 2; dz++)
+      for (let dx = -2; dx <= 2; dx++)
+        for (const i of this.cells.get(`${cx + dx},${cz + dz}`) ?? []) {
+          const p = this.pts[i];
+          const d = Math.hypot(p.x - x, p.z - z);
+          if (d < best) {
+            best = d;
+            bp = p;
+          }
+        }
+    return { d: best, p: bp };
+  }
+
+  /** A footprint (scene x, z) pulled back to CLEAR from the track, or null when it covers the
+   * track itself or too little of it is left. Edges are split every 3 m first, so no straight wall
+   * cuts across the track between two corners of the building. */
+  fit(pts: THREE.Vector2[]): THREE.Vector2[] | null {
+    const C = TrackClearance.CLEAR;
+    const dense: THREE.Vector2[] = [];
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i];
+      const b = pts[(i + 1) % pts.length];
+      const n = Math.max(1, Math.ceil(a.distanceTo(b) / 3));
+      for (let k = 0; k < n; k++) dense.push(a.clone().lerp(b, k / n));
+    }
+    let x0 = Infinity;
+    let x1 = -Infinity;
+    let z0 = Infinity;
+    let z1 = -Infinity;
+    for (const p of dense) {
+      x0 = Math.min(x0, p.x);
+      x1 = Math.max(x1, p.x);
+      z0 = Math.min(z0, p.y);
+      z1 = Math.max(z1, p.y);
+    }
+    // Covering the track: some centreline point lies inside the footprint.
+    for (const p of this.pts) if (p.x > x0 && p.x < x1 && p.z > z0 && p.z < z1 && inside(dense, p.x, p.z)) return null;
+    let moved = false;
+    // Pushed back from the nearest track point, a corner can end up near another one: repeat
+    // until every corner is clear of all of them.
+    let out = dense;
+    for (let pass = 0; pass < 6; pass++) {
+      let again = false;
+      out = out.map((v) => {
+        const { d, p } = this.near(v.x, v.y);
+        if (!p || d >= C - 0.01) return v;
+        moved = again = true;
+        const dir = new THREE.Vector2(v.x - p.x, v.y - p.z);
+        if (dir.lengthSq() < 1e-6) return v;
+        return new THREE.Vector2(p.x, p.z).addScaledVector(dir.normalize(), C + 0.05);
+      });
+      if (!again) break;
+    }
+    if (!moved) return pts;
+    const area = (q: THREE.Vector2[]) => Math.abs(THREE.ShapeUtils.area(q));
+    return area(out) < Math.max(15, 0.3 * area(dense)) ? null : out;
+  }
+}

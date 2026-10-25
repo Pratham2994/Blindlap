@@ -1,4 +1,5 @@
 import "./styles.css";
+import * as THREE from "three";
 import { EngineSynth } from "./audio/engine";
 import type { Index, ModelReport, Report } from "./data";
 import { loadCareers, loadDna, loadIndex, loadReport, loadSession } from "./data";
@@ -20,7 +21,8 @@ interface View {
 const view = document.getElementById("view")!;
 const world = new World(document.getElementById("stage") as HTMLCanvasElement);
 const engine = new EngineSynth();
-if (import.meta.env.DEV) Object.assign(window, { world, engine });
+// Development builds expose these to the check scripts in web/scripts.
+if (import.meta.env.DEV) Object.assign(window, { world, engine, THREE });
 let current: View | null = null;
 let index: Index;
 let homeSession: number | null = null;

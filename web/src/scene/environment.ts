@@ -338,6 +338,7 @@ export function standsGroup(
   structure: THREE.Material,
   people: THREE.Material,
   budget = 22000,
+  seatOk: (x: number, z: number) => boolean = () => true, // e.g. clear of the track
 ): THREE.Group {
   const g = new THREE.Group();
   const pos: number[] = [];
@@ -397,7 +398,7 @@ export function standsGroup(
     for (let r = d0 + 0.8; r < d0 + depth - 0.4; r += 0.9) {
       for (let a = -span; a <= span; a += 0.7) {
         const p = centre.clone().addScaledVector(toTrack, -r).addScaledVector(across, a);
-        if (!inside(p.x, p.y)) continue;
+        if (!inside(p.x, p.y) || !seatOk(p.x, p.y)) continue;
         seats.push({ x: p.x, y: yAt(p), z: p.y, d: dist + (r - d0), face: Math.atan2(toTrack.x, toTrack.y) });
       }
     }

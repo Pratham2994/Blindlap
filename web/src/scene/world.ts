@@ -36,7 +36,7 @@ import type { GroundAreas } from "./textures";
 import { loadEnv, loadEnvIndex } from "../data";
 import type { EnvData, EnvSession } from "./environment";
 import { buildingsMesh, facadeTextures, mapToTrack, standsGroup, Terrain, treesGroup, wheelMesh } from "./environment";
-import { boards, inside, marshalPosts, Occupancy, rectangle } from "./trackside";
+import { boards, inside, marshalPosts, Occupancy, rectangle, TrackClearance } from "./trackside";
 
 // The poster palette in the scene: ink, paper, F1 red.
 export const INK = new THREE.Color("#141414");
@@ -268,7 +268,10 @@ export class World {
   private session: Session | null = null;
   private toScene: (x: number, y: number) => THREE.Vector2 = (x, y) => new THREE.Vector2(x, y);
   private terrainSamples: { x: number; z: number; y: number }[] = [];
-  terrain: Terrain | null = null; // public for scripts/ground-check.mjs: the ground must stay under every road
+  terrain: Terrain | null = null;
+  // Public for scripts/track-check.mjs: the surroundings and the clearance rule they were built with.
+  envGroup: THREE.Group | null = null;
+  clearance: TrackClearance | null = null; // public for scripts/ground-check.mjs: the ground must stay under every road
   private lightMode: "day" | "dusk" | "night" = "day";
   private floodlights: THREE.Group | null = null;
   private envMats = {
@@ -629,10 +632,22 @@ export class World {
     outer.receiveShadow = false;
     this.trackGroup.add(outer);
     const g = new THREE.Group();
+    this.envGroup = g;
+    // Everything from the map is placed in scene coordinates and kept clear of the track first.
+    const clear = new TrackClearance(f.pos);
+    this.clearance = clear;
+    const id = (x: number, y: number) => new THREE.Vector2(x, y);
+    const buildings: EnvData["buildings"] = [];
+    for (const b of env.buildings) {
+      const pts: THREE.Vector2[] = [];
+      for (let i = 0; i < b[3].length; i += 2) pts.push(toScene(b[3][i], b[3][i + 1]));
+      const fitted = pts.length >= 3 ? clear.fit(pts) : null;
+      if (fitted) buildings.push([b[0], b[1], b[2], fitted.flatMap((p) => [p.x, p.y]), b[4], b[5]]);
+    }
     // Buildings, and grandstand roofs mapped as raised canopies; stands on the ground are seating.
-    const plain = buildingsMesh(env.buildings, false, toScene, terrain, this.envMats.building);
+    const plain = buildingsMesh(buildings, false, id, terrain, this.envMats.building);
     if (plain) g.add(plain);
-    const canopies = buildingsMesh(env.buildings.filter((b) => b[1] > 0), true, toScene, terrain, this.envMats.stand);
+    const canopies = buildingsMesh(buildings.filter((b) => b[1] > 0), true, id, terrain, this.envMats.stand);
     if (canopies) g.add(canopies);
     const pts = f.pos;
     const nearest = (x: number, z: number) => {
@@ -647,19 +662,27 @@ export class World {
       }
       return new THREE.Vector2(best.x, best.z);
     };
-    g.add(standsGroup(env.buildings, toScene, terrain, nearest, this.envMats.stand, this.envMats.crowd));
+    // A spectator is half a body wide: the middle of the seat stays that much further back.
+    const seatOk = (x: number, z: number) => clear.near(x, z).d >= TrackClearance.CLEAR + 0.6;
+    g.add(standsGroup(buildings, id, terrain, nearest, this.envMats.stand, this.envMats.crowd, 22000, seatOk));
     // Trackside first, so no tree grows through a stand it places.
-    const lively = this.buildLiveliness(env, toScene, terrain, nearest);
+    const lively = this.buildLiveliness(env, buildings, toScene, terrain, nearest);
     g.add(lively.group);
     const trees: number[] = [];
     for (let i = 0; i < env.trees.length; i += 2) {
       const p = toScene(env.trees[i], env.trees[i + 1]);
-      if (!lively.covers(p.x, p.y)) trees.push(env.trees[i], env.trees[i + 1]);
+      // A crown is up to 3.6 m across the middle of the tree: keep the whole crown clear.
+      if (!lively.covers(p.x, p.y) && clear.near(p.x, p.y).d >= TrackClearance.CLEAR + 3.6) trees.push(env.trees[i], env.trees[i + 1]);
     }
     g.add(treesGroup(trees, toScene, terrain, this.envMats.crown, this.envMats.trunk));
     for (const [x, y, h] of env.wheels) {
       const p = toScene(x, y);
-      g.add(wheelMesh(p.x, p.y, h, terrain.at(p.x, p.y), this.envMats.wheel));
+      const { d, p: at } = clear.near(p.x, p.y);
+      if (d < TrackClearance.CLEAR + 2) continue;
+      const wheel = wheelMesh(p.x, p.y, h, terrain.at(p.x, p.y), this.envMats.wheel);
+      // Face the track, so the wheel runs alongside it and never leans over the road.
+      if (at) wheel.rotation.y = Math.atan2(at.x - p.x, at.z - p.y);
+      g.add(wheel);
     }
     this.trackGroup.add(g);
     this.setLight(es.light);
@@ -669,6 +692,7 @@ export class World {
    * banks at the slow corners, boards along the straights, marshal posts. Only on free ground. */
   private buildLiveliness(
     env: EnvData,
+    buildings: EnvData["buildings"], // already in scene coordinates and clear of the track
     toScene: (x: number, y: number) => THREE.Vector2,
     terrain: Terrain,
     nearest: (x: number, z: number) => THREE.Vector2,
@@ -678,9 +702,9 @@ export class World {
     const occ = new Occupancy(this.groundSize);
     for (const p of f.pos) occ.disc(p.x, p.z, TRACK_WIDTH / 2 + 5);
     let mappedNear = 0;
-    for (const [, , stand, flat] of env.buildings) {
+    for (const [, , stand, flat] of buildings) {
       const pts: THREE.Vector2[] = [];
-      for (let i = 0; i < flat.length; i += 2) pts.push(toScene(flat[i], flat[i + 1]));
+      for (let i = 0; i < flat.length; i += 2) pts.push(new THREE.Vector2(flat[i], flat[i + 1]));
       occ.polygon(pts);
       if (stand && pts.length && nearest(pts[0].x, pts[0].y).distanceTo(pts[0]) < 80) mappedNear++;
     }
@@ -718,7 +742,10 @@ export class World {
     }
     // Spectator banks at the slow corners, low terraces behind the fence, at every circuit.
     for (const { c } of heavy) tryStand(c.s + 10, -this.turnSign(c.s), 50, 8, 3.2);
-    if (placed.length) g.add(standsGroup(placed, (x, y) => new THREE.Vector2(x, y), terrain, nearest, this.envMats.stand, this.envMats.crowd, 9000));
+    if (placed.length) {
+      const seatOk = (x: number, z: number) => (this.clearance?.near(x, z).d ?? Infinity) >= TrackClearance.CLEAR + 0.6;
+      g.add(standsGroup(placed, (x, y) => new THREE.Vector2(x, y), terrain, nearest, this.envMats.stand, this.envMats.crowd, 9000, seatOk));
+    }
 
     // Boards on the fence along the straights (where the heading barely changes), every 24 m.
     const list: { p: THREE.Vector3; yaw: number }[] = [];
@@ -736,7 +763,10 @@ export class World {
       }
     }
     const board = boards(list);
-    if (board) g.add(board);
+    if (board) {
+      board.userData.furniture = true; // stands on the fence by design
+      g.add(board);
+    }
 
     // Marshal posts every 300 m, alternating sides, where there is room.
     const posts: { p: THREE.Vector3; yaw: number }[] = [];
@@ -752,7 +782,9 @@ export class World {
       if (!occ.claim(new THREE.Vector2(at.x, at.z), new THREE.Vector2(t.x, t.z), 4, 4)) continue;
       posts.push({ p: at, yaw: Math.atan2(-t.z, t.x) });
     }
-    g.add(marshalPosts(posts));
+    const marshals = marshalPosts(posts);
+    marshals.userData.furniture = true;
+    g.add(marshals);
     const footprints = placed.map(([, , , flat]) => {
       const pts: THREE.Vector2[] = [];
       for (let i = 0; i < flat.length; i += 2) pts.push(new THREE.Vector2(flat[i], flat[i + 1]));
