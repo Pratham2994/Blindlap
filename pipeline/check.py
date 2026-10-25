@@ -56,6 +56,24 @@ def main():
     dna = json.loads((DATA / "dna.json").read_text())
     check(all(len(d["pos"]) == 3 for d in dna["drivers"]), "DNA positions must be 3D")
 
+    # Real surroundings (environment.py): every session is placed on the map, and well.
+    env_index_path = DATA / "env" / "index.json"
+    if env_index_path.exists():
+        env_index = json.loads(env_index_path.read_text())
+        for summary in index["sessions"]:
+            e = env_index.get(str(summary["key"]))
+            name = f"{summary['circuit']} {summary['date'][:4]}"
+            check(e is not None, f"{name}: no surroundings")
+            if e is None:
+                continue
+            check(e["within10"] >= 0.9, f"{name}: map fit only {e['within10']:.0%} within 10 m")
+            check(e["light"] in ("day", "dusk", "night"), f"{name}: unknown light {e['light']}")
+            env_file = DATA / "env" / f"{e['env']}.json"
+            check(env_file.exists(), f"{name}: surroundings file {env_file.name} missing")
+            if env_file.exists():
+                env = json.loads(env_file.read_text(encoding="utf-8"))
+                check(len(env["buildings"]) + len(env["water"]) + len(env["wood"]) + len(env["grass"]) > 0, f"{name}: surroundings empty")
+
     print(f"checked {len(index['sessions'])} sessions, {laps_total} laps")
     if problems:
         print(f"{len(problems)} problems:")

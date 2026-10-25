@@ -1,4 +1,5 @@
 // Shapes of the JSON written by pipeline/export.py, and cached loaders for them.
+import type { EnvData, EnvSession } from "./scene/environment";
 
 export interface SessionSummary {
   key: number;
@@ -199,6 +200,10 @@ export interface SessionResult {
 export const loadResults = () =>
   get<Record<string, SessionResult>>("results.json").catch(() => ({}) as Record<string, SessionResult>);
 // Optional second dataset: an empty set keeps the game working if the file is missing.
+// Real surroundings (pipeline/environment.py). Optional: without them the circuit keeps its plain ground.
+export const loadEnvIndex = () =>
+  get<Record<string, EnvSession>>("env/index.json").catch(() => ({}) as Record<string, EnvSession>);
+export const loadEnv = (name: string) => get<EnvData>(`env/${name}.json`);
 export const loadCareers = () => get<Careers>("careers.json").catch((): Careers => ({ source: "", drivers: {} }));
 
 /** "73 wins · 50 poles · 4 titles", dropping zero counts after the first. */

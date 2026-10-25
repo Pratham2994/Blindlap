@@ -250,6 +250,21 @@ for the next steps:
   east/north of lat0/lon0). Report with overlays: `docs/alignment/index.html`.
 - Raw OSM downloads are cached in `pipeline/raw/osm/` (git-ignored).
 
+**Steps 2 to 5 result (done, 2026-10-25):** `pipeline/environment.py` exports every circuit's real
+surroundings to `web/public/data/env/` (about 5.7 MB for 26 circuits, ODbL, LICENSE.txt there):
+buildings with mapped heights and colours (else typical for the type), grandstands, water including
+the sea from coastlines, woods, grass, trees, Ferris wheels (deduplicated; one Suzuka entry was a
+mistagged grandstand). Every one of the 40 sessions has its own fit (all ≥ 98% within 10 m) and a
+light from the sun's altitude 30 minutes into the session: night for Jeddah, Las Vegas, Lusail,
+Sakhir, Singapore (both years) and Yas Marina (sun −13°). `check.py` validates all of it.
+In the game (`web/src/scene/environment.ts`, `World.applySurroundings`): a terrain blended from the
+track's height, extruded buildings in vertex colour, instanced trees, wheels, floodlights and a
+night palette at night races. Costs measured on Interlagos (4,500 buildings): about 50 ms to place,
+and the software-rendered test frame went from 16 to 21 ms.
+
+Not built, deliberately: temporary grandstands at street circuits, which OpenStreetMap does not map
+(street circuits show only the stands it has), and hand-made landmark models.
+
 ### 7.3 Temporary structures
 
 Grandstands at street circuits are temporary and usually missing from OSM. For those, use the

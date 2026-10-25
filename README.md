@@ -140,6 +140,10 @@ npx playwright test   # plays a full round in headless Chromium with WebGL, plus
 
 Telemetry, positions and team radio: OpenF1. Corner maps: MultiViewer. Career totals: F1DB.
 
+Surroundings (buildings, grandstands, water, woods, trees, Ferris wheels): map data ©
+[OpenStreetMap contributors](https://www.openstreetmap.org/copyright), under the ODbL. The derived
+files in `web/public/data/env/` are under the same licence (see the LICENSE.txt there).
+
 Car model: this work is based on ["( FREE ) Formula One LP-830 SDC"](https://sketchfab.com/3d-models/free-formula-one-lp-830-sdc-aeebdfa53e294e0390f3c2e8bbfe31b6)
 by [SDC PERFORMANCE](https://sketchfab.com/3Duae), licensed under
 [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/). Changes: textures removed, materials flattened

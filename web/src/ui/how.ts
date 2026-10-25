@@ -98,7 +98,7 @@ export function howView(index: Index, report: Report): HTMLElement {
     <p>The engine you hear is synthesised in your browser from each lap's gear, speed and throttle: the pitch is the firing frequency of a V6 at that RPM. No engine recordings are used. Team radio clips are the real ones from that session.</p>
 
     <h2>Data</h2>
-    <p>Telemetry, positions and radio: <a href="https://openf1.org">OpenF1</a>. Corner maps: MultiViewer. Car model: based on <a href="https://sketchfab.com/3d-models/free-formula-one-lp-830-sdc-aeebdfa53e294e0390f3c2e8bbfe31b6">"( FREE ) Formula One LP-830 SDC"</a> by <a href="https://sketchfab.com/3Duae">SDC PERFORMANCE</a>, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>, textures removed and repainted. Blind Lap is a fan project and is not associated with Formula 1 or any team.</p>
+    <p>Telemetry, positions and radio: <a href="https://openf1.org">OpenF1</a>. Corner maps: MultiViewer. Surroundings (buildings, grandstands, water, woods): map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>, ODbL. Car model: based on <a href="https://sketchfab.com/3d-models/free-formula-one-lp-830-sdc-aeebdfa53e294e0390f3c2e8bbfe31b6">"( FREE ) Formula One LP-830 SDC"</a> by <a href="https://sketchfab.com/3Duae">SDC PERFORMANCE</a>, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>, textures removed and repainted. Blind Lap is a fan project and is not associated with Formula 1 or any team.</p>
   </article>`;
 
   drawConfusion(root.querySelector("canvas")!, lr.classes, lr.confusion);

@@ -20,11 +20,20 @@ export function asphaltTexture(): THREE.CanvasTexture {
   return t;
 }
 
+/** Real areas to paint into the ground, as polygons in texture pixels: [outer ring, holes...],
+ * each ring x0, y0, x1, y1... (from OpenStreetMap, see scene/environment.ts). */
+export interface GroundAreas {
+  water: number[][][];
+  wood: number[][][];
+  grass: number[][][];
+}
+
 /**
  * The ground is a sheet of poster paper: a fine survey grid and the circuit's name printed huge
- * across it, the way a race poster sets the venue.
+ * across it, the way a race poster sets the venue. Where the real map is known, its water, woods
+ * and parks are printed on it too, in their natural colours.
  */
-export function posterGround(name: string, year: string, dark = false): THREE.CanvasTexture {
+export function posterGround(name: string, year: string, dark = false, areas?: GroundAreas): THREE.CanvasTexture {
   const size = 4096;
   const c = document.createElement("canvas");
   c.width = c.height = size;
@@ -43,7 +52,25 @@ export function posterGround(name: string, year: string, dark = false): THREE.Ca
     g.lineTo(size, x);
     g.stroke();
   }
-  // The venue, printed across the sheet.
+  if (areas) {
+    const fill = (polys: number[][][], colour: string) => {
+      g.fillStyle = colour;
+      for (const rings of polys) {
+        g.beginPath();
+        for (const r of rings) {
+          g.moveTo(r[0], r[1]);
+          for (let i = 2; i < r.length; i += 2) g.lineTo(r[i], r[i + 1]);
+          g.closePath();
+        }
+        g.fill("evenodd"); // holes (islands, courtyards) stay ground
+      }
+    };
+    fill(areas.grass, dark ? "#1f2a1c" : "#a9c98a");
+    fill(areas.wood, dark ? "#182515" : "#7fa865");
+    fill(areas.water, dark ? "#0f2233" : "#6fa8c7");
+  }
+  // The venue, printed across the sheet (over the map, faintly, so both read).
+  g.globalAlpha = areas ? 0.55 : 1;
   g.fillStyle = dark ? "#262523" : "#c9c6be";
   g.textAlign = "center";
   g.textBaseline = "middle";
@@ -59,6 +86,7 @@ export function posterGround(name: string, year: string, dark = false): THREE.Ca
   g.fillText(label, size / 2, size / 2);
   g.font = font(800, Math.round(px * 0.28));
   g.fillText(`${year} QUALIFYING · WHO IS DRIVING?`, size / 2, size / 2 + px * 0.68);
+  g.globalAlpha = 1;
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 8;

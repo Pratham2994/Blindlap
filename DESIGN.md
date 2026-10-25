@@ -128,6 +128,9 @@ This replaced a first world (matte black tyre rubber, moulded lettering, five co
 - **Ink Two** (#3a3936): body text in reading pages, ledes, idle bars.
 - **Ink Three** (#5f5d58): labels, meta, figcaptions.
 
+### Surroundings and time of day
+Each circuit's real surroundings come from OpenStreetMap (see docs/HANDOFF.md section 7), in natural colour (the owner found a near-grey first version colourless). Buildings use their mapped wall and roof colours where the map has them (about 2% of buildings), else a typical colour for the type, varied per building: warm renders and brick for houses with terracotta or slate roofs, pale stone and glass for offices, grey steel for sheds; grandstands are a dark structure with red seating seen from above. Trees vary in green from tree to tree. Water (#6fa8c7), woods (#7fa865) and parks (#a9c98a) are printed into the ground, with the circuit name faintly over them. In the dark theme and at night the same colours are dimmed, not removed. Night races (from the real session time) get the dark sky and floodlight masts whatever the page theme; a race at sunset gets a warm horizon.
+
 ### Dark theme
 The same poster printed in negative, chosen with the Dark/Light button in the top bar (remembered) or by the system setting. Paper becomes #121212 (paper-2 #1c1c1b, paper-3 #34332f), ink becomes #f1f0ec (ink-2 #c9c7c1, ink-3 #9a978f), green lifts to #2fb062 for contrast. Red, yellow and team colours do not change; text on yellow stays #111 in both themes (`--on-signal`). Ink blocks invert with the tokens, so the active nav link and Quick lap tile become light blocks. The 3D scene follows: a near-black sky and fog, a dark printed ground, paper-coloured corner labels, and a paper car while the driver is hidden.
 

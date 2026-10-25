@@ -8,6 +8,10 @@ import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import type { LapData, Session } from "../data";
 import { contactShadow, fitF1Model, loadF1Model, makeF1Car } from "./car";
 import { asphaltTexture, boardTexture, labelTexture, posterGround } from "./textures";
+import type { GroundAreas } from "./textures";
+import { loadEnv, loadEnvIndex } from "../data";
+import type { EnvData, EnvSession } from "./environment";
+import { buildingsMesh, mapToTrack, Terrain, treesGroup, wheelMesh } from "./environment";
 
 // The poster palette in the scene: ink, paper, F1 red.
 export const INK = new THREE.Color("#141414");
@@ -24,6 +28,13 @@ const NIGHT = {
   haze: new THREE.Color().setRGB(0.012, 0.012, 0.011, THREE.LinearSRGBColorSpace),
   zenith: new THREE.Vector3(0.006, 0.006, 0.006),
   horizon: new THREE.Vector3(0.012, 0.012, 0.011),
+};
+// A race at sunset (Yas Marina): low warm light, a deep sky with an orange horizon.
+const DUSK = {
+  background: new THREE.Color("#2a2328"),
+  haze: new THREE.Color().setRGB(0.09, 0.06, 0.05, THREE.LinearSRGBColorSpace),
+  zenith: new THREE.Vector3(0.03, 0.035, 0.07),
+  horizon: new THREE.Vector3(0.42, 0.2, 0.09),
 };
 const DAY = {
   background: new THREE.Color("#dcdad4"),
@@ -220,6 +231,25 @@ export class World {
   private sky!: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial>;
   private groundMat: THREE.MeshStandardMaterial | null = null;
   private groundText: [string, string] = ["", ""];
+  private groundMesh: THREE.Mesh | null = null;
+  private groundSize = 0;
+  private groundAreas: GroundAreas | undefined;
+  private groundKey = ""; // what the ground texture shows now, so it is only redrawn on change
+  // Real surroundings: which session they are for, how track coordinates reach the scene, and
+  // the track heights the terrain is blended from.
+  private sessionKey = 0;
+  private toScene: (x: number, y: number) => THREE.Vector2 = (x, y) => new THREE.Vector2(x, y);
+  private terrainSamples: { x: number; z: number; y: number }[] = [];
+  private lightMode: "day" | "dusk" | "night" = "day";
+  private floodlights: THREE.Group | null = null;
+  private envMats = {
+    // Colours come per vertex / per tree (the real or typical colour of each); the material is white.
+    building: new THREE.MeshStandardMaterial({ color: "#ffffff", vertexColors: true, roughness: 0.92, flatShading: true }),
+    stand: new THREE.MeshStandardMaterial({ color: "#ffffff", vertexColors: true, roughness: 0.8, flatShading: true }),
+    crown: new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.95, flatShading: true }),
+    trunk: new THREE.MeshStandardMaterial({ color: "#6b5d4f", roughness: 0.95 }),
+    wheel: new THREE.MeshStandardMaterial({ color: "#3a3936", roughness: 0.6, metalness: 0.2 }),
+  };
   private liveryHidden = true;
   private radius = 1000;
   private camPos = new THREE.Vector3(0, 800, 800);
@@ -394,6 +424,9 @@ export class World {
   /** Build the circuit for a session. The lap paints the rubber line. */
   setSession(session: Session) {
     this.snap = true;
+    this.sessionKey = session.key;
+    this.groundAreas = undefined;
+    this.setLight("day");
     this.trackGroup.clear();
     this.labels = [];
     this.line = null;
@@ -406,6 +439,12 @@ export class World {
     const cos = Math.cos(rot);
     const sin = Math.sin(rot);
     const base = FLOAT;
+    // Track coordinates to the scene, kept so map features can be placed the same way.
+    this.toScene = (tx, ty) => {
+      const px = tx - cx;
+      const py = ty - cy;
+      return new THREE.Vector2(px * cos - py * sin, -(px * sin + py * cos));
+    };
     const pos = Array.from({ length: n }, (_, i) => {
       const px = x[i] - cx;
       const py = y[i] - cy;
@@ -438,6 +477,8 @@ export class World {
         pos[i].y = sum / (2 * half + 1);
       }
     }
+    // The ground's height comes from the road's natural height (before any bridge is lifted).
+    this.terrainSamples = pos.filter((_, i) => i % 3 === 0).map((p) => ({ x: p.x, z: p.z, y: p.y }));
     raiseCrossings(pos, step);
     // Headings over ±12 m, so the car and camera never twitch on a straight.
     const tan = pos.map((_, i) => pos[(i + 3) % n].clone().sub(pos[(i - 3 + n) % n]).setY(0).normalize());
@@ -470,16 +511,166 @@ export class World {
     this.shadowNear = null; // set up again for this circuit on the next frame
     // Close enough that the far side of the circuit melts into the haze from the chase camera.
     this.scene.fog = new THREE.Fog((this.dark ? NIGHT : DAY).haze, Math.min(r * 0.9, 900), Math.max(r * 2.6, 2600));
+    void this.loadSurroundings(session.key);
   }
 
   private buildGround(session: Session): THREE.Mesh {
-    const size = this.radius * 2.9;
+    // Big enough to reach every real feature (up to 900 m from the track).
+    const size = Math.max(this.radius * 2.9, 2 * (this.radius + 1000));
+    this.groundSize = size;
     this.groundText = [session.circuit, session.date.slice(0, 4)];
-    this.groundMat = new THREE.MeshStandardMaterial({ map: posterGround(...this.groundText, this.dark), roughness: 0.95 });
+    this.groundMat = new THREE.MeshStandardMaterial({ map: posterGround(...this.groundText, this.skyDark), roughness: 0.95 });
+    this.groundKey = `${this.skyDark}:plain`;
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(size, size), this.groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
+    this.groundMesh = ground;
     return ground;
+  }
+
+  /** Fetch and place the circuit's real surroundings; a late answer for an older circuit is dropped. */
+  private async loadSurroundings(key: number) {
+    const index = await loadEnvIndex();
+    const es = index[String(key)];
+    if (!es || key !== this.sessionKey) return;
+    let env: EnvData;
+    try {
+      env = await loadEnv(es.env);
+    } catch {
+      return; // no surroundings: the plain ground stays
+    }
+    if (key !== this.sessionKey || !this.frame) return;
+    this.applySurroundings(env, es);
+  }
+
+  private applySurroundings(env: EnvData, es: EnvSession) {
+    const toTrack = mapToTrack(es);
+    const toScene = (x: number, y: number) => {
+      const [tx, ty] = toTrack(x, y);
+      return this.toScene(tx, ty);
+    };
+    const size = this.groundSize;
+    const terrain = new Terrain(size, 160, this.terrainSamples, 0.6);
+    // Water, woods and parks are printed into the ground texture, so they lie on the terrain.
+    const px = (polys: number[][][]) =>
+      polys.map((rings) =>
+        rings.map((r) => {
+          const out: number[] = [];
+          for (let i = 0; i < r.length; i += 2) {
+            const p = toScene(r[i], r[i + 1]);
+            out.push(((p.x + size / 2) / size) * 4096, ((p.y + size / 2) / size) * 4096);
+          }
+          return out;
+        }),
+      );
+    this.groundAreas = { water: px(env.water), wood: px(env.wood), grass: px(env.grass) };
+    if (this.groundMesh && this.groundMat) {
+      this.trackGroup.remove(this.groundMesh);
+      this.groundMesh.geometry.dispose();
+      this.groundMesh = terrain.mesh(this.groundMat);
+      this.trackGroup.add(this.groundMesh);
+    }
+    const g = new THREE.Group();
+    for (const [stands, mat] of [[false, this.envMats.building], [true, this.envMats.stand]] as const) {
+      const mesh = buildingsMesh(env.buildings, stands, toScene, terrain, mat);
+      if (mesh) g.add(mesh);
+    }
+    g.add(treesGroup(env.trees, toScene, terrain, this.envMats.crown, this.envMats.trunk));
+    for (const [x, y, h] of env.wheels) {
+      const p = toScene(x, y);
+      g.add(wheelMesh(p.x, p.y, h, terrain.at(p.x, p.y), this.envMats.wheel));
+    }
+    this.trackGroup.add(g);
+    this.setLight(es.light);
+  }
+
+  /** Day, dusk or night, from the session's real start time at the circuit. At night the sky is
+   * dark and floodlights line the track, whatever the page theme. */
+  private setLight(mode: "day" | "dusk" | "night") {
+    this.lightMode = mode;
+    if (this.floodlights) {
+      this.trackGroup.remove(this.floodlights);
+      this.floodlights = null;
+    }
+    if (mode === "night" && this.frame) {
+      this.floodlights = this.buildFloodlights();
+      this.trackGroup.add(this.floodlights);
+    }
+    this.applyPalette();
+    this.refreshInk();
+  }
+
+  /** The sky is dark in the dark theme and at a night race. */
+  private get skyDark(): boolean {
+    return this.dark || this.lightMode === "night";
+  }
+
+  /** Floodlight masts every 90 m on alternate sides, where there is room; bright heads glow. */
+  private buildFloodlights(): THREE.Group {
+    const f = this.frame!;
+    const g = new THREE.Group();
+    const count = Math.floor(f.length / 90);
+    const masts = new THREE.InstancedMesh(new THREE.BoxGeometry(0.4, 16, 0.4).translate(0, 8, 0), new THREE.MeshStandardMaterial({ color: "#3a3936" }), count);
+    // Slim heads: big ones bloomed into glowing blocks in the TV camera.
+    const heads = new THREE.InstancedMesh(new THREE.BoxGeometry(0.35, 0.5, 2.0), new THREE.MeshBasicMaterial({ color: "#f4eedb" }), count);
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const up = new THREE.Vector3(0, 1, 0);
+    let k = 0;
+    for (let i = 0; i < count; i++) {
+      const s = i * 90;
+      const sign = i % 2 ? 1 : -1;
+      const e = sign > 0 ? 0 : 1;
+      const idx = this.nearestIndex(s);
+      if (!f.edges.open[e][idx]) continue;
+      const p = this.pointAt(s);
+      const t = this.headingAt(s);
+      const at = p.clone().addScaledVector(this.sideAt(s), sign * (f.edges.wall[e][idx] + 2.5));
+      q.setFromAxisAngle(up, Math.atan2(-t.z, t.x));
+      m.compose(at, q, new THREE.Vector3(1, 1, 1));
+      masts.setMatrixAt(k, m);
+      m.compose(at.clone().setY(at.y + 16.4), q, new THREE.Vector3(1, 1, 1));
+      heads.setMatrixAt(k++, m);
+    }
+    masts.count = heads.count = k;
+    g.add(masts, heads);
+    return g;
+  }
+
+  /** Sky, fog, lights and surroundings in the colours of the theme and the time of day. */
+  private applyPalette() {
+    const dark = this.skyDark;
+    const p = this.lightMode === "dusk" ? DUSK : dark ? NIGHT : DAY;
+    this.scene.background = p.background;
+    (this.scene.fog as THREE.Fog).color.copy(p.haze);
+    this.sky.material.uniforms.uZenith.value.copy(p.zenith);
+    this.sky.material.uniforms.uHorizon.value.copy(p.horizon);
+    const night = this.lightMode === "night";
+    // Floodlit at night: an even, white light from above; the sun becomes a dim moon.
+    this.hemi.intensity = night ? 1.6 : dark ? 0.9 : 1.4;
+    this.hemi.color.set(night ? "#f2f4ff" : "#ffffff");
+    this.hemi.groundColor.set(dark ? "#2a2926" : "#8c8a84");
+    this.sun.intensity = night ? 0.5 : this.lightMode === "dusk" ? 2.0 : 3.2;
+    this.sun.color.set(night ? "#b8c6ff" : this.lightMode === "dusk" ? "#ffb070" : "#fff4e6");
+    const m = this.envMats;
+    // In the dark theme or at night the colours stay, dimmed, so the scene keeps its colour.
+    const dim = dark ? 0.45 : 1;
+    m.building.color.setScalar(dim);
+    m.stand.color.setScalar(dim);
+    m.crown.color.setScalar(dark ? 0.55 : 1);
+    m.trunk.color.set(dark ? "#3a322b" : "#6b5d4f");
+    m.wheel.color.set(dark ? "#8f8c86" : "#3a3936");
+    // A city at night is lit: a faint warm glow keeps buildings and stands readable on the dark.
+    m.building.emissive.set(night ? "#2e2920" : "#000000");
+    m.stand.emissive.set(night ? "#1f1d1a" : "#000000");
+    m.wheel.emissive.set(night ? "#4a4030" : "#000000");
+    const key = `${dark}:${this.groundAreas ? this.sessionKey : "plain"}`;
+    if (this.groundMat && key !== this.groundKey) {
+      this.groundKey = key;
+      this.groundMat.map?.dispose();
+      this.groundMat.map = posterGround(...this.groundText, dark, this.groundAreas);
+      this.groundMat.needsUpdate = true;
+    }
   }
 
   /** Raised asphalt strip with rubber sides, following the real elevation. */
@@ -780,7 +971,7 @@ export class World {
     const at = this.pointAt((lo + hi) / 2);
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(0.9, 1, 64).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: this.dark ? PAPER : INK, transparent: true, opacity: 0.8, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ color: this.skyDark ? PAPER : INK, transparent: true, opacity: 0.8, depthWrite: false }),
     );
     ring.position.copy(at).setY(at.y + 0.3);
     this.trackGroup.add(ring);
@@ -927,24 +1118,18 @@ export class World {
   }
 
   private get labelInk(): string {
-    return this.dark ? "#f1f0ec" : "#111111";
+    return this.skyDark ? "#f1f0ec" : "#111111";
   }
 
   /** Paper or ink to suit the theme, with the night sky, fog, light and ground to match. */
   setDark(dark: boolean) {
     this.dark = dark;
-    const p = dark ? NIGHT : DAY;
-    this.scene.background = p.background;
-    (this.scene.fog as THREE.Fog).color.copy(p.haze);
-    this.sky.material.uniforms.uZenith.value.copy(p.zenith);
-    this.sky.material.uniforms.uHorizon.value.copy(p.horizon);
-    this.hemi.intensity = dark ? 0.9 : 1.4;
-    this.hemi.groundColor.set(dark ? "#2a2926" : "#8c8a84");
-    if (this.groundMat) {
-      this.groundMat.map?.dispose();
-      this.groundMat.map = posterGround(...this.groundText, dark);
-      this.groundMat.needsUpdate = true;
-    }
+    this.applyPalette();
+    this.refreshInk();
+  }
+
+  /** Labels and the hidden car follow the sky: light on a dark sky (dark theme or a night race). */
+  private refreshInk() {
     for (const l of this.labels) {
       const m = l.sprite.material as THREE.SpriteMaterial;
       m.map?.dispose();
@@ -956,7 +1141,7 @@ export class World {
 
   /** The car while the driver is unknown: plain ink, or plain paper on the dark theme. */
   hideLivery() {
-    this.setCarColours(this.dark ? PAPER : INK);
+    this.setCarColours(this.skyDark ? PAPER : INK);
     this.liveryHidden = true;
   }
 
