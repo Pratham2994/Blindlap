@@ -188,6 +188,9 @@ Huge speed numeral with km/h, gear, two 12px meters (throttle ink, brake red) in
 ### Lap bar and volume
 The lap rule doubles as a slider: a transparent range input over it, with a 6px red handle, and small bordered −5 s / +5 s buttons beside the clock (disabled until the lights go out). Volume is a 90px range input in a 3px-bordered box beside the Sound button, accent ink.
 
+### Track map
+A 2px-bordered paper card (86% opaque) in the top-right corner of the stage, 110 to 210 px wide (92 to 96 px on phones), as tall as the circuit's shape needs. Track in ink over a paper casing, the driven part red, corner marks paper with an ink rim that fill red once read, the car a red dot with a paper ring; in the duel both dots take their team colours. It is the one piece of UI besides the lights and the pause banner allowed over the scene, because broadcasts always show it.
+
 ### Evidence line
 An ink tag with the corner ("T7"), the sentence, and "points to" codes. The tag flashes red when new evidence lands.
 

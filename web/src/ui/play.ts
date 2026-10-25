@@ -11,6 +11,7 @@ import type { CameraMode, World } from "../scene/world";
 import { icons } from "./icons";
 import { Lineup } from "./lineup";
 import { dockStage } from "./stage";
+import { Minimap } from "./minimap";
 import { Telemetry } from "./telemetry";
 
 type Phase = "loading" | "lights" | "lap" | "reveal" | "duel";
@@ -85,6 +86,7 @@ export class PlayView {
   private guesser!: Guesser;
   private lineup!: Lineup;
   private telemetry!: Telemetry;
+  private minimap!: Minimap;
   private band!: HTMLElement;
   private ratios: number[] = [];
   private t = 0;
@@ -284,6 +286,9 @@ export class PlayView {
       <div class="countdown"><div class="lights" role="img" aria-label="Start lights">${"<i></i>".repeat(5)}</div>
         <p class="caps">Watch the lap. Tap the driver you think it is, any time before the flag.</p></div>
       <p class="paused-note caps" aria-live="polite">Paused · Space to resume</p>`;
+    const w = this.world;
+    this.minimap = new Minimap(w.outline(), s.corners.map((c) => c.s), s.length, (d) => w.pointAt(d));
+    stage.appendChild(this.minimap.root);
 
     // Hold the left button (or a finger) and drag to look around the car; double-click to reset.
     let drag: { x: number; y: number; id: number } | null = null;
@@ -460,6 +465,7 @@ export class PlayView {
         while (this.nextCorner < corners.length) this.readCorner(this.nextCorner++);
         void this.reveal();
       }
+      this.minimap.update(smp.s, null);
       this.world.update(dt, smp.speed, smp.brake);
       return;
     }
@@ -476,6 +482,7 @@ export class PlayView {
     const c = this.session.corners[i];
     this.world.markEvidence(i, c.lo, c.hi, ev.short);
     this.telemetry.markCorner(i);
+    this.minimap.markCorner(i, true);
     this.lineup.update(this.guesser.guesses(), this.guesser.seen);
     this.showEvidence(ev, true);
   }
@@ -507,6 +514,7 @@ export class PlayView {
       for (let i = n; i < this.nextCorner; i++) {
         this.world.unmarkEvidence(i, corners[i].lo, corners[i].hi);
         this.telemetry.unmarkCorner(i);
+        this.minimap.markCorner(i, false);
       }
       this.guesser.rewind(n, this.lap);
       this.evidence = this.evidence.filter((e) => e.corner < n);
@@ -517,6 +525,7 @@ export class PlayView {
     // While paused the loop does not move the car, so place it here.
     this.world.setCarS(smp.s);
     this.telemetry.update(smp.s, this.t, smp.speed, smp.gear, smp.throttle, smp.brake);
+    this.minimap.update(smp.s, null);
   }
 
   private driverOf(code: string): DriverInfo {
@@ -657,6 +666,7 @@ export class PlayView {
     this.engine.update(ratio > 0 && a.speed > 40 ? a.speed * ratio : a.rpm, a.throttle, a.speed, a.gear);
     this.world.setCarS(a.s);
     this.world.setGhostS(b.s);
+    this.minimap.update(a.s, b.s, this.driverOf(d.code).colour, this.driverOf(this.lap.code).colour);
     // Gap at the first car's position: how long ago the rival passed the same point.
     const gap = Math.min(this.t, this.player.duration) - d.player.timeAt(a.s);
     const gapEl = this.root.querySelector(".duel .gap");
@@ -679,6 +689,7 @@ export class PlayView {
     this.root.dataset.phase = "reveal";
     this.world.setGhostS(null);
     this.world.setCarS(0);
+    this.minimap.update(0, null);
     this.world.mode = "orbit";
     this.engine.setActive(false, 1.5);
     this.root.querySelector(".duel")?.remove();

@@ -626,6 +626,74 @@ a.mode.quick:hover p {
   border-right: var(--rule);
 }
 
+/* The live track map, top right of the 3D view, as on the broadcast. */
+.minimap {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: clamp(110px, 12vw, 210px);
+  margin: 0;
+  padding: 4px;
+  background: color-mix(in srgb, var(--paper) 86%, transparent);
+  border: 2px solid var(--ink);
+  pointer-events: none;
+}
+
+.minimap svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.mm-track-under {
+  fill: none;
+  stroke: var(--paper);
+  stroke-width: 9;
+  stroke-linejoin: round;
+}
+
+.mm-track {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 4;
+  stroke-linejoin: round;
+}
+
+.mm-driven {
+  fill: none;
+  stroke: var(--red);
+  stroke-width: 4;
+  stroke-linejoin: round;
+}
+
+.mm-corner {
+  fill: var(--paper);
+  stroke: var(--ink);
+  stroke-width: 1.2;
+}
+
+.mm-corner.read {
+  fill: var(--red);
+  stroke: var(--red);
+}
+
+.mm-start {
+  stroke: var(--ink);
+  stroke-width: 3;
+}
+
+.mm-car {
+  fill: var(--red);
+  stroke: var(--paper);
+  stroke-width: 2.5;
+}
+
+.mm-ghost {
+  fill: var(--ink-3);
+  stroke: var(--paper);
+  stroke-width: 2.5;
+}
+
 .stage-frame.dragging {
   cursor: grabbing;
 }
@@ -1973,6 +2041,11 @@ figcaption {
 }
 
 @media (max-width: 520px) {
+  .minimap {
+    width: 96px;
+    top: 8px;
+    right: 8px;
+  }
   .modes {
     grid-template-columns: 1fr;
   }
@@ -2035,6 +2108,11 @@ figcaption {
   .stage-frame,
   .play[data-phase="reveal"] .stage-frame {
     height: calc(100svh - 52px);
+  }
+  .minimap {
+    width: 92px;
+    top: 8px;
+    right: 8px;
   }
 }
 

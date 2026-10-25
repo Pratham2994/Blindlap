@@ -1252,6 +1252,11 @@ export class World {
     return u < 0.5 ? i : j;
   }
 
+  /** The centreline in scene coordinates, from the line, for the track map. */
+  outline(): THREE.Vector3[] {
+    return this.frame?.pos ?? [];
+  }
+
   pointAt(s: number): THREE.Vector3 {
     const [i, j, u] = this.indexAt(s);
     return this.frame!.pos[i].clone().lerp(this.frame!.pos[j], u);
