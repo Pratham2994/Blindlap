@@ -182,7 +182,15 @@ async function homeView(): Promise<View> {
   });
   dockStage(root.querySelector(".stage-slot"));
   // Start the 3D after the page has painted, so the text never waits for it.
-  requestAnimationFrame(() => setTimeout(() => void startBroadcast(), 0));
+  // (After the next frame, or 100 ms in a background tab, which gets no frames.)
+  let started = false;
+  const start = () => {
+    if (started) return;
+    started = true;
+    void startBroadcast();
+  };
+  requestAnimationFrame(() => setTimeout(start, 0));
+  setTimeout(start, 100);
   return {
     root,
     frame: (dt) => {
