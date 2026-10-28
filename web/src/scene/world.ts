@@ -476,6 +476,8 @@ export class World {
   terrain: Terrain | null = null;
   // Public for scripts/track-check.mjs: the surroundings and the clearance rule they were built with.
   envGroup: THREE.Group | null = null;
+  // The session whose surroundings are completely built (scripts/track-check.mjs waits for it).
+  surroundingsFor = 0;
   clearance: TrackClearance | null = null; // public for scripts/ground-check.mjs: the ground must stay under every road
   private lightMode: "day" | "dusk" | "night" = "day";
   private floodlights: THREE.Group | null = null;
@@ -963,6 +965,7 @@ export class World {
       g.add(wheel);
     }
     this.setLight(es.light);
+    this.surroundingsFor = key;
   }
 
   /** The verge: level with the road from its edge out to 14 m (past the barriers, fence and

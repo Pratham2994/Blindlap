@@ -14,16 +14,20 @@ await page.goto("http://localhost:5173/#/how");
 await page.waitForTimeout(1500);
 const rows = await page.evaluate(async () => {
   const index = await (await fetch("/data/index.json")).json();
-  const envIndex = await (await fetch("/data/env/index.json")).json();
   const w = window.world;
   const out = [];
   const LIMIT = 12.5;
   for (const s of index.sessions) {
     const session = await (await fetch(`/data/sessions/${s.key}.json`)).json();
-    const es = envIndex[s.key];
-    const env = await (await fetch(`/data/env/${es.env}.json`)).json();
     w.setSession(session);
-    await w.applySurroundings(env, es);
+    // setSession builds the surroundings itself, in steps. Wait for that build to finish: building
+    // a second copy here and checking it raced the first, which could leave a half-built group
+    // (no trees yet) to be checked.
+    for (let t = 0; w.surroundingsFor !== s.key && t < 600; t++) await new Promise((r) => setTimeout(r, 50));
+    if (w.surroundingsFor !== s.key) {
+      out.push(`${s.circuit} ${s.year}: FAIL surroundings never finished building`);
+      continue;
+    }
     // 1. Ground under the road.
     let buried = 0;
     for (let i = 0; i < w.frame.pos.length; i++) {
