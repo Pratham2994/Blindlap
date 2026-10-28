@@ -503,7 +503,7 @@ export class PlayView {
     // In teammate mode the team is the question, not a hint.
     const kinds = HINTS.filter((h) => !(this.mates && h.id === "team"));
     box.innerHTML = `
-      <p class="caps hints-h"><span>Hints · small to big</span><span class="num" data-k="worth">right = ${RIGHT_POINTS} pts</span></p>
+      <p class="caps hints-h"><span>Hints<span class="hints-sub"> · small to big</span></span><span class="num" data-k="worth">right = ${RIGHT_POINTS} pts</span></p>
       <div class="hint-buttons" role="group" aria-label="Hints, from a small nudge to nearly the answer">${kinds
         .map((h, i) => `<button type="button" data-hint="${h.id}" title="${h.title}. Costs ${h.cost} point${h.cost > 1 ? "s" : ""}." style="--level:${(i + 1) / kinds.length}"><span>${h.label}</span><small class="num">−${h.cost}</small></button>`)
         .join("")}</div>

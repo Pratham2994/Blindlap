@@ -31,3 +31,7 @@ pipeline/model_out/compare_probs.pkl
 
 # Playwright run from the repository root
 /test-results/
+
+# Demo recording scratch (record-demo.mjs, record-video.mjs)
+docs/media/*.webm
+docs/media/frames/

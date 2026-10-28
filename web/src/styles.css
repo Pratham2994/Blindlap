@@ -1310,7 +1310,8 @@ a.mode.quick:hover p {
 /* A narrow column has no room for each hint's cost: the bar under it still shows how much it gives
    away, the tooltip says the cost, and the header shows what a right guess is still worth. */
 @container (max-width: 330px) {
-  .hint-buttons button small {
+  .hint-buttons button small,
+  .hints-sub {
     display: none;
   }
 }
