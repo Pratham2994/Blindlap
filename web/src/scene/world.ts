@@ -96,12 +96,41 @@ const DUSK = {
 // fades into blue air. (A flat grey sky and fog made the scene look like a model under a cloth.)
 // Quality levels, best first. The game starts at 0 (or 1 on small devices) and steps down by
 // itself while frames are slow.
+// "minimal" is for the weakest machines: no shadows and no full-screen effect passes at all (the
+// scene goes straight to the screen), and no spectators.
 const QUALITY = [
-  { name: "full", pixels: 2, shadow: 4096, bloom: true, crowds: true },
-  { name: "balanced", pixels: 1.25, shadow: 2048, bloom: true, crowds: true },
-  { name: "light", pixels: 1, shadow: 1024, bloom: false, crowds: true },
-  { name: "minimal", pixels: 0.75, shadow: 1024, bloom: false, crowds: false },
+  { name: "full", pixels: 2, shadow: 4096, bloom: true, crowds: true, post: true, shadows: true },
+  { name: "balanced", pixels: 1.25, shadow: 2048, bloom: true, crowds: true, post: true, shadows: true },
+  { name: "light", pixels: 1, shadow: 1024, bloom: false, crowds: true, post: true, shadows: true },
+  { name: "minimal", pixels: 0.75, shadow: 1024, bloom: false, crowds: false, post: false, shadows: false },
 ];
+
+/** Where to start, before any frame is timed: lower on small devices, on integrated or phone
+ * graphics, and lowest on a software renderer (no graphics card in use at all). */
+function startQuality(renderer: THREE.WebGLRenderer): number {
+  // The screenshot scripts (web/scripts) force a level, since their software renderer would start
+  // at the lowest.
+  try {
+    const forced = localStorage.getItem("blindlap.quality.v1");
+    if (forced !== null && QUALITY[Number(forced)]) return Number(forced);
+  } catch {
+    // Storage refused: guess as usual.
+  }
+  const nav = navigator as Navigator & { deviceMemory?: number };
+  let q = (navigator.hardwareConcurrency || 8) <= 4 || (nav.deviceMemory ?? 8) <= 4 ? 1 : 0;
+  try {
+    const gl = renderer.getContext();
+    const info = gl.getExtension("WEBGL_debug_renderer_info");
+    const name = String(info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER));
+    if (/swiftshader|llvmpipe|software|basic render/i.test(name)) q = 3;
+    else if (/mali|adreno|powervr|apple gpu|intel/i.test(name)) q = Math.max(q, /intel.*(arc|iris xe)/i.test(name) ? 1 : 2);
+  } catch {
+    // No renderer name: keep the guess from the device.
+  }
+  // Phones: a small touch screen.
+  if (matchMedia("(pointer: coarse)").matches && Math.min(screen.width, screen.height) < 600) q = Math.max(q, 2);
+  return q;
+}
 
 // Indices of features in a lap's raw corner values and z-scores (pipeline/features.py FEATURES).
 const BRAKE_POINT = 0;
@@ -514,13 +543,11 @@ export class World {
 
   constructor(private canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
-    // Small devices (few cores or little memory) start at a lower quality level.
-    const nav = navigator as Navigator & { deviceMemory?: number };
-    if ((navigator.hardwareConcurrency || 8) <= 4 || (nav.deviceMemory ?? 8) <= 4) this.quality = 1;
+    this.quality = startQuality(this.renderer);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, QUALITY[this.quality].pixels));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
-    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.enabled = QUALITY[this.quality].shadows;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.scene.background = new THREE.Color("#dcdad4");
     this.scene.fog = new THREE.Fog(HAZE, 1500, 6000);
@@ -906,11 +933,13 @@ export class World {
     await nextFrame();
     if (stale()) return;
     g.add(standsGroup(buildings, id, terrain, nearest, this.envMats.stand, this.envMats.crowd, 22000, seatOk));
+    this.showCrowds();
     await nextFrame();
     if (stale()) return;
     // Trackside first, so no tree grows through a stand it places.
     const lively = this.buildLiveliness(env, buildings, toScene, terrain, nearest);
     g.add(lively.group);
+    this.showCrowds();
     const trees: number[] = [];
     for (let i = 0; i < env.trees.length; i += 2) {
       const p = toScene(env.trees[i], env.trees[i + 1]);
@@ -1930,10 +1959,30 @@ export class World {
     this.sun.shadow.map?.dispose();
     this.sun.shadow.map = null;
     this.bloom.enabled = q.bloom;
-    this.envGroup?.traverse((o) => {
-      if ((o as THREE.InstancedMesh).isInstancedMesh && !q.crowds) o.visible = false;
-    });
+    if (!q.shadows && this.renderer.shadowMap.enabled) {
+      this.renderer.shadowMap.enabled = false;
+      // Materials compiled with shadows must be built again without them.
+      this.scene.traverse((o) => {
+        const m = (o as THREE.Mesh).material;
+        (Array.isArray(m) ? m : m ? [m] : []).forEach((x) => (x.needsUpdate = true));
+      });
+    }
+    this.showCrowds();
     console.info(`Blind Lap: quality lowered to level ${this.quality} (${q.name})`);
+  }
+
+  /** Spectators are hidden at the lowest quality (a circuit can hold 30,000 of them). */
+  private showCrowds() {
+    const on = QUALITY[this.quality].crowds;
+    this.envGroup?.traverse((o) => {
+      if (o.userData.crowd) o.visible = on;
+    });
+  }
+
+  /** Draw the frame: through the effect passes, or straight to the screen at the lowest quality. */
+  private draw() {
+    if (QUALITY[this.quality].post) this.composer.render();
+    else this.renderer.render(this.scene, this.camera);
   }
 
   /** Watch the time between frames; if the last 90 average over 33 ms (under 30 fps), lower
@@ -1953,7 +2002,7 @@ export class World {
   update(dt: number, speedKmh = 0, braking = false) {
     this.watchFrames();
     if (!this.frame) {
-      this.composer.render();
+      this.draw();
       return;
     }
     const p = this.carPointAt(this.carS);
@@ -2087,7 +2136,7 @@ export class World {
       this.camera.fov = this.fov;
       this.camera.updateProjectionMatrix();
     }
-    this.composer.render();
+    this.draw();
   }
 
   /** One 4096 shadow map over a whole circuit is about 0.6 m a pixel, too coarse for a car to cast

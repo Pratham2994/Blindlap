@@ -469,6 +469,7 @@ export function standsGroup(
   }
   if (crowd.length) {
     const mesh = new THREE.InstancedMesh(spectator(), people, crowd.length);
+    mesh.userData.crowd = true; // hidden at the lowest quality
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion();
     const one = new THREE.Vector3(1, 1, 1);

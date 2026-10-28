@@ -13,7 +13,7 @@ const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--ena
 async function shoot(width, height, prefix) {
   const page = await browser.newPage({ viewport: { width, height } });
   await page.addInitScript((t) => {
-    localStorage.setItem("blindlap.speed.v1", "4"); localStorage.setItem("blindlap.intro.v1", "1");
+    localStorage.setItem("blindlap.speed.v1", "4"); localStorage.setItem("blindlap.intro.v1", "1"); localStorage.setItem("blindlap.quality.v1", "0");
     localStorage.setItem("blindlap.theme.v1", t);
   }, theme);
   const wait = (ms) => page.waitForTimeout(ms);

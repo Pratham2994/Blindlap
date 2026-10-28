@@ -11,7 +11,7 @@ const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--ena
 const context = await browser.newContext({ viewport: size, recordVideo: { dir: tmp, size } });
 await context.addInitScript(() => {
     localStorage.setItem("blindlap.speed.v1", "2");
-    localStorage.setItem("blindlap.intro.v1", "1");
+    localStorage.setItem("blindlap.intro.v1", "1"); localStorage.setItem("blindlap.quality.v1", "0");
   });
 const page = await context.newPage();
 const wait = (ms) => page.waitForTimeout(ms);

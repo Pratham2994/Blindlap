@@ -5,7 +5,10 @@ import { chromium } from "@playwright/test";
 const [key, s, mode, out] = process.argv.slice(2);
 const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-await page.addInitScript(() => localStorage.setItem("blindlap.intro.v1", "1"));
+await page.addInitScript(() => {
+  localStorage.setItem("blindlap.intro.v1", "1");
+  localStorage.setItem("blindlap.quality.v1", "0");
+});
 await page.goto(`http://localhost:5173/#/play/${key}`);
 await page.locator(".evidence .t").filter({ hasText: /^T\d+/ }).waitFor({ timeout: 120000 });
 await page.keyboard.press("Space");
