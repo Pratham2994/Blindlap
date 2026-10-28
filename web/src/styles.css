@@ -1146,23 +1146,24 @@ a.mode.quick:hover p {
 
 .hint-buttons {
   display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .hint-buttons button {
-  flex: 1;
-  display: grid;
-  justify-items: center;
-  gap: 2px;
+  flex: 1 1 auto;
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 3px;
   min-width: 0;
+  white-space: nowrap;
   border: 2px solid var(--ink);
   background: var(--paper);
-  padding: 5px 2px 4px;
+  padding: 6px 2px;
   font-weight: 800;
-  font-variation-settings: "wdth" 112;
+  font-variation-settings: "wdth" 100;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
   font-size: 0.6rem;
   /* A bar along the bottom shows how much each hint gives away, small to big. */
   background-image: linear-gradient(var(--red), var(--red));
@@ -1172,7 +1173,7 @@ a.mode.quick:hover p {
 }
 
 .hint-buttons button small {
-  font-size: 0.66rem;
+  font-size: 0.6rem;
   font-weight: 700;
   color: var(--ink-3);
   letter-spacing: 0;

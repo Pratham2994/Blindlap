@@ -40,10 +40,63 @@ for (const n of g.nodes) {
   if (n.name === "Car.001_1") n.name = "axle_a";
   if (n.name === "Car.002_2") n.name = "axle_b";
 }
-g.buffers[0].uri = "car.bin";
-g.asset.extras = { ...(g.asset.extras ?? {}), note: "Textures removed and materials flattened for Blind Lap." };
+// Repack the geometry at half the size: texture coordinates are no longer used (the textures are
+// gone), indices fit in 16 bits, and normals keep enough precision in 8 bits a component
+// (KHR_mesh_quantization, which three.js reads without any extra decoder).
+const bin = readFileSync(join(src, "scene.bin"));
+const view = (acc) => {
+  const bv = g.bufferViews[acc.bufferView];
+  const offset = (bv.byteOffset ?? 0) + (acc.byteOffset ?? 0);
+  const comps = { SCALAR: 1, VEC2: 2, VEC3: 3 }[acc.type];
+  const Type = { 5126: Float32Array, 5125: Uint32Array, 5123: Uint16Array }[acc.componentType];
+  const stride = bv.byteStride ? bv.byteStride / Type.BYTES_PER_ELEMENT : comps;
+  const src = new Type(bin.buffer, bin.byteOffset + offset, (acc.count - 1) * stride + comps);
+  const out = new Type(acc.count * comps);
+  for (let i = 0; i < acc.count; i++) for (let c = 0; c < comps; c++) out[i * comps + c] = src[i * stride + c];
+  return out;
+};
+const chunks = [];
+let length = 0;
+const views = [];
+const accessors = [];
+const push = (bytes, target, stride) => {
+  const pad = (4 - (length % 4)) % 4;
+  if (pad) chunks.push(Buffer.alloc(pad));
+  length += pad;
+  views.push({ buffer: 0, byteOffset: length, byteLength: bytes.byteLength, target, ...(stride ? { byteStride: stride } : {}) });
+  chunks.push(Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength));
+  length += bytes.byteLength;
+  return views.length - 1;
+};
+for (const mesh of g.meshes) {
+  for (const prim of mesh.primitives) {
+    const posAcc = g.accessors[prim.attributes.POSITION];
+    const pos = view(posAcc);
+    accessors.push({ bufferView: push(pos, 34962), componentType: 5126, count: posAcc.count, type: "VEC3", min: posAcc.min, max: posAcc.max });
+    const posIndex = accessors.length - 1;
+    const nrmAcc = g.accessors[prim.attributes.NORMAL];
+    const nrm = view(nrmAcc);
+    const packed = new Int8Array(nrmAcc.count * 4); // 4-byte aligned vertices
+    for (let i = 0; i < nrmAcc.count; i++) for (let c = 0; c < 3; c++) packed[i * 4 + c] = Math.round(Math.max(-1, Math.min(1, nrm[i * 3 + c])) * 127);
+    accessors.push({ bufferView: push(packed, 34962, 4), componentType: 5120, normalized: true, count: nrmAcc.count, type: "VEC3" });
+    const nrmIndex = accessors.length - 1;
+    const idxAcc = g.accessors[prim.indices];
+    const idx = view(idxAcc);
+    const small = posAcc.count <= 65535;
+    const indices = small ? Uint16Array.from(idx) : idx;
+    accessors.push({ bufferView: push(indices, 34963), componentType: small ? 5123 : 5125, count: idxAcc.count, type: "SCALAR" });
+    prim.attributes = { POSITION: posIndex, NORMAL: nrmIndex };
+    prim.indices = accessors.length - 1;
+  }
+}
+g.accessors = accessors;
+g.bufferViews = views;
+g.buffers = [{ uri: "car.bin", byteLength: length }];
+g.extensionsUsed = [...new Set([...(g.extensionsUsed ?? []), "KHR_mesh_quantization"])];
+g.extensionsRequired = [...new Set([...(g.extensionsRequired ?? []), "KHR_mesh_quantization"])];
+g.asset.extras = { ...(g.asset.extras ?? {}), note: "Textures removed, materials flattened and geometry repacked for Blind Lap." };
 
 writeFileSync(new URL("car.gltf", out), JSON.stringify(g));
-copyFileSync(join(src, "scene.bin"), new URL("car.bin", out));
+writeFileSync(new URL("car.bin", out), Buffer.concat(chunks));
 copyFileSync(join(src, "license.txt"), new URL("LICENSE.txt", out));
 console.log("wrote", out.pathname);
