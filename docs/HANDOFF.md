@@ -82,8 +82,10 @@ These are the most important things to get right. They come from many correction
 - **First lap ever:** a rules card with a Start button; after that the lights start at once.
 - **Play:** start lights, the lap in 3D; five cameras (Chase, Onboard, Side, TV, Above; C cycles;
   drag to look around; double-click resets); live track map (top right of the view); the models'
-  grid with a three-model switch (Blend, Boosted trees, Logistic); hints (driving style, team, car
-  number; each costs a point: right = 3, then 2, then 1); telemetry band with a seekable lap bar
+  grid with a three-model switch (Blend, Boosted trees, Logistic); a hint ladder from a small nudge
+  to nearly the answer (qualifying result band, career length, driving style, team, car number;
+  costs 1, 1, 1, 2, 3 off a right guess worth 5, never below 1; a teammate scores 2); a "What's
+  real" button that says what is data and what is drawn; telemetry band with a seekable lap bar
   (drag, −5/+5 s, arrow keys); evidence line per corner; pause, 1x/2x/4x, sound and volume.
 - **End of lap:** a chequered "Lap complete" card for 1.5 s, then the reveal panel arrives in steps.
 - **Reveal:** team-colour field, verdicts with points, name, team, lap time, date, Q segment and
@@ -95,8 +97,12 @@ These are the most important things to get right. They come from many correction
 ### 3.1 The 3D scene
 - Track from the car's own position data; heights smoothed; bridges lifted where the track crosses
   itself (Suzuka); roads narrowed where two sections run side by side (Baku).
-- Racing line: minimum-curvature line per circuit, wheels right out to the white line near corners
-  but never on the kerb; each lap shifts its apexes by that lap's real measured apex (`apex_offset`).
+- Racing line: minimum-curvature line per circuit, reshaped per lap from that lap's real corners
+  (`lineShape` in `world.ts`): later braking turns in later, the real apex moves the apex, earlier
+  full throttle straightens the exit, more apex speed than the field swings a fuller arc. Only that
+  fuller arc may run onto the inside kerb (never past its 1.6 m), and then the car rides up on it
+  (lift, roll, ridges). Worked out once per lap at every track point and smoothed (`buildLapLine`).
+  The duel rival drives its own lap's line.
 - Car: "( FREE ) Formula One LP-830 SDC" (CC BY 4.0), repainted: plain while the driver is hidden,
   team colour after; neutral driver figure; contact shadow and a car-following shadow map.
 - Surroundings from OpenStreetMap for all 26 circuits: buildings (real footprint, height, colour),
@@ -154,10 +160,19 @@ Mechanisms to know before changing anything:
 - **Nothing may touch the track:** `TrackClearance` pulls every footprint back to 13 m from the
   centreline (fence at ~11 m); trees, seats and wheels likewise. The ground is capped below every
   road. `web/scripts/track-check.mjs` verifies all of it on all sessions.
-- **Adaptive quality:** starts lower on small devices and steps down by itself (pixel ratio,
-  shadow size, bloom, crowds) while frames stay over 33 ms.
+- **Adaptive quality:** four levels (`QUALITY` in `world.ts`). It starts lower on small devices,
+  integrated or phone graphics, and at the lowest on a software renderer (`startQuality`), then
+  steps down by itself while frames stay over 33 ms. The lowest level draws straight to the screen
+  (no effect passes), with no shadows and no spectators. `localStorage["blindlap.quality.v1"]`
+  forces a level; the screenshot scripts set 0, since headless Chromium is a software renderer.
+  Tests and the sweep run at the lowest level for the same reason.
 - **Ground texture** is drawn once in light colours (2048 px) and tinted for dark/night, so theme
-  switches cost nothing.
+  switches cost nothing. Close-up detail (patches, grain, mowing stripes on grass verges) is made in
+  the shader from the world position (`groundDetail`): no texture memory, no tiling.
+- **Dark theme sky:** a daytime race in the dark theme is a deep blue evening (`EVENING`), not a
+  black void; night races keep their night sky.
+- **Car reflections:** the paint reflects a small sky-and-ground image made from the current palette
+  (`refreshReflections`), rebuilt when the sky changes.
 
 ---
 

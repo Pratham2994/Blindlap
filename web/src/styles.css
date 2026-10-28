@@ -2523,6 +2523,29 @@ figcaption {
   }
 }
 
+/* "Next lap": the last lap's screen stays while the next one loads, with a note on its view. */
+.play.next-loading .stage-frame::after {
+  content: "Loading the next lap…";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 6;
+  transform: translate(-50%, -50%);
+  padding: 12px 18px;
+  background: var(--paper);
+  border: var(--rule);
+  font-weight: 800;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  animation: arrive-fade 0.25s var(--ease-out) both;
+}
+
+.play.next-loading .band .actions {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
 /* The chequered flag at the end of the lap. */
 .flag-card {
   position: absolute;

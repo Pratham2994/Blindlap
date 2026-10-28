@@ -35,10 +35,10 @@ export function howView(index: Index, report: Report): HTMLElement {
     <ol class="pipeline">
       <li><b>Download</b><span>Car telemetry (speed, throttle, brake, gear, RPM, DRS, about 3.7 samples a second), car position in 3D (about 4 a second) and team radio come from the public OpenF1 API. Corner positions come from MultiViewer's circuit maps.</span></li>
       <li><b>One line per circuit</b><span>The fastest lap's position samples become a smooth closed spline. Every sample of every lap is projected onto it, so 1,200 m means the same spot on track for every driver. Laps that spin, cut or lose data are dropped.</span></li>
-      <li><b>Corner zones</b><span>The lap is split into one zone per corner. In each zone we measure where braking starts, how long it lasts, entry speed, minimum speed and where it happens, how soon the driver is back to full throttle, the deepest lift, and how far they coast.</span></li>
+      <li><b>Corner zones</b><span>The lap is split into one zone per corner. In each zone we measure where braking starts, how long it lasts, entry speed, minimum speed and where it happens, how soon the driver is back to full throttle, how sharply and how smoothly they open it, the deepest lift, and how far they coast.</span></li>
       <li><b>Against the field</b><span>Each measurement becomes a robust z-score against every other push lap at the same corner in the same session. "Braked 9 m later than the field" survives a change of circuit; "braked at 112 m" does not.</span></li>
       <li><b>Corner type</b><span>Corners are sorted into slow, medium and fast by the field's apex speed, and features go into a separate block per type. Drivers do not brake for a hairpin the way they lift for a sweeper.</span></li>
-      <li><b>Model</b><span>A multinomial logistic regression gives P(driver | corner). A lap's guess adds up the log-probabilities of its corners, divided by a temperature of ${lr.tau.toFixed(1)} learnt on held-out laps, because the corners of one lap are not independent witnesses.</span></li>
+      <li><b>Models</b><span>Three classifiers (boosted trees, a random forest and a logistic regression) each give P(driver | corner), and a blend averages them. A lap's guess adds up the log-probabilities of its corners, divided by a temperature of ${lr.tau.toFixed(1)} learnt on held-out laps, because the corners of one lap are not independent witnesses.</span></li>
     </ol>
 
     ${
@@ -92,6 +92,11 @@ export function howView(index: Index, report: Report): HTMLElement {
     <figure class="confusion"><canvas width="760" height="760" aria-label="Confusion matrix of true driver against model guess"></canvas>
       <figcaption>Rows are the real driver, columns the model's first guess. A bright diagonal is a driver with a clear style. Bright squares off the diagonal are drivers who look alike in this data, often teammates in the same car.</figcaption>
     </figure>
+
+    <h2>What is real, and what is drawn</h2>
+    <p><strong>Real, from the car:</strong> speed, gear, throttle, brake and the time at every point of the lap, so where the car brakes, how slow it goes at each apex, when it is back on the power and the lap time are all as driven. The models read only these.</p>
+    <p><strong>Drawn:</strong> where across the road the car drives. OpenF1 snaps every car's position to one line, so the data has no line per driver. Each circuit gets a minimum-curvature racing line, and each lap reshapes it from how that lap really took every corner: a later braking point turns in later, the real slowest point moves the apex, an earlier full throttle straightens the exit, and more apex speed than the field swings a fuller arc that may run onto the inside kerb (then the car rides up on it). It is a picture of the real numbers, not a measurement of the line.</p>
+    <p><strong>The surroundings</strong> come from OpenStreetMap: real buildings, stands, water and trees, with extra stands and boards only where the map has little.</p>
 
     <h2>What it cannot see</h2>
     <p>At 300 km/h a car covers about 22 m between telemetry samples, so a single braking point is only known to about ±11 m. The model works because the error averages out over many corners and many laps. It also cannot fully separate the driver from the car: a faster car carries more apex speed whoever drives it. Teammates in the same car are the honest test, and the matrix above shows where it passes and fails.</p>

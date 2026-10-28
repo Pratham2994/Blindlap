@@ -11,7 +11,7 @@ import { Guesser } from "../model";
 import type { CameraMode, World } from "../scene/world";
 import { icons } from "./icons";
 import { Lineup } from "./lineup";
-import { dockStage } from "./stage";
+import { dockStage, stageDocked } from "./stage";
 import { Minimap } from "./minimap";
 import { Telemetry } from "./telemetry";
 
@@ -155,6 +155,7 @@ export class PlayView {
   };
 
   private nextKey: number | null = null;
+  private starting = false; // a round is loading: a second "Next lap" waits for it
 
   constructor(
     private world: World,
@@ -187,14 +188,32 @@ export class PlayView {
   }
 
   private async newRound() {
+    if (this.starting) return;
+    this.starting = true;
+    try {
+      await this.loadRound();
+    } finally {
+      this.starting = false;
+    }
+  }
+
+  private async loadRound() {
     this.phase = "loading";
     this.paused = false;
     this.radio?.pause();
     this.radio = null;
-    this.root.dataset.phase = "loading";
-    // Park the canvas first: clearing the view while it is inside would take it off the page.
-    dockStage(null);
-    this.root.innerHTML = `<p class="loading caps">Loading a lap…</p>`;
+    // The first round starts from an empty page. After that the last lap's screen stays up, with a
+    // note on its 3D view, until the next lap is ready: clearing it showed a bare page in between.
+    const first = !this.root.querySelector(".stage-frame");
+    if (first) {
+      this.root.dataset.phase = "loading";
+      // Park the canvas first: clearing the view while it is inside would take it off the page.
+      dockStage(null);
+      this.root.innerHTML = `<p class="loading caps">Loading a lap…</p>`;
+    } else {
+      this.root.classList.add("next-loading");
+      this.root.querySelector(".hints")?.classList.add("done");
+    }
     const sessions = this.index.sessions;
     // A challenge link plays its lap first; after that the rounds are random again.
     const planned = this.challenge ?? undefined;
@@ -215,6 +234,8 @@ export class PlayView {
       // The surroundings come with the lap, so stands and buildings appear with the track.
       [this.session] = await Promise.all([loadSession(summary.key), prefetchSurroundings(summary.key)]);
     } catch (e) {
+      dockStage(null);
+      this.root.classList.remove("next-loading");
       this.root.innerHTML = `<div class="error"><p>Couldn't load ${summary.circuit}: ${(e as Error).message}.</p><a class="btn" href="#/">Back to menu</a></div>`;
       return;
     }
@@ -250,6 +271,9 @@ export class PlayView {
     this.world.mode = "chase";
     this.world.snapCamera();
     document.body.classList.add("playing");
+    // buildHud replaces the page: park the canvas first so it is not taken off it.
+    dockStage(null);
+    this.root.classList.remove("next-loading");
     this.buildHud();
     // The first lap of a visitor's life starts with the rules and a button; after that the
     // lights go straight away, with one line of reminder.
@@ -591,7 +615,11 @@ export class PlayView {
 
   /** Called every animation frame by the app. */
   frame(dt: number) {
-    if (this.phase === "loading") return;
+    if (this.phase === "loading") {
+      // The last lap's view stays on screen while the next one loads: keep it moving.
+      if (stageDocked()) this.world.update(dt, 0);
+      return;
+    }
     if (this.phase === "lights") {
       const now = performance.now();
       const lit = Math.min(5, Math.floor((now - this.lightsAt) / 700));

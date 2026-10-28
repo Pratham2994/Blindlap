@@ -452,6 +452,9 @@ export class World {
   private pulses: { mesh: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>; age: number }[] = [];
   private ghost: THREE.Group;
   private carLight: THREE.PointLight;
+  // The sky and ground the car's paint reflects, made from the current palette (refreshReflections).
+  private pmrem: THREE.PMREMGenerator | null = null;
+  private reflections: THREE.WebGLRenderTarget | null = null;
   private sun: THREE.DirectionalLight;
   private line: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial> | null = null;
   private labels: { sprite: THREE.Sprite; n: number | string; s: number; aspect: number; read: boolean; note?: string }[] = [];
@@ -585,6 +588,7 @@ export class World {
         this.ghostWheels = b.wheels;
         if (this.liveryHidden) this.hideLivery();
         else this.setCarColours(...this.carColours);
+        this.applyReflections();
       })
       .catch((e) => console.warn("Car model not loaded; keeping the built car.", e));
     this.ghost.visible = false;
@@ -1236,6 +1240,60 @@ export class World {
       this.groundMat.needsUpdate = true;
     }
     this.groundMat?.color.setScalar(dark ? GROUND_DIM : 1);
+    this.refreshReflections(p, night);
+  }
+
+  /** A small image of the sky over the ground, with the sun in it, for the car to reflect: glossy
+   * paint that mirrors the sky reads as a real car, flat paint as a toy. Made again whenever the
+   * sky changes (theme, time of day), which takes a few milliseconds. */
+  private refreshReflections(p: { zenith: THREE.Vector3; horizon: THREE.Vector3 }, night: boolean) {
+    this.pmrem ??= new THREE.PMREMGenerator(this.renderer);
+    const toColor = (v: THREE.Vector3) => new THREE.Color().setRGB(v.x, v.y, v.z, THREE.LinearSRGBColorSpace);
+    const mat = new THREE.ShaderMaterial({
+      side: THREE.BackSide,
+      uniforms: {
+        uTop: { value: toColor(p.zenith) },
+        uHorizon: { value: toColor(p.horizon).multiplyScalar(1.1) },
+        uGround: { value: this.hemi.groundColor.clone().multiplyScalar(0.35) },
+        uSun: { value: SUN_DIR },
+        uSunColor: { value: this.sun.color.clone().multiplyScalar(night ? 0 : this.sun.intensity * 4) },
+      },
+      vertexShader: /* glsl */ `
+        varying vec3 vDir;
+        void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      fragmentShader: /* glsl */ `
+        uniform vec3 uTop, uHorizon, uGround, uSun, uSunColor;
+        varying vec3 vDir;
+        void main() {
+          float y = vDir.y;
+          vec3 c = y > 0.0 ? mix(uHorizon, uTop, smoothstep(0.0, 0.55, y)) : mix(uHorizon, uGround, smoothstep(0.0, -0.12, y));
+          c += uSunColor * pow(max(dot(vDir, uSun), 0.0), 300.0);
+          gl_FragColor = vec4(c, 1.0);
+        }`,
+    });
+    const scene = new THREE.Scene();
+    const sphere = new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16), mat);
+    scene.add(sphere);
+    const next = this.pmrem.fromScene(scene, 0, 0.1, 100);
+    sphere.geometry.dispose();
+    mat.dispose();
+    this.reflections?.dispose();
+    this.reflections = next;
+    this.applyReflections();
+  }
+
+  /** Give the car's paint, carbon and rims the sky to reflect (both cars). */
+  private applyReflections() {
+    const env = this.reflections?.texture ?? null;
+    if (!this.car || !this.ghost) return; // the palette can be set before the cars exist
+    for (const g of [this.car, this.ghost])
+      g.traverse((o) => {
+        const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+        if (!m || !(m as THREE.MeshStandardMaterial).isMeshStandardMaterial) return;
+        if (!m.envMap !== !env) m.needsUpdate = true;
+        m.envMap = env;
+        m.envMapIntensity = m.userData.paint ? 0.9 : 0.5;
+      });
   }
 
   /** Raised asphalt strip with rubber sides, following the real elevation. */

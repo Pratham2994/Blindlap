@@ -192,7 +192,7 @@ export class DnaView {
       ${d.tells?.length ? `<p class="caps tells-h">What gives ${d.code} away</p><ul class="tells">${d.tells.map((t) => `<li>${t.charAt(0).toUpperCase() + t.slice(1)}</li>`).join("")}</ul>` : ""}
       <p class="near">Drives most like <b>${d.neighbours.join("</b>, <b>")}</b>. The centre line is the field average; bars are scaled so the most extreme driver on each trait reaches the edge.</p>
       <label class="caps jump">Jump to
-        <select style="margin-top:6px;width:100%;padding:10px;border-radius:12px;background:var(--rubber-3);color:var(--ink);border:0;font:inherit;text-transform:none;letter-spacing:0">${options}</select>
+        <select>${options}</select>
       </label>`;
     this.panel.querySelector("select")!.addEventListener("change", (e) => this.select((e.target as HTMLSelectElement).value));
   }
