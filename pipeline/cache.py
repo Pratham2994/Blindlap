@@ -5,6 +5,7 @@ is read once, when a session is built. The weekly update (.github/workflows/data
 on the data-cache branch of this repository:
 
     build/*.pkl            processed sessions (training reads all of them)
+    build/*.skip           sessions that cannot be built, so they are not retried every week
     raw/<sk>/*.json        the small per-session files, no car_data_* or location_*
     raw/osm/, raw/f1db/    map downloads and the career database
 
@@ -21,7 +22,7 @@ SMALL = ("session.json", "drivers.json", "laps.json", "team_radio.json", "weathe
 
 def pairs(cache: Path):
     """(path in the pipeline, path in the cache) for every carried file."""
-    for p in sorted((ROOT / "build").glob("*.pkl")):
+    for p in sorted((ROOT / "build").glob("*.pkl")) + sorted((ROOT / "build").glob("*.skip")):
         yield p, cache / "build" / p.name
     for d in sorted((ROOT / "raw").iterdir()):
         if d.is_dir() and d.name.isdigit():

@@ -50,7 +50,8 @@ jobs:
         id: new
         working-directory: pipeline
         run: |
-          N=$(python -c "from pathlib import Path; print(sum(1 for p in Path('raw').iterdir() if p.name.isdigit() and any(p.glob('location_*.json')) and not Path('build', p.name + '.pkl').exists()))")
+          # The same rule as build.py --new: telemetry on disk, no build yet, not marked unbuildable.
+          N=$(python -c "from pathlib import Path; print(sum(1 for p in Path('raw').iterdir() if p.name.isdigit() and (p / 'circuit.json').exists() and any(p.glob('location_*.json')) and not any(Path('build', p.name + x).exists() for x in ('.pkl', '.skip'))))")
           echo "sessions=$N" >> "$GITHUB_OUTPUT"
           echo "$N new sessions"
       - name: Rebuild models and game data
@@ -68,11 +69,17 @@ jobs:
           # Commits carry the owner's own name only.
           git config --global user.name "Pratham2994"
           git config --global user.email "prathampanchal02994@gmail.com"
+          # The site data goes first. The cache is updated only once that push has landed: a cache
+          # that already lists the new sessions as built, with no data on master, would make next
+          # week's run see nothing new and the update would never reach the site.
+          git add web/public/data pipeline/model_out docs/alignment
+          if ! git diff --cached --quiet; then
+            git commit -q -m "Data update: ${{ steps.new.outputs.sessions }} new sessions"
+            # master may have moved during the long run; put this one commit on top of it.
+            git pull -q --rebase origin master
+            git push origin master
+            # A push made by this workflow does not start other workflows, so start the deploy.
+            gh workflow run pages.yml --ref master
+          fi
           python pipeline/cache.py pack cache
           (cd cache && git add -A && git diff --cached --quiet || (git commit -q -m "Pipeline cache: ${{ steps.new.outputs.sessions }} new sessions" && git push origin data-cache))
-          git add web/public/data pipeline/model_out docs/alignment
-          git diff --cached --quiet && exit 0
-          git commit -q -m "Data update: ${{ steps.new.outputs.sessions }} new sessions"
-          git push origin master
-          # A push made by this workflow does not start other workflows, so start the deploy.
-          gh workflow run pages.yml --ref master

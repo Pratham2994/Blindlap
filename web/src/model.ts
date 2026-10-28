@@ -1,5 +1,6 @@
-// The in-browser half of the model. pipeline/model.py trains one logistic regression per held-out
-// session; this file runs it corner by corner and turns each step into a sentence a fan can read.
+// The in-browser half of the model. No model runs here: pipeline/model.py scores every corner of
+// every lap offline with models that never saw that circuit, and the lap carries those scores. This
+// file replays them corner by corner and turns each step into a sentence a fan can read.
 import type { Index, LapData, Session } from "./data";
 
 export interface Guess {

@@ -77,23 +77,23 @@ web/  Vite + TypeScript + Three.js + Web Audio
 
 ## Results
 
-Leave-one-circuit-out over 40 qualifying sessions (23 from 2025, 17 from 2026), 3,669 laps, 24
+Leave-one-circuit-out over 41 qualifying sessions (23 from 2025, 18 from 2026), 3,759 laps, 24
 drivers. Read live from `pipeline/model_out/report.json` and shown on the How it knows page.
 
 | Model | Top-1 driver | Top-3 driver | Right team | Right teammate |
 |---|---|---|---|---|
-| Chance | 4.2% | 12.6% | about 9% | 50% |
+| Chance | 4.2% | 12.5% | about 9% | 50% |
 | Blend of the three below | **46.6%** | **74.1%** | **60.8%** | **74.9%** |
 | Gradient-boosted trees | 43.7% | 73.2% | 59.2% | 74.0% |
 | Random forest (in the blend only) | 42.2% | 70.7% | 58.4% | 71.7% |
 | Logistic regression | 35.0% | 64.0% | 50.3% | 71.1% |
-| Cross-season (logistic): trained on 2025 only, tested on 2026 laps | 25.4% | 55.6% | 40.3% | |
+| Cross-season (logistic): trained on 2025 only, tested on 2026 laps | 25.7% | 55.4% | 40.3% | |
 
 - The blend is right about 10 times as often as picking at random, on circuits it never saw.
-- **Style survives new cars.** Trained only on 2025, it still names the driver of a 2026 lap 25% of the
+- **Style survives new cars.** Trained only on 2025, it still names the driver of a 2026 lap 26% of the
   time against 5% chance, under new regulations and, for some drivers, a new team.
 - **It is not just recognising the car.** Given the car, the models pick the right one of the two
-  teammates on 70 to 74% of laps (chance 50%). Two drivers, same car, same
+  teammates on 71 to 75% of laps (chance 50%). Two drivers, same car, same
   session: what is left is how they drive. The confusion matrix still shows the model often finds the
   car before the driver, and the easiest drivers to spot include those in the most unusual cars.
 - The trees win because driving style is not additive: braking late matters more in a slow corner

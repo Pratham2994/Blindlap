@@ -11,6 +11,14 @@ from track import RAW, build_lap, driver_channels, driver_positions, load, push_
 OUT = Path(__file__).parent / "build"
 
 
+def mark_skipped(sk: int, why: str):
+    """Remember a session that cannot be built, so the weekly update does not retry it (and retrain)
+    every Monday. Delete build/<sk>.skip to try it again."""
+    OUT.mkdir(exist_ok=True)
+    (OUT / f"{sk}.skip").write_text(why + "\n", encoding="utf-8")
+    print(f"skip {sk}: {why}")
+
+
 def detect_corners(lap, min_drop=25.0, min_gap=160.0):
     """Corners as speed minima that follow a real slowdown, numbered in lap order. This finds every
     corner the driver brakes or lifts for; flat-out kinks are not corners for our features anyway."""
@@ -35,14 +43,12 @@ def process(sk: int):
     circuit = load(sk, "circuit")
     drivers = {d["driver_number"]: d for d in load(sk, "drivers")}
     if not laps:
-        print(f"skip {sk}: no lap timing")
-        return
+        return mark_skipped(sk, "no lap timing")
     if not isinstance(circuit, dict):
         circuit = {}
     cl, ref = session_centreline(sk, laps)
     if cl is None:
-        print(f"skip {sk}: no clean reference lap")
-        return
+        return mark_skipped(sk, "no clean reference lap")
 
     built = []
     cache = {}
@@ -59,8 +65,7 @@ def process(sk: int):
         if b is not None:
             built.append(b)
     if len(built) < 20:
-        print(f"skip {sk}: only {len(built)} usable laps")
-        return
+        return mark_skipped(sk, f"only {len(built)} usable laps")
 
     if circuit.get("corners"):
         corner_xy = np.array([[c["trackPosition"]["x"], c["trackPosition"]["y"]] for c in circuit["corners"]]) / 10
@@ -90,11 +95,12 @@ def process(sk: int):
 
 
 def main():
-    # --new: only sessions with telemetry on disk and no build yet (the weekly update).
+    # --new: only sessions with telemetry on disk, no build yet and not marked as unbuildable.
     if sys.argv[1:] == ["--new"]:
         keys = sorted(
             int(p.name) for p in RAW.iterdir()
             if (p / "circuit.json").exists() and any(p.glob("location_*.json")) and not (OUT / f"{p.name}.pkl").exists()
+            and not (OUT / f"{p.name}.skip").exists()
         )
         print(f"{len(keys)} new sessions to build: {keys}")
     else:
@@ -103,7 +109,7 @@ def main():
         try:
             process(sk)
         except Exception as e:  # one bad session should not stop the season
-            print(f"fail {sk}: {e!r}")
+            mark_skipped(sk, f"failed: {e!r}")
 
 
 if __name__ == "__main__":

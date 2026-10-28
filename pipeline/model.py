@@ -1,11 +1,12 @@
 """Train and honestly evaluate the "who is driving?" model.
 
-Each corner of a lap is one sample. A multinomial logistic regression turns a corner's style
-features into P(driver | corner). A lap's guess is the product over corners (naive Bayes over
+Each corner of a lap is one sample. Three classifiers (gradient-boosted trees, a random forest and a
+multinomial logistic regression, plus a blend of the three) turn a corner's style features into
+P(driver | corner). A lap's guess is the product over corners (naive Bayes over
 corners), softened by a temperature because corners of one lap are not independent.
 
 Evaluation is leave-one-circuit-out: the model that guesses laps at Monza never saw Monza, in any year. The
-browser uses exactly these per-session folds, so the game is as honest as the report.
+game replays exactly these held-out per-corner scores, so it is as honest as the report.
 """
 import json
 import pickle
@@ -39,7 +40,7 @@ def team(sess, num):
 
 
 def corner_rows(sess):
-    """Rows for every (lap, corner): X (n x 24), lap index, label."""
+    """Rows for every (lap, corner): X (n x 30), lap index, label."""
     X, lap_idx, y = [], [], []
     for i, lap in enumerate(sess["laps"]):
         for c, cls in enumerate(sess["classes"]):
