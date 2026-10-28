@@ -2054,6 +2054,132 @@ a.mode.quick:hover p {
   line-height: 1.55;
 }
 
+/* Teammate battles */
+.battle-years {
+  margin-bottom: 18px;
+}
+
+.battle-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gutter);
+}
+
+.team {
+  border: var(--rule);
+  border-top: 10px solid var(--team);
+  padding: 14px 16px 16px;
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.team h2 {
+  margin: 0;
+  color: var(--ink-3);
+}
+
+.pair {
+  display: grid;
+  gap: 8px;
+}
+
+.pair .score {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: end;
+  gap: 12px;
+}
+
+.pair .who {
+  display: grid;
+  min-width: 0;
+}
+
+.pair .who.right {
+  text-align: right;
+}
+
+.pair .who b {
+  font-weight: 900;
+  font-variation-settings: "wdth" 125;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.pair .who small {
+  color: var(--ink-3);
+  font-size: 0.78rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pair .tally {
+  font-size: 2rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.pair .tally i {
+  margin: 0 6px;
+  font-style: normal;
+  color: var(--ink-3);
+}
+
+.pair .split {
+  height: 8px;
+  background: var(--paper-3);
+}
+
+.pair .split i {
+  display: block;
+  height: 100%;
+}
+
+.pair .gap {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 0.86rem;
+}
+
+.pair .cells {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.pair .cell {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--ink);
+}
+
+.pair .cell.a {
+  background: var(--ink);
+}
+
+.pair .cell:hover {
+  outline: 2px solid var(--red);
+  outline-offset: 1px;
+}
+
+.pair.minor {
+  padding-top: 10px;
+  border-top: var(--hair);
+}
+
+.pair.minor .who b,
+.pair.minor .tally {
+  font-size: 1.1rem;
+}
+
+@media (max-width: 860px) {
+  .battle-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .dna-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) clamp(280px, 26vw, 360px);

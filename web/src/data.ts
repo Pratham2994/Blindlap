@@ -209,6 +209,18 @@ export const prefetchSurroundings = (key: number) =>
   loadEnvIndex()
     .then((index) => (index[String(key)] ? loadEnv(index[String(key)].env) : null))
     .catch(() => null);
+/** Teammate qualifying head-to-heads per season (pipeline/battles.py). gap: first driver minus second,
+ * in seconds, in the furthest segment both set a time in. */
+export interface BattlePair {
+  drivers: { code: string; name: string }[];
+  score: [number, number];
+  medianGap: number | null;
+  rounds: { key: number; circuit: string; date: string; pos: (number | null)[]; seg: string | null; gap: number | null; winner: string }[];
+}
+export interface Battles {
+  seasons: Record<string, { team: string; colour: string; pairs: BattlePair[] }[]>;
+}
+export const loadBattles = () => get<Battles>("battles.json");
 export const loadCareers = () => get<Careers>("careers.json").catch((): Careers => ({ source: "", drivers: {} }));
 
 /** "73 wins · 50 poles · 4 titles", dropping zero counts after the first. */

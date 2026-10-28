@@ -2,7 +2,7 @@ import "./styles.css";
 import * as THREE from "three";
 import { EngineSynth } from "./audio/engine";
 import type { Index, ModelReport, Report } from "./data";
-import { loadCareers, loadDna, loadEnvIndex, loadIndex, loadReport, loadSession } from "./data";
+import { loadBattles, loadCareers, loadDna, loadEnvIndex, loadIndex, loadReport, loadSession } from "./data";
 import { LapPlayer } from "./lap";
 import { World } from "./scene/world";
 import type { CameraMode } from "./scene/world";
@@ -250,6 +250,9 @@ async function route() {
       const [dna, careers] = await Promise.all([loadDna(), loadCareers()]);
       const { DnaView } = await import("./ui/dna");
       mount(new DnaView(world, dna, arg ?? null, careers));
+    } else if (name === "battles") {
+      const [{ BattlesView }, battles] = await Promise.all([import("./ui/battles"), loadBattles()]);
+      mount(new BattlesView(battles, arg ?? null));
     } else if (name === "lab") {
       const { LabView } = await import("./ui/lab");
       mount(new LabView(index));

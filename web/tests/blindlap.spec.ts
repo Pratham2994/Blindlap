@@ -246,3 +246,16 @@ test("shootout runs every driver's best lap at once and follows the one you pick
   await expect(page.locator(".shootout-result a")).toHaveAttribute("href", "#/play/9908");
   expect(errors).toEqual([]);
 });
+
+test("teammate battles show each team's qualifying head-to-head and switch season", async ({ page }) => {
+  await page.goto("/#/battles");
+  const teams = page.locator(".team");
+  await expect(teams.first()).toBeVisible({ timeout: 30_000 });
+  expect(await teams.count()).toBeGreaterThan(8);
+  await expect(teams.first().locator(".tally")).toHaveText(/^\d+–\d+$/);
+  // Every session square links to a blind lap at that circuit.
+  await expect(teams.first().locator(".cell").first()).toHaveAttribute("href", /^#\/play\/\d+$/);
+  await page.getByRole("button", { name: "2025" }).click();
+  await expect(page).toHaveURL(/#\/battles\/2025$/);
+  await expect(page.getByRole("button", { name: "2025" })).toHaveAttribute("aria-pressed", "true");
+});

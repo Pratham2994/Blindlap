@@ -17,6 +17,8 @@ session.
   timing tower and each car's gap to the pole lap at that point. Follow any driver: the camera,
   engine and telemetry are theirs.
 - **Challenge link**: send a friend one exact lap, without giving the driver away.
+- **Teammate battles**: each season's qualifying head-to-head inside every team, session by session,
+  with the median gap between their best laps in the same part of qualifying.
 - **Driver DNA**: every driver's corner style projected into 3D, with the habits that give them away.
 - **Telemetry lab**: any session, any two drivers, speed traces and braking overlaid corner by corner.
 - **How it knows**: the method and the evaluation, read from the same report the model produced.

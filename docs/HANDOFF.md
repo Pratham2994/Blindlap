@@ -92,6 +92,10 @@ These are the most important things to get right. They come from many correction
   final position, career totals, how each model ranked the driver, the three corners that gave them
   away, team radio with auto captions; duel replay against the model's pick; challenge link.
 - **Teammates mode**, **Driver DNA** (style map), **Telemetry lab**, **How it knows**.
+- **Teammate battles** (`#/battles/<year>`, `ui/battles.ts`, data from `pipeline/battles.py` into
+  `battles.json`, run by `run_all.sh` after `results.py`): head-to-head per team and season from
+  OpenF1's session results (final position; gap in the furthest segment both reached). Each square
+  links to a blind lap at that session.
 - **Shootout** (`#/shootout/<session>`, `ui/shootout.ts`): every driver's best lap of a session at
   once. Live tower ordered by distance, gap to the pole lap at the same point, follow a driver
   (click a row, or arrow up and down) for the camera, engine and telemetry; flag card at the end

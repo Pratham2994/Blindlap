@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Everything after the download, in order: build new sessions, retrain, export, qualifying
-# results, team radio and captions, careers, real surroundings, then the data checks.
+# results, teammate battles, team radio and captions, careers, real surroundings, then the data checks.
 # Used by hand and by the weekly update (.github/workflows/data.yml).
 # To rebuild every session (after changing features.py or track.py): .venv/Scripts/python.exe build.py
 set -e
@@ -12,6 +12,7 @@ $PY build.py --new 2>&1 | grep -v -e RuntimeWarning -e nanmedian
 $PY model.py
 $PY export.py
 $PY results.py
+$PY battles.py
 # Team radio speech start (needs ffmpeg) and captions (needs faster-whisper); both keep what they
 # already know and only process new clips.
 if command -v ffmpeg >/dev/null; then
