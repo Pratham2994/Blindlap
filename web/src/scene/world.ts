@@ -77,6 +77,14 @@ const NIGHT = {
   zenith: new THREE.Vector3(0.006, 0.006, 0.006),
   horizon: new THREE.Vector3(0.012, 0.012, 0.011),
 };
+// The dark theme at a daytime race: late evening, a deep blue sky that still reads as sky, so the
+// sunlit trees and stands never sit under a black void.
+const EVENING = {
+  background: new THREE.Color("#1b2230"),
+  haze: new THREE.Color().setRGB(0.035, 0.045, 0.07, THREE.LinearSRGBColorSpace),
+  zenith: new THREE.Vector3(0.012, 0.022, 0.06),
+  horizon: new THREE.Vector3(0.085, 0.1, 0.15),
+};
 // A race at sunset (Yas Marina): low warm light, a deep sky with an orange horizon.
 const DUSK = {
   background: new THREE.Color("#2a2328"),
@@ -95,8 +103,73 @@ const QUALITY = [
   { name: "minimal", pixels: 0.75, shadow: 1024, bloom: false, crowds: false },
 ];
 
-// Index of the apex_offset feature in a lap's raw corner values (pipeline/features.py FEATURES).
+// Indices of features in a lap's raw corner values and z-scores (pipeline/features.py FEATURES).
+const BRAKE_POINT = 0;
+const APEX_SPEED = 3;
 const APEX_OFFSET = 4;
+const THROTTLE_POINT = 5;
+
+/** How one lap drove each corner, against the field, turned into the shape of its line. The data
+ * has no real sideways position (OpenF1 snaps every car to one line), so the line is the circuit's
+ * minimum-curvature line reshaped by what this lap really did:
+ * - entry: a later braking point turns in later;
+ * - apex: the real slowest point moves the apex earlier or later;
+ * - exit: an earlier full throttle straightens the car up sooner;
+ * - width: more apex speed than the field is a fuller arc that uses more road, onto the inside
+ *   kerb where there is one; less is a tighter, tidier line. */
+interface CornerShape {
+  s: number; // the corner marker, metres along the lap
+  entry: number; // metres the turn-in moves later (+) or earlier (-)
+  apex: number;
+  exit: number;
+  width: number; // fraction the line's swing grows (+) or shrinks (-) around the apex
+  turn: number; // +1 when the corner turns toward +side: the inside, where the kerb is
+}
+type LineShape = CornerShape[];
+
+/** A lap's line, worked out once per lap at every point of the track frame: the sideways offset
+ * from the centre line, and how far up a kerb the car is there (0 to 1). */
+interface LapLine {
+  offset: Float64Array;
+  lift: Float64Array;
+}
+
+function lineShape(lap: LapData, session: Session, turnSign: (s: number) => number): LineShape {
+  const out: LineShape = [];
+  const clamp = THREE.MathUtils.clamp;
+  session.corners.forEach((c, k) => {
+    const raw = lap.raw?.[k];
+    const med = session.field.med[k];
+    const z = lap.z?.[k];
+    if (!raw || !med) return;
+    const d = (f: number) => {
+      const a = raw[f];
+      const b = med[f];
+      return a != null && b != null ? a - b : 0;
+    };
+    out.push({
+      s: c.s,
+      entry: c.braked ? clamp(d(BRAKE_POINT) * 0.5, -10, 10) : 0,
+      apex: clamp(d(APEX_OFFSET), -16, 16),
+      exit: clamp(d(THROTTLE_POINT) * 0.4, -10, 10),
+      width: clamp(0.08 * (z?.[APEX_SPEED] ?? 0) - 0.03 * (z?.[THROTTLE_POINT] ?? 0), -0.25, 0.28),
+      turn: turnSign(c.s),
+    });
+  });
+  return out;
+}
+
+// Spreads of the reshaping around a corner (metres): entry and exit 50 m either side of the apex.
+const SHAPE_ENTRY = 50;
+const SHAPE_SPREAD = 28;
+const SHAPE_APEX = 40;
+// The inside kerb runs 28 m either side of the corner marker (buildKerbs). Only a fuller line than
+// the field's goes onto it, further the more apex speed the lap carried: up to KERB_REACH metres
+// past the usual limit (inside wheels on the white line), which keeps them on the 1.6 m kerb.
+const KERB_SPAN = 25;
+const KERB_REACH = 1.55;
+const KERB_PER_WIDTH = 9; // metres onto the kerb per unit of extra width
+const KERB_HEIGHT = 0.09;
 
 // How much the light ground texture is dimmed in the dark theme and at night.
 const GROUND_DIM = 0.2;
@@ -106,6 +179,50 @@ const DAY = {
   zenith: new THREE.Vector3(0.1, 0.26, 0.58),
   horizon: new THREE.Vector3(0.56, 0.68, 0.82),
 };
+
+/** Close-up texture for the ground, worked out in the shader from the world position, so it costs
+ * no texture memory and never tiles: soft patches of lighter and darker growth, fine grain, and
+ * (on grass verges) the broad mowing stripes every circuit has. Without it the ground was one flat
+ * colour from close up. */
+function groundDetail(mat: THREE.MeshStandardMaterial, stripes: boolean) {
+  // 1 shows the stripes; a street verge (pavement) turns them off.
+  const uStripes = { value: stripes ? 1 : 0 };
+  mat.userData.stripes = uStripes;
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uStripes = uStripes;
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", "#include <common>\nvarying vec2 vGroundXZ;")
+      .replace("#include <project_vertex>", "#include <project_vertex>\nvGroundXZ = (modelMatrix * vec4(transformed, 1.0)).xz;");
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        "#include <common>",
+        `#include <common>
+        varying vec2 vGroundXZ;
+        uniform float uStripes;
+        float gHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float gNoise(vec2 p) {
+          vec2 i = floor(p), f = fract(p);
+          vec2 u = f * f * (3.0 - 2.0 * f);
+          return mix(mix(gHash(i), gHash(i + vec2(1, 0)), u.x), mix(gHash(i + vec2(0, 1)), gHash(i + vec2(1, 1)), u.x), u.y);
+        }`,
+      )
+      .replace(
+        "#include <map_fragment>",
+        `#include <map_fragment>
+        {
+          vec2 q = vGroundXZ;
+          float patches = gNoise(q * 0.045) * 0.6 + gNoise(q * 0.17) * 0.4;
+          float grain = gNoise(q * 1.9) - 0.5;
+          float k = 0.9 + 0.16 * patches + 0.07 * grain;
+          float band = smoothstep(0.42, 0.5, abs(fract(dot(q, vec2(0.6, 0.8)) / 22.0) - 0.5) * 2.0 - 0.02);
+          k *= mix(1.0, mix(0.89, 1.07, band), uStripes);
+          diffuseColor.rgb *= k;
+        }`,
+      );
+  };
+  mat.customProgramCacheKey = () => "ground-detail";
+  return mat;
+}
 
 const REDUCED_MOTION = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 
@@ -292,7 +409,9 @@ export class World {
   private frame: TrackFrame | null = null;
   private car: THREE.Group;
   private carWheels: THREE.Object3D[] = [];
-  private apexes: [number, number][] = []; // per corner: distance along the lap, apex shift in m
+  // How the shown lap (and the duel rival's lap) drove each corner: the shape of their lines.
+  private lapLine: LapLine | null = null;
+  private ghostLine: LapLine | null = null;
   private quality = 0;
   private speedBlur!: ShaderPass;
   private roll = 0; // camera lean into corners, radians
@@ -340,8 +459,8 @@ export class World {
     wheel: new THREE.MeshStandardMaterial({ color: "#3a3936", roughness: 0.6, metalness: 0.2 }),
     crowd: new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.9 }),
   };
-  private outerMat = new THREE.MeshStandardMaterial({ roughness: 1 });
-  private vergeMat = new THREE.MeshStandardMaterial({ roughness: 0.95, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1 });
+  private outerMat = groundDetail(new THREE.MeshStandardMaterial({ roughness: 1 }), false);
+  private vergeMat = groundDetail(new THREE.MeshStandardMaterial({ roughness: 0.95, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1 }), true);
   private vergeStreet = false;
   private outerStreet = false;
   private liveryHidden = true;
@@ -422,6 +541,8 @@ export class World {
     const builtGhost = makeF1Car(RED);
     this.car = new THREE.Group().add(built.group, contactShadow());
     this.ghost = new THREE.Group().add(builtGhost.group, contactShadow());
+    // Yaw, then pitch, then roll about the car's own length (kerbRoll).
+    this.car.rotation.order = this.ghost.rotation.order = "YZX";
     this.carWheels = built.wheels;
     this.ghostWheels = builtGhost.wheels;
     // Swap in the modelled car when it arrives; keep the built one if it never does.
@@ -477,7 +598,7 @@ export class World {
       side: THREE.BackSide,
       depthWrite: false,
       fog: false,
-      uniforms: { uZenith: { value: DAY.zenith.clone() }, uHorizon: { value: DAY.horizon.clone() }, uCloud: { value: 1 } },
+      uniforms: { uZenith: { value: DAY.zenith.clone() }, uHorizon: { value: DAY.horizon.clone() }, uCloud: { value: 1 }, uCloudLit: { value: 1 } },
       vertexShader: /* glsl */ `
         varying vec3 vDir;
         void main() {
@@ -490,6 +611,7 @@ export class World {
         uniform vec3 uZenith;
         uniform vec3 uHorizon;
         uniform float uCloud; // 1 by day, less at dusk, 0 at night
+        uniform float uCloudLit; // how bright the clouds are: 1 by day, dim in the evening
         float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
         float noise(vec2 p) {
           vec2 i = floor(p), f = fract(p);
@@ -513,7 +635,7 @@ export class World {
             vec2 q = vDir.xz / (h + 0.08) * 1.6;
             float d = smoothstep(0.52, 0.78, fbm(q + vec2(3.1, 7.7)));
             d *= smoothstep(0.01, 0.16, h) * uCloud;
-            vec3 cloud = mix(vec3(0.97, 0.97, 0.98), uHorizon * 1.15, 0.25);
+            vec3 cloud = mix(vec3(0.97, 0.97, 0.98), uHorizon * 1.15, 0.25) * uCloudLit;
             c = mix(c, cloud, d * 0.85);
           }
           if (h < -0.02) c = uHorizon;
@@ -549,7 +671,8 @@ export class World {
 
   setSession(session: Session) {
     this.session = session;
-    this.apexes = []; // the next setLap fills them; the track itself uses the plain line
+    this.lapLine = null; // the next setLap fills it; the track itself uses the plain line
+    this.ghostLine = null;
     this.snap = true;
     this.sessionKey = session.key;
     this.groundAreas = undefined;
@@ -639,7 +762,7 @@ export class World {
     const r = this.radius;
     this.shadowNear = null; // set up again for this circuit on the next frame
     // Close enough that the far side of the circuit melts into the haze from the chase camera.
-    this.scene.fog = new THREE.Fog((this.dark ? NIGHT : DAY).haze, Math.min(r * 0.9, 900), Math.max(r * 2.6, 2600));
+    this.scene.fog = new THREE.Fog((this.dark ? EVENING : DAY).haze, Math.min(r * 0.9, 900), Math.max(r * 2.6, 2600));
     void this.loadSurroundings(session.key);
   }
 
@@ -648,7 +771,7 @@ export class World {
     const size = Math.max(this.radius * 2.9, 2 * (this.radius + 1000));
     this.groundSize = size;
     this.groundText = [session.circuit, session.date.slice(0, 4)];
-    this.groundMat = new THREE.MeshStandardMaterial({ map: posterGround(...this.groundText, false), roughness: 0.95 });
+    this.groundMat = groundDetail(new THREE.MeshStandardMaterial({ map: posterGround(...this.groundText, false), roughness: 0.95 }), false);
     this.groundKey = "plain";
     this.groundMat.color.setScalar(this.skyDark ? GROUND_DIM : 1);
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(size, size), this.groundMat);
@@ -871,6 +994,7 @@ export class World {
     geo.setIndex(idx);
     geo.computeVertexNormals();
     this.vergeMat.color.set(street ? "#b9b6af" : "#93b874");
+    this.vergeMat.userData.stripes.value = street ? 0 : 1;
     this.vergeStreet = street;
     const m = new THREE.Mesh(geo, this.vergeMat);
     m.receiveShadow = true;
@@ -1038,21 +1162,23 @@ export class World {
   /** Sky, fog, lights and surroundings in the colours of the theme and the time of day. */
   private applyPalette() {
     const dark = this.skyDark;
-    const p = this.lightMode === "dusk" ? DUSK : dark ? NIGHT : DAY;
+    const evening = this.dark && this.lightMode === "day";
+    const p = this.lightMode === "dusk" ? DUSK : evening ? EVENING : dark ? NIGHT : DAY;
     this.scene.background = p.background;
     (this.scene.fog as THREE.Fog).color.copy(p.haze);
     this.sky.material.uniforms.uZenith.value.copy(p.zenith);
     this.sky.material.uniforms.uHorizon.value.copy(p.horizon);
-    this.sky.material.uniforms.uCloud.value = this.lightMode === "dusk" ? 0.6 : dark ? 0 : 1;
+    this.sky.material.uniforms.uCloud.value = this.lightMode === "dusk" ? 0.6 : evening ? 0.55 : dark ? 0 : 1;
+    this.sky.material.uniforms.uCloudLit.value = evening ? 0.16 : 1;
     const night = this.lightMode === "night";
     // Floodlit at night: an even, white light from above; the sun becomes a dim moon.
     this.hemi.intensity = night ? 1.6 : dark ? 0.9 : 1.4;
     // Fill light from a blue sky above and green-brown ground below, so shadows have colour.
-    this.hemi.color.set(night ? "#f2f4ff" : dark ? "#ffffff" : "#c4dcf5");
+    this.hemi.color.set(night ? "#f2f4ff" : evening ? "#9fb2d6" : dark ? "#ffffff" : "#c4dcf5");
     this.hemi.groundColor.set(dark ? "#2a2926" : "#7a7556");
     if (!night && !dark) this.hemi.intensity = 1.15;
-    this.sun.intensity = night ? 0.5 : this.lightMode === "dusk" ? 2.0 : 3.8;
-    this.sun.color.set(night ? "#b8c6ff" : this.lightMode === "dusk" ? "#ffb070" : "#ffefd2");
+    this.sun.intensity = night ? 0.5 : this.lightMode === "dusk" ? 2.0 : evening ? 2.3 : 3.8;
+    this.sun.color.set(night ? "#b8c6ff" : this.lightMode === "dusk" ? "#ffb070" : evening ? "#ffd7b0" : "#ffefd2");
     const m = this.envMats;
     // In the dark theme or at night the colours stay, dimmed, so the scene keeps its colour.
     const dim = dark ? 0.45 : 1;
@@ -1410,16 +1536,9 @@ export class World {
 
   /** Paint the lap's rubber line: red under braking, paper white at full throttle. */
   setLap(lap: LapData) {
-    // This lap's apex at each corner against the field (metres, clamped), for carPointAt.
+    // How this lap drove each corner against the field: the shape of its line (carPointAt).
     const session = this.session;
-    this.apexes = [];
-    if (session) {
-      session.corners.forEach((c, k) => {
-        const raw = lap.raw?.[k]?.[APEX_OFFSET];
-        const med = session.field.med[k]?.[APEX_OFFSET];
-        if (raw != null && med != null) this.apexes.push([c.s, THREE.MathUtils.clamp(raw - med, -18, 18)]);
-      });
-    }
+    this.lapLine = session ? this.buildLapLine(lineShape(lap, session, (s) => this.turnSign(s))) : null;
     if (this.line) this.trackGroup.remove(this.line);
     const f = this.frame!;
     const n = f.pos.length;
@@ -1438,7 +1557,7 @@ export class World {
       const c = brake ? RED : thr >= 95 ? PAPER : new THREE.Color("#8a8780");
       const p = f.pos[k];
       const sd = f.side[k];
-      const o = this.lineOffsetAt(sv - this.apexShift(sv)); // exactly where the car drives
+      const o = this.carOffsetAt(sv); // exactly where the car drives
       pos.push(p.x + sd.x * (o + w), p.y + 0.08, p.z + sd.z * (o + w), p.x + sd.x * (o - w), p.y + 0.08, p.z + sd.z * (o - w));
       col.push(c.r, c.g, c.b, c.r, c.g, c.b);
       sAttr.push(sv, sv);
@@ -1588,26 +1707,99 @@ export class World {
     return line[i] + (line[j] - line[i]) * u;
   }
 
-  /** Where the car is at distance s: on the racing line, not the centre line. The line's shape is
-   * moved earlier or later through each corner by this lap's own measured apex (where its minimum
-   * speed was, against the field), so a late-apex lap visibly turns in later. */
-  carPointAt(s: number): THREE.Vector3 {
-    return this.pointAt(s).addScaledVector(this.sideAt(s), this.lineOffsetAt(s - this.apexShift(s)));
+  /** Where the car is at distance s: on its lap's own racing line, not the centre line (see
+   * lineShape). On a kerb it sits on top of it. */
+  carPointAt(s: number, line = this.lapLine): THREE.Vector3 {
+    const p = this.pointAt(s).addScaledVector(this.sideAt(s), this.carOffsetAt(s, line));
+    p.y += KERB_HEIGHT * this.onKerb(s, line);
+    return p;
   }
 
-  /** The lap's apex shift at s: each corner's offset, spread over about 60 m around it. */
-  private apexShift(s: number): number {
-    let shift = 0;
-    for (const [cs, d] of this.apexes) {
-      const x = (s - cs) / 45;
-      if (x > -2.5 && x < 2.5) shift += d * Math.exp(-x * x);
+  /** A lap's line at distance s (the circuit's own line before a lap is set). */
+  private carOffsetAt(s: number, line = this.lapLine): number {
+    if (!line) return this.lineOffsetAt(s);
+    const [i, j, u] = this.indexAt(s);
+    return line.offset[i] + (line.offset[j] - line.offset[i]) * u;
+  }
+
+  /** How far onto a kerb the car is at s: 0 on the road, 1 with its inside wheels on top of it. */
+  private onKerb(s: number, line = this.lapLine): number {
+    if (!line) return 0;
+    const [i, j, u] = this.indexAt(s);
+    return line.lift[i] + (line.lift[j] - line.lift[i]) * u;
+  }
+
+  /** Work out a lap's line at every frame point: shaped by the lap (shapedOffset), smoothed so it
+   * never steps sideways, then held on the road (or the part of a kerb the lap earned). */
+  private buildLapLine(shape: LineShape): LapLine {
+    const f = this.frame!;
+    const n = f.pos.length;
+    const raw = new Float64Array(n);
+    const lo = new Float64Array(n);
+    const hi = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      const r = this.shapedOffset(f.s[i], i, shape);
+      raw[i] = r.o;
+      lo[i] = r.lo;
+      hi[i] = r.hi;
     }
-    return shift;
+    // Smooth over about 25 m, twice; then hold inside the limits and smooth lightly once more.
+    const smooth = (a: Float64Array, w: number) => {
+      const out = new Float64Array(n);
+      for (let i = 0; i < n; i++) {
+        let sum = 0;
+        for (let d = -w; d <= w; d++) sum += a[(i + d + n) % n];
+        out[i] = sum / (2 * w + 1);
+      }
+      return out;
+    };
+    const clampAll = (a: Float64Array) => a.map((v, i) => THREE.MathUtils.clamp(v, lo[i], hi[i]));
+    const offset = clampAll(smooth(clampAll(smooth(smooth(raw, 3), 3)), 1));
+    const lift = offset.map((o, i) => {
+      const half = f.edges.half[o > 0 ? 0 : 1][i];
+      return THREE.MathUtils.clamp((Math.abs(o) + 0.95 - half) / 0.5, 0, 1); // inside wheels past the line
+    });
+    return { offset, lift };
+  }
+
+  /** Sideways offset of a lap's line at s (frame point i), before smoothing: the circuit's line,
+   * moved along the track by the lap's entry, apex and exit and swung wider or tighter by its apex
+   * speed; and the limits that keep it on the road except where a fuller line runs onto the inside
+   * kerb. */
+  private shapedOffset(s: number, i: number, shape: LineShape): { o: number; lo: number; hi: number } {
+    const f = this.frame!;
+    const L = f.length;
+    let shift = 0;
+    let grow = 0;
+    let kerb = 0; // +1 / -1: the side whose kerb the line may use here
+    let reach = 0; // 1 in the middle of that kerb, easing to 0 at its ends, so the line never steps
+    for (const c of shape) {
+      let x = s - c.s;
+      if (x > L / 2) x -= L;
+      else if (x < -L / 2) x += L;
+      if (x < -150 || x > 150) continue;
+      const g = (at: number, w: number) => Math.exp(-(((x - at) / w) ** 2));
+      shift += c.entry * g(-SHAPE_ENTRY, SHAPE_SPREAD) + c.apex * g(0, SHAPE_APEX) + c.exit * g(SHAPE_ENTRY, SHAPE_SPREAD);
+      grow += c.width * g(c.apex, 35);
+      if (Math.abs(x) < KERB_SPAN && c.width > 0) {
+        kerb = c.turn;
+        reach = Math.cos((x / KERB_SPAN) * Math.PI * 0.5) ** 2;
+      }
+    }
+    const o = this.lineOffsetAt(s - shift) * (1 + grow);
+    const room = (e: 0 | 1) => {
+      const half = f.edges.half[e][i];
+      const sign = e === 0 ? 1 : -1;
+      // Wheels on the white line; onto the inside kerb only as far as this lap's fuller line asks.
+      const onto = kerb === sign && f.edges.open[e][i] ? THREE.MathUtils.clamp(grow * KERB_PER_WIDTH, 0, KERB_REACH) * reach : 0;
+      return half - 1.05 + onto;
+    };
+    return { o, lo: -room(1), hi: room(0) };
   }
 
   /** The car's direction of travel along the racing line, over 8 m behind to 8 m ahead. */
-  carHeadingAt(s: number): THREE.Vector3 {
-    return this.carPointAt(s + 8).sub(this.carPointAt(s - 8)).setY(0).normalize();
+  carHeadingAt(s: number, line = this.lapLine): THREE.Vector3 {
+    return this.carPointAt(s + 8, line).sub(this.carPointAt(s - 8, line)).setY(0).normalize();
   }
 
   /** Nose-up angle of the road under a car at s, from the height 4 m behind to 4 m ahead. Without it
@@ -1640,7 +1832,23 @@ export class World {
     this.car.position.copy(p);
     this.car.rotation.y = Math.atan2(-t.z, t.x);
     this.car.rotation.z = this.pitchAt(s);
+    this.car.rotation.x = this.kerbRoll(s, this.lapLine);
     if (this.line) this.line.material.uniforms.uCarS.value = s;
+  }
+
+  /** On a kerb the inside wheels ride up: the car rolls a little away from it, and shakes over the
+   * kerb's ridges (one every 1.6 m). */
+  private kerbRoll(s: number, line: LapLine | null): number {
+    const k = this.onKerb(s, line);
+    if (!k) return 0;
+    const side = this.carOffsetAt(s, line) > 0 ? 1 : -1;
+    const ridges = REDUCED_MOTION ? 0 : 0.006 * Math.sin((s / 1.6) * Math.PI * 2);
+    return k * (side * 0.035 + ridges);
+  }
+
+  /** The duel rival's lap, so its car drives its own line. */
+  setGhostLap(lap: LapData | null) {
+    this.ghostLine = lap && this.session && this.frame ? this.buildLapLine(lineShape(lap, this.session, (s) => this.turnSign(s))) : null;
   }
 
   /** A second car for the duel replay: the driver the model picked, in soft red. */
@@ -1650,13 +1858,16 @@ export class World {
     const ds = s - this.ghostS;
     if (Math.abs(ds) < 50) for (const w of this.ghostWheels) w.rotation.z -= ds / 0.37;
     this.ghostS = s;
-    const p = this.carPointAt(s);
-    const t = this.carHeadingAt(s);
+    const line = this.ghostLine ?? this.lapLine;
+    const p = this.carPointAt(s, line);
+    const t = this.carHeadingAt(s, line);
     // Offset sideways so two cars on the same line never sit inside each other, toward the middle
     // of the track so the rival never leaves it at an apex.
-    this.ghost.position.copy(p).addScaledVector(this.sideAt(s), this.lineOffsetAt(s) > 0 ? -2.4 : 2.4);
+    p.addScaledVector(this.sideAt(s), this.carOffsetAt(s, line) > 0 ? -2.4 : 2.4);
+    this.ghost.position.copy(p);
     this.ghost.rotation.y = Math.atan2(-t.z, t.x);
     this.ghost.rotation.z = this.pitchAt(s);
+    this.ghost.rotation.x = this.kerbRoll(s, line);
   }
 
   private get labelInk(): string {

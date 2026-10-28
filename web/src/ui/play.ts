@@ -745,6 +745,7 @@ export class PlayView {
     this.root.dataset.phase = "duel";
     this.setPaused(false);
     this.world.mode = "heli";
+    this.world.setGhostLap(rival);
     this.world.setCarColours(this.driverOf(this.lap.code).colour, this.driverOf(rival.code).colour);
     this.world.snapCamera();
     this.engine.setActive(true);
@@ -793,6 +794,7 @@ export class PlayView {
     this.phase = "reveal";
     this.root.dataset.phase = "reveal";
     this.world.setGhostS(null);
+    this.world.setGhostLap(null);
     this.world.setCarS(0);
     this.minimap.update(0, null);
     this.world.mode = "orbit";
