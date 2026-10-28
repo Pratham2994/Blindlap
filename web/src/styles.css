@@ -2663,6 +2663,19 @@ figcaption {
     font-size: 0.95rem;
     white-space: nowrap;
   }
+  /* The shootout's session picker: just the list, narrow. */
+  .shootout-pick {
+    font-size: 0;
+    gap: 0;
+  }
+  .shootout .seg.cams button {
+    padding: 6px 6px;
+  }
+  .shootout-pick select {
+    max-width: 92px;
+    padding: 4px 6px;
+    font-size: 0.75rem;
+  }
   /* No room in one row: the "What's real" note is also on the first lap's rules and How it knows. */
   .play-bar .where p,
   .play-bar .score,
