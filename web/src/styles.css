@@ -548,6 +548,27 @@ a.mode.quick:hover p {
   font-size: 0.92rem;
 }
 
+.howto-real {
+  margin: 0;
+  padding: 12px 18px;
+  border-top: var(--rule);
+  color: var(--ink-2);
+  line-height: 1.45;
+  font-size: 0.92rem;
+}
+
+.howto-real b {
+  font-weight: 900;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  margin-right: 6px;
+  color: var(--ink);
+}
+
+.howto-real b::before {
+  content: none;
+}
+
 /* The home page arrives: everything is visible from the very first frame (no fade or wipe from
    empty, which showed a blank page for a moment) and only settles a few pixels into place. */
 @keyframes rise {
@@ -896,6 +917,43 @@ a.mode.quick:hover p {
   font-weight: 800;
 }
 
+.intro-real,
+.real-note p {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--red);
+  background: var(--paper-2);
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+/* "What's real": the same note over the stage, from the button in the bar. */
+.real-note {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 4;
+  display: none;
+  width: min(440px, calc(100% - 32px));
+  padding: 14px;
+  background: var(--paper);
+  border: var(--rule);
+}
+
+.real-note p {
+  margin-bottom: 12px;
+}
+
+.play.show-real .real-note {
+  display: block;
+}
+
+.play.show-real [data-real] {
+  background: var(--ink);
+  color: var(--paper);
+}
+
 .lights {
   display: flex;
   gap: clamp(8px, 1.6vw, 18px);
@@ -1080,6 +1138,8 @@ a.mode.quick:hover p {
 .hints-h {
   display: flex;
   justify-content: space-between;
+  gap: 8px;
+  white-space: nowrap;
   margin: 0 0 8px;
   color: var(--ink-3);
 }
@@ -1092,14 +1152,35 @@ a.mode.quick:hover p {
 
 .hint-buttons button {
   flex: 1;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-width: 0;
   border: 2px solid var(--ink);
   background: var(--paper);
-  padding: 6px 6px;
+  padding: 5px 2px 4px;
   font-weight: 800;
   font-variation-settings: "wdth" 112;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-size: 0.62rem;
+  letter-spacing: 0.03em;
+  font-size: 0.6rem;
+  /* A bar along the bottom shows how much each hint gives away, small to big. */
+  background-image: linear-gradient(var(--red), var(--red));
+  background-repeat: no-repeat;
+  background-position: left bottom;
+  background-size: calc(var(--level, 1) * 100%) 3px;
+}
+
+.hint-buttons button small {
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--ink-3);
+  letter-spacing: 0;
+}
+
+.hint-buttons button:hover:not(:disabled) small,
+.hint-buttons button:disabled small {
+  color: inherit;
 }
 
 .hint-buttons button:hover:not(:disabled) {
@@ -1127,6 +1208,12 @@ a.mode.quick:hover p {
 .hint-list li {
   padding-left: 10px;
   border-left: 3px solid var(--yellow);
+}
+
+.hint-list li b {
+  margin-right: 4px;
+  font-size: 0.66rem;
+  color: var(--ink-3);
 }
 
 .lineup .hint {

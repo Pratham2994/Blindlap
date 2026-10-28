@@ -14,4 +14,5 @@ export const icons = {
   back: wrap('<path d="M13 8H4"/><path d="M7.5 4.5L4 8l3.5 3.5"/>'),
   menu: wrap('<path d="M2.5 4h11M2.5 8h11M2.5 12h11"/>'),
   close: wrap('<path d="M4 4l8 8M12 4l-8 8"/>'),
+  info: wrap('<circle cx="8" cy="8" r="6"/><path d="M8 7.2v4"/><path d="M8 4.8v.01"/>'),
 };

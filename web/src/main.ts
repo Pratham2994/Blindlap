@@ -138,9 +138,10 @@ async function homeView(): Promise<View> {
       <ol>
         <li><b>Watch</b><span>A real qualifying lap, the driver's name hidden. Same car colours for everyone.</span></li>
         <li><b>Read</b><span>Where they brake, how much speed they carry, when they get back on the power. Every driver has a signature.</span></li>
-        <li><b>Guess</b><span>Tap a driver before the flag. Right: 3 points, their teammate: 1. Hints help, and cost a point each.</span></li>
+        <li><b>Guess</b><span>Tap a driver before the flag. Right: 5 points, their teammate: 2. Hints, from a nudge to nearly the answer, cost points.</span></li>
         <li><b>Reveal</b><span>Who it was, how three models read the same lap, and their team radio.</span></li>
       </ol>
+      <p class="howto-real"><b>What is real?</b> Speed, gear, throttle, brake and timing come from the car. Where across the road it drives is drawn, shaped from how that lap took each corner, and the engine sound is made live from the real data.</p>
     </section>
 
     <section class="modes" aria-label="Ways to play">

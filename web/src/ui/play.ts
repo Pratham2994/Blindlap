@@ -4,6 +4,7 @@
 import { gearRatios, EngineSynth, VOLUME_KEY } from "../audio/engine";
 import type { DriverInfo, Index, LapData, LapRef, Session, SessionResult } from "../data";
 import { careerLine, loadCareers, loadDna, loadRadio, loadResults, loadSession, prefetchSurroundings } from "../data";
+import type { Careers } from "../data";
 import { formatLapTime, LapPlayer } from "../lap";
 import type { Evidence } from "../model";
 import { Guesser } from "../model";
@@ -22,7 +23,19 @@ interface Score {
   rounds: number;
 }
 
-const SCORE_KEY = "blindlap.score.v1";
+// v2: a right guess is worth 5 (hints take some of it), a teammate 2. v1 counted 3 and 1.
+const SCORE_KEY = "blindlap.score.v2";
+const RIGHT_POINTS = 5;
+const MATE_POINTS = 2;
+
+/** The hints, from a small nudge to the answer itself, and what each one costs. */
+const HINTS: { id: string; label: string; cost: number; title: string }[] = [
+  { id: "result", label: "Result", cost: 1, title: "Roughly where they qualified in this session" },
+  { id: "career", label: "Career", cost: 1, title: "How long they have raced in F1" },
+  { id: "style", label: "Style", cost: 1, title: "One habit from their driving DNA" },
+  { id: "team", label: "Team", cost: 2, title: "Who they drive for: narrows it to two" },
+  { id: "number", label: "Number", cost: 3, title: "Their car number: nearly the answer" },
+];
 const SPEED_KEY = "blindlap.speed.v1";
 const INTRO_KEY = "blindlap.intro.v1"; // set once the visitor has read the rules
 
@@ -90,6 +103,14 @@ function inkOn(hex: string): string {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.35 ? "#111111" : "#f3f2ee";
 }
 
+/** What is measured and what is drawn: shown on the first lap's rules card and behind the
+ * "What's real" button. */
+const REAL_NOTE =
+  "<b>Real, from the car:</b> speed, gear, throttle, brake and timing, about four times a second. " +
+  "<b>Drawn:</b> where across the road the car is (the data has no line, so each lap's line is shaped from how it really took each corner), " +
+  "and the engine sound, made live from the real speed, gear and throttle. " +
+  "<b>The guess:</b> three models read each corner as the car leaves it. None of them ever saw this circuit.";
+
 const recent: string[] = [];
 
 export class PlayView {
@@ -109,7 +130,8 @@ export class PlayView {
   private t = 0;
   private nextCorner = 0;
   private evidence: Evidence[] = [];
-  private hints = 0; // hints taken this round: each lowers what a right guess is worth
+  private hints = 0; // hints taken this round
+  private hintCost = 0; // points those hints took off a right guess
   private speed = readSpeed();
   private paused = false;
   private lightsAt = 0;
@@ -216,6 +238,7 @@ export class PlayView {
     this.ratios = gearRatios(this.lap.v, this.lap.rpm, this.lap.gear);
     this.evidence = [];
     this.hints = 0;
+    this.hintCost = 0;
     this.nextCorner = 0;
     this.t = 0;
 
@@ -278,6 +301,7 @@ export class PlayView {
         <div class="seg cams" role="group" aria-label="Camera">
           ${CAMERAS.map(([id, label, title]) => `<button type="button" data-cam="${id}" aria-pressed="${id === "chase"}" title="${title} (C to cycle, drag the view to look around)"><span>${label}</span></button>`).join("")}
         </div>
+        <button type="button" class="ctl" data-real aria-expanded="false" title="What is real data and what is drawn">${icons.info}<span>What's real</span></button>
         <button type="button" class="ctl" data-sound aria-pressed="${!this.engine.muted}" aria-label="Engine sound">${this.engine.muted ? icons.soundOff : icons.soundOn}<span>Sound</span></button>
         <label class="volume"><span class="caps">Vol</span><input type="range" min="0" max="100" step="1" value="${Math.round(this.engine.volume * 100)}" aria-label="Volume"></label>
       </div>`;
@@ -307,6 +331,10 @@ export class PlayView {
         bar.querySelectorAll("[data-speed]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
       } else if (b.dataset.cam) {
         this.setCamera(b.dataset.cam as CameraMode);
+      } else if (b.hasAttribute("data-real")) {
+        const open = !this.root.classList.contains("show-real");
+        this.root.classList.toggle("show-real", open);
+        b.setAttribute("aria-expanded", String(open));
       } else if (b.hasAttribute("data-sound")) {
         const on = this.engine.muted;
         this.engine.setMuted(!on);
@@ -325,12 +353,18 @@ export class PlayView {
           <ol>
             <li><b>Watch the lap.</b> A real qualifying lap with the name hidden.</li>
             <li><b>Read the corners.</b> Where they brake, how fast they turn in, when they get back on the power: every driver does it differently. Three models read the same corners on the right.</li>
-            <li><b>Tap your driver</b> any time before the flag. Right: 3 points, their teammate: 1. Stuck? Take a hint; each one costs a point.</li>
+            <li><b>Tap your driver</b> any time before the flag. Right: 5 points, their teammate: 2. Stuck? Hints go from a small nudge to nearly the answer, and cost points.</li>
           </ol>
+          <p class="intro-real">${REAL_NOTE}</p>
           <button type="button" class="btn primary" data-go>Start the lap ${icons.next}</button>
         </div>
         <p class="caps reminder">Watch how they take each corner. Tap your driver before the flag.</p></div>
-      <p class="paused-note caps" aria-live="polite">Paused · Space to resume</p>`;
+      <p class="paused-note caps" aria-live="polite">Paused · Space to resume</p>
+      <aside class="real-note" aria-label="What is real"><p>${REAL_NOTE}</p><button type="button" class="btn" data-real-close>Got it</button></aside>`;
+    stage.querySelector("[data-real-close]")!.addEventListener("click", () => {
+      this.root.classList.remove("show-real");
+      this.root.querySelector("[data-real]")?.setAttribute("aria-expanded", "false");
+    });
     const w = this.world;
     this.minimap = new Minimap(s.circuit, w.outline(), s.corners.map((c) => ({ s: c.s, n: c.n })), s.length, (d) => w.pointAt(d));
     stage.appendChild(this.minimap.root);
@@ -433,45 +467,77 @@ export class PlayView {
     }
   }
 
-  /** Hints for the player (the models get none): the driver's style from their DNA, the team,
-   * the car number. Each one taken lowers a right guess from 3 points by one, to at least 1. */
+  /** Hints for the player (the models get none), from a small nudge to nearly the answer: roughly
+   * where they qualified, how long they have raced, a habit from their DNA, the team, the car
+   * number. Each costs what it gives away; a right guess is worth at least 1 point. */
   private buildHints(): HTMLElement {
     const box = document.createElement("section");
     box.className = "hints";
-    const kinds: [string, string][] = [["style", "Driving style"], ...(this.mates ? [] : [["team", "Team"] as [string, string]]), ["number", "Car number"]];
+    // In teammate mode the team is the question, not a hint.
+    const kinds = HINTS.filter((h) => !(this.mates && h.id === "team"));
     box.innerHTML = `
-      <p class="caps hints-h"><span>Stuck? Take a hint</span><span class="num" data-k="worth">right = 3 pts</span></p>
-      <div class="hint-buttons">${kinds.map(([k, label]) => `<button type="button" data-hint="${k}">${label}</button>`).join("")}</div>
+      <p class="caps hints-h"><span>Hints · small to big</span><span class="num" data-k="worth">right = ${RIGHT_POINTS} pts</span></p>
+      <div class="hint-buttons" role="group" aria-label="Hints, from a small nudge to nearly the answer">${kinds
+        .map((h, i) => `<button type="button" data-hint="${h.id}" title="${h.title}. Costs ${h.cost} point${h.cost > 1 ? "s" : ""}." style="--level:${(i + 1) / kinds.length}"><span>${h.label}</span><small class="num">−${h.cost}</small></button>`)
+        .join("")}</div>
       <ul class="hint-list" aria-live="polite"></ul>`;
     const list = box.querySelector(".hint-list")!;
     const worth = box.querySelector("[data-k=worth]")!;
     box.querySelector(".hint-buttons")!.addEventListener("click", async (e) => {
       const b = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-hint]");
       if (!b || b.disabled || this.phase === "reveal" || this.phase === "duel" || this.phase === "loading") return;
+      const hint = HINTS.find((h) => h.id === b.dataset.hint)!;
       b.disabled = true;
       b.blur();
       this.hints++;
-      const n = Math.max(1, 3 - this.hints);
+      this.hintCost += hint.cost;
+      const n = this.rightPoints();
       worth.textContent = `right = ${n} pt${n === 1 ? "" : "s"}`;
-      const code = this.lap.code;
-      const d = this.driverOf(code);
-      let text = "";
-      if (b.dataset.hint === "style") {
-        const dna = await loadDna().catch(() => null);
-        const tell = dna?.drivers.find((x) => x.code === code)?.tells?.[0];
-        text = tell ? `This driver ${tell}.` : "No style data for this driver yet.";
-      } else if (b.dataset.hint === "team") {
-        text = `Drives for ${d.team}.`;
-        this.lineup.highlight(Object.values(this.session.drivers).filter((x) => x.team === d.team).map((x) => x.code));
-      } else {
-        const number = Object.entries(this.session.drivers).find(([, x]) => x.code === code)?.[0];
-        text = `Car number ${number}.`;
-      }
       const li = document.createElement("li");
-      li.textContent = text;
+      li.innerHTML = `<b class="caps">${hint.label}</b> ${await this.hintText(hint.id)}`;
       list.appendChild(li);
     });
     return box;
+  }
+
+  /** What a right guess is worth now, after the hints taken. */
+  private rightPoints(): number {
+    return Math.max(1, RIGHT_POINTS - this.hintCost);
+  }
+
+  private async hintText(id: string): Promise<string> {
+    const code = this.lap.code;
+    const d = this.driverOf(code);
+    if (id === "result") {
+      const results = await loadResults();
+      const fin = results[String(this.session.key)]?.drivers[String(this.lap.driver)];
+      const pos = fin?.pos;
+      if (!pos) return "No result for this driver in this session.";
+      return pos <= 5 ? "Qualified in the top five." : pos <= 10 ? "Qualified sixth to tenth." : pos <= 15 ? "Qualified 11th to 15th." : "Qualified 16th or lower.";
+    }
+    if (id === "career") {
+      const careers: Careers = await loadCareers();
+      const c = careers.drivers[code];
+      if (!c) return "No career data for this driver.";
+      return c.starts < 25
+        ? "A rookie: fewer than 25 Grand Prix starts."
+        : c.starts < 100
+          ? "Early in their career: 25 to 100 starts."
+          : c.starts < 200
+            ? "Experienced: 100 to 200 starts."
+            : "A veteran: more than 200 starts.";
+    }
+    if (id === "style") {
+      const dna = await loadDna().catch(() => null);
+      const tell = dna?.drivers.find((x) => x.code === code)?.tells?.[0];
+      return tell ? `This driver ${tell}.` : "No style data for this driver yet.";
+    }
+    if (id === "team") {
+      this.lineup.highlight(Object.values(this.session.drivers).filter((x) => x.team === d.team).map((x) => x.code));
+      return `Drives for ${d.team}.`;
+    }
+    const number = Object.entries(this.session.drivers).find(([, x]) => x.code === code)?.[0];
+    return `Car number ${number}.`;
   }
 
   /** "Saturday 5 April 2025 · Q3 · their best Q3 lap · qualified P1": when and where in qualifying
@@ -652,11 +718,11 @@ export class PlayView {
     const rank = guesses.findIndex((g) => g.code === truth) + 1;
     const teamOf = (code: string) => this.driverOf(code)?.team;
     const outcome = (code: string | null) => (code === truth ? "right" : code && teamOf(code) === driver.team ? "teammate" : "wrong");
-    const points = (o: string, hints: number) => (o === "right" ? Math.max(1, 3 - hints) : o === "teammate" ? 1 : 0);
+    const points = (o: string, right: number) => (o === "right" ? right : o === "teammate" ? MATE_POINTS : 0);
     const youOutcome = outcome(this.lineup.pick);
     const modelOutcome = outcome(modelPick);
-    const you = points(youOutcome, this.hints);
-    const model = points(modelOutcome, 0);
+    const you = points(youOutcome, this.rightPoints());
+    const model = points(modelOutcome, RIGHT_POINTS);
     this.root.querySelector(".hints")?.classList.add("done");
     this.score = { you: this.score.you + you, model: this.score.model + model, rounds: this.score.rounds + 1 };
     writeScore(this.score, this.scoreKey);

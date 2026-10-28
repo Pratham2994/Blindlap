@@ -104,15 +104,20 @@ test("a first visit explains the game, then hints cost points", async ({ page })
   const intro = page.locator(".intro");
   await expect(intro).toBeVisible({ timeout: 30_000 });
   await expect(intro).toContainText("Tap your driver");
+  await expect(intro).toContainText("Real, from the car");
   await page.getByRole("button", { name: /start the lap/i }).click();
   await expect(intro).toBeHidden();
   await expect(page.locator(".evidence .t")).toHaveText(/^T\d+/, { timeout: 30_000 });
   await page.keyboard.press("Space"); // pause, so the flag does not close the hints
-  // Two hints: style and team; a right guess is now worth 1.
-  await page.getByRole("button", { name: "Driving style" }).click();
+  // Hints go from small to big: style costs 1 and the team 2, so a right guess drops from 5 to 2.
+  await expect(page.locator("[data-k=worth]")).toHaveText("right = 5 pts");
+  await page.getByRole("button", { name: /^Style/ }).click();
   await expect(page.locator(".hint-list li")).toHaveCount(1);
-  await page.getByRole("button", { name: "Team", exact: true }).click();
-  await expect(page.locator(".hint-list li").nth(1)).toHaveText(/^Drives for /);
+  await page.getByRole("button", { name: /^Team/ }).click();
+  await expect(page.locator(".hint-list li").nth(1)).toHaveText(/Drives for /);
+  await expect(page.locator("[data-k=worth]")).toHaveText("right = 2 pts");
+  // The number gives nearly everything away: a right guess is still worth 1, never less.
+  await page.getByRole("button", { name: /^Number/ }).click();
   await expect(page.locator("[data-k=worth]")).toHaveText("right = 1 pt");
   // The next visit goes straight to the lights.
   await page.reload();
