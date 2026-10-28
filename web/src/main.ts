@@ -119,7 +119,9 @@ async function homeView(): Promise<View> {
 
   const laps = index.sessions.reduce((a, s) => a + s.laps, 0);
   const root = document.createElement("div");
-  root.className = "home";
+  // Replacing the headline index.html painted first: it is already in place, so it must not
+  // arrive a second time.
+  root.className = document.querySelector("#view .home.shell") ? "home from-shell" : "home";
   root.innerHTML = `
     <section class="hero">
       <div class="hero-block">

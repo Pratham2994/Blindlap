@@ -595,6 +595,14 @@ a.mode.quick:hover p {
   animation: rise 0.8s 0.1s var(--ease-out) both;
 }
 
+.home.from-shell,
+.home.from-shell .hero-block h1,
+.home.from-shell .hero-block .lede,
+.home.from-shell .hero-block .btn,
+.home.from-shell .hero-stage {
+  animation: none;
+}
+
 .howto,
 .modes,
 .home .facts {

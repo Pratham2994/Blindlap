@@ -33,7 +33,40 @@
         <a href="#/how" data-route="how">How it knows</a>
       </nav>
     </header>
-    <main id="view"></main>
+    <main id="view">
+      <!-- The home headline, painted before the script has loaded (on a slow phone that takes a
+           second or more); main.ts replaces it with the real page, in the same place. -->
+      <div class="home shell">
+        <section class="hero">
+          <div class="hero-block">
+            <h1 class="display">Who's<br />driving?</h1>
+            <p class="lede">A real 2025 or 2026 F1 qualifying lap with the name taken off. Three models read every corner and guess the driver. So do you.</p>
+            <a class="btn on-red" href="#/play"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 2.8v10.4L13 8z" fill="currentColor" /></svg> Start a lap</a>
+          </div>
+          <figure class="hero-stage frame">
+            <div class="stage-slot"></div>
+            <figcaption class="caps">Loading a circuit</figcaption>
+          </figure>
+        </section>
+      </div>
+      <script>
+        // Only the home page starts from it; a link to any other page starts empty.
+        var home = /^#?\/?$/.test(location.hash);
+        if (!home) document.querySelector("#view .shell").remove();
+        // The small data this page needs, asked for while the script is still downloading.
+        var page = location.hash.replace(/^#\/?/, "").split("/")[0];
+        ["index.json"]
+          .concat(home ? ["report.json", "env/index.json"] : page === "play" || page === "mates" ? ["env/index.json"] : page === "how" ? ["report.json"] : page === "dna" ? ["dna.json", "careers.json"] : [])
+          .forEach(function (f) {
+            var l = document.createElement("link");
+            l.rel = "preload";
+            l.as = "fetch";
+            l.crossOrigin = "anonymous";
+            l.href = "./data/" + f;
+            document.head.appendChild(l);
+          });
+      </script>
+    </main>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
