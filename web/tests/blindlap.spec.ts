@@ -47,6 +47,13 @@ test("a full round: model reads every corner, you guess, reveal, duel", async ({
   await page.getByRole("button", { name: /back to result/i }).click();
   await expect(reveal).toBeVisible();
 
+  // Each corner that gave the driver away can be driven again; the view then returns to the result.
+  await expect(reveal.locator(".replay-btn")).toHaveCount(3);
+  await reveal.locator(".replay-btn").first().click();
+  await expect(page.locator(".play.replaying")).toHaveCount(1);
+  await expect(page.locator(".play.replaying")).toHaveCount(0, { timeout: 90_000 });
+  await expect(reveal).toBeVisible();
+
   expect(errors).toEqual([]);
 });
 

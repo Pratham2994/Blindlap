@@ -138,6 +138,8 @@ export class PlayView {
   private goAt = 0;
   private radio: HTMLAudioElement | null = null;
   private duel: { lap: LapData; player: LapPlayer; code: string } | null = null;
+  // On the reveal: one corner driven again at half speed, up to this distance (replayCorner).
+  private replay: { to: number } | null = null;
   private score: Score;
   private scoreKey: string;
   private team = "";
@@ -198,6 +200,7 @@ export class PlayView {
   }
 
   private async loadRound() {
+    this.replay = null;
     this.phase = "loading";
     this.paused = false;
     this.radio?.pause();
@@ -656,6 +659,17 @@ export class PlayView {
       this.duelFrame(dt);
       return;
     }
+    if (this.phase === "reveal" && this.replay) {
+      this.t = Math.min(this.t + dt * 0.5, this.player.duration);
+      const smp = this.player.at(this.t);
+      const ratio = this.ratios[smp.gear];
+      this.engine.update(ratio > 0 && smp.speed > 40 ? smp.speed * ratio : smp.rpm, smp.throttle, smp.speed, smp.gear);
+      this.world.setCarS(smp.s);
+      this.minimap.update(smp.s, null);
+      this.world.update(dt, smp.speed, smp.brake);
+      if (smp.s >= this.replay.to || this.t >= this.player.duration) this.endReplay();
+      return;
+    }
     this.world.update(dt, this.phase === "lap" ? this.player.at(this.t).speed : 0);
   }
 
@@ -786,8 +800,11 @@ export class PlayView {
         ${this.modelTable(truth)}
       </div>
       <div class="why">
-        <ol class="caption">${best
-          .map((e) => `<li><b>${e.label}</b><span>${capitalise(e.sentence)}${cornerById.get(e.corner)?.braked === false ? " (no braking)" : ""}.</span></li>`)
+        <ol class="caption replays">${best
+          .map(
+            (e) =>
+              `<li><b>${e.label}</b><span>${capitalise(e.sentence)}${cornerById.get(e.corner)?.braked === false ? " (no braking)" : ""}.</span><button type="button" class="replay-btn" data-corner="${e.corner}" title="Watch ${e.label} again from behind the car, at half speed">${icons.play}<span>Replay</span></button></li>`,
+          )
           .join("")}</ol>
         ${
           this.lap.radio
@@ -801,7 +818,6 @@ export class PlayView {
         <a class="btn" href="#/dna/${truth}">${truth}'s driver DNA</a>
         <a class="btn" href="#/shootout/${this.session.key}" title="Every driver's best lap of this session, all at once">Watch the whole session</a>
         <button type="button" class="btn" data-challenge>Copy challenge link</button>
-        <a class="btn ghost" href="#/">${icons.back} Menu</a>
         <p class="caps share-note" aria-live="polite"></p>
       </div>`;
 
@@ -816,6 +832,12 @@ export class PlayView {
     const card = this.band;
     card.querySelector("[data-next]")!.addEventListener("click", () => void this.newRound());
     if (rival) card.querySelector("[data-duel]")!.addEventListener("click", () => this.startDuel(rival));
+    card.querySelectorAll<HTMLButtonElement>("[data-corner]").forEach((b) =>
+      b.addEventListener("click", () => {
+        this.replayCorner(Number(b.dataset.corner));
+        b.blur();
+      }),
+    );
     card.querySelector("[data-challenge]")!.addEventListener("click", async () => {
       // The link names the lap by its position in the session file, so it does not give the driver away.
       const link = `${location.origin}${location.pathname}#/play/${this.session.key}.${this.session.laps.indexOf(this.lap)}`;
@@ -831,7 +853,32 @@ export class PlayView {
     (card.querySelector("[data-next]") as HTMLElement).focus({ preventScroll: true });
   }
 
+  /** Drive one corner of the lap again, from 120 m before it to just after it, at half speed, from
+   * behind the car: the place the reveal says gave the driver away, seen as the model read it. */
+  private replayCorner(i: number) {
+    if (this.phase !== "reveal") return;
+    const c = this.session.corners[i];
+    const from = Math.max(0, c.lo - 120);
+    this.radio?.pause();
+    this.replay = { to: Math.min(this.session.length - 1, c.hi + 60) };
+    this.t = this.player.timeAt(from);
+    this.world.setCarS(this.player.at(this.t).s);
+    this.world.mode = "chase";
+    this.world.snapCamera();
+    this.engine.setActive(true);
+    this.root.classList.add("replaying");
+  }
+
+  private endReplay() {
+    this.replay = null;
+    this.world.mode = "orbit";
+    this.engine.setActive(false, 0.8);
+    this.root.classList.remove("replaying");
+  }
+
   private startDuel(rival: LapData) {
+    this.replay = null;
+    this.root.classList.remove("replaying");
     this.radio?.pause();
     this.duel = { lap: rival, player: new LapPlayer(rival), code: rival.code };
     this.player = new LapPlayer(this.lap);
