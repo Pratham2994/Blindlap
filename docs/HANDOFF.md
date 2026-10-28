@@ -231,11 +231,13 @@ files per session, `raw/osm/`, `raw/f1db/` (about 300 MB). Pack and unpack with
 
 From `web/` with the dev server running (`npm run dev`, port 5173):
 - `npx tsc --noEmit` and `npm run build`.
-- `npx playwright test`: 13 end-to-end tests (~6 min).
-- `node scripts/sweep.mjs`: 44 steps through every flow; script errors, missing/blank 3D view,
-  layout off screen, lap bar out of step.
-- `node scripts/track-check.mjs`: every session; ground under the road, nothing within 12.5 m.
-- `node scripts/responsive.mjs [dir]`: 11 screen sizes × 6 pages, with screenshots.
+- `npx playwright test`: 15 end-to-end tests (~5 min; they run at the lowest quality, since
+  headless Chromium is a software renderer).
+- `node scripts/sweep.mjs`: 47 steps through every flow, the Shootout included; script errors,
+  missing/blank 3D view, layout off screen, lap bar out of step.
+- `node scripts/track-check.mjs`: every session; ground under the road, nothing within 12.5 m,
+  no tree above the ground. It waits for the scene's own surroundings build (it used to race it).
+- `node scripts/responsive.mjs [dir]`: 11 screen sizes × 8 pages, with screenshots.
 - `node scripts/capture.mjs [dark]`: screenshots of every page for review.
 - `node scripts/shot-spot.mjs <session> <metres> <camera> <out.png>`: one spot on one circuit.
 - `node scripts/record-demo.mjs`: the README stills (Spa). `node scripts/record-video.mjs`: the README
@@ -259,7 +261,16 @@ sessions, 11 screen sizes, data checks, build).
   loudly instead of silently doing nothing.
 - **The built-in browser pane may be hidden;** then `requestAnimationFrame` never fires. Code that
   waits for frames must have a timer fallback (`applySurroundings` does).
-- **Headless timings mislead;** measure on the real GPU in the built-in browser.
+- **Headless timings mislead;** measure on the real GPU in the built-in browser, or launch headless
+  Chrome with `--use-angle=d3d11 --enable-gpu --ignore-gpu-blocklist` (it then uses the RTX 5070).
+- **The pane hidden also freezes CSS animations** (page fade-ins stay half transparent). For
+  screenshots there, add a style that turns animations off. `window.frame(dt)` (dev only) drives the
+  current page when no animation frames come.
+- **Playwright's fake clock keeps running in real time** unless paused (`clock.pauseAt`): a video
+  filmed on a running clock played three times too fast.
+- **Python patches in heredocs:** `
+` inside them reached the TypeScript as a real line break
+  twice; write patch files with the Write tool instead.
 - **When the owner reports one instance, search for the class:** one floating stand meant ground
   sampled at one point for every building; one Baku collision meant checking all 41 sessions.
 - **Browser view transitions** freeze the old page while the next one works; do not use them here.
@@ -268,12 +279,13 @@ sessions, 11 screen sizes, data checks, build).
 
 ## 9. What is left
 
-1. Check the live site on a phone and a weak laptop (6.1).
-2. Confirm the final sweep passes, and watch the first weekly data run (6.2).
-3. Demo media in the README (GIF, video, screenshots) is from an older look; re-record with
-   `web/scripts/record-demo.mjs`.
-4. The impeccable finish review has not been run on the latest design; `DESIGN.md` covers the
-   poster world and the later additions (map, hints, trackside) in its component notes.
-5. Ideas the owner raised for later: many new F1 features with new datasets (after polish).
-6. Known limits: the racing line is computed, not measured; street circuits show only the stands
-   OpenStreetMap or the dressing provides; captions are machine transcripts.
+1. Check the live site on a real phone and a weak laptop (6.1). The lowest quality level was only
+   forced and looked at on this PC, not measured on a slow machine.
+2. Watch the first weekly data run (6.2); it now also builds `battles.json`.
+3. The impeccable finish review has not been run on the latest design; `DESIGN.md` does not yet
+   describe the hint ladder, the Shootout or Teammate battles.
+4. Ideas for later, not built: track evolution (how lap times drop from Q1 to Q3 in each session).
+5. Known limits: the racing line is computed, not measured (now shaped per lap from its real
+   corners); street circuits show only the stands OpenStreetMap or the dressing provides; captions
+   are machine transcripts; in the Shootout, cars bunch up at the start because every lap starts
+   at the line at the same moment.
