@@ -70,12 +70,13 @@ const RED = new THREE.Color("#e10600");
 // The sun's direction: low and to one side, so the relief of the scene reads.
 const SUN_DIR = new THREE.Vector3(0.9, 0.55, 0.35).normalize();
 const HAZE = new THREE.Color().setRGB(0.62, 0.61, 0.58, THREE.LinearSRGBColorSpace);
-// Dark mode: the same scene at night-print values. Sky and fog meet at the horizon colour.
+// A night race: deep navy overhead and the city's warm glow along the horizon (a flat black sky
+// read as a void), with a few stars. Sky and fog meet at the horizon colour.
 const NIGHT = {
   background: new THREE.Color("#141413"),
-  haze: new THREE.Color().setRGB(0.012, 0.012, 0.011, THREE.LinearSRGBColorSpace),
-  zenith: new THREE.Vector3(0.006, 0.006, 0.006),
-  horizon: new THREE.Vector3(0.012, 0.012, 0.011),
+  haze: new THREE.Color().setRGB(0.032, 0.026, 0.03, THREE.LinearSRGBColorSpace),
+  zenith: new THREE.Vector3(0.004, 0.006, 0.016),
+  horizon: new THREE.Vector3(0.032, 0.026, 0.03),
 };
 // The dark theme at a daytime race: late evening, a deep blue sky that still reads as sky, so the
 // sunlit trees and stands never sit under a black void.
@@ -631,7 +632,7 @@ export class World {
       side: THREE.BackSide,
       depthWrite: false,
       fog: false,
-      uniforms: { uZenith: { value: DAY.zenith.clone() }, uHorizon: { value: DAY.horizon.clone() }, uCloud: { value: 1 }, uCloudLit: { value: 1 } },
+      uniforms: { uZenith: { value: DAY.zenith.clone() }, uHorizon: { value: DAY.horizon.clone() }, uCloud: { value: 1 }, uCloudLit: { value: 1 }, uStars: { value: 0 } },
       vertexShader: /* glsl */ `
         varying vec3 vDir;
         void main() {
@@ -645,6 +646,7 @@ export class World {
         uniform vec3 uHorizon;
         uniform float uCloud; // 1 by day, less at dusk, 0 at night
         uniform float uCloudLit; // how bright the clouds are: 1 by day, dim in the evening
+        uniform float uStars; // 1 at a night race
         float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
         float noise(vec2 p) {
           vec2 i = floor(p), f = fract(p);
@@ -670,6 +672,17 @@ export class World {
             d *= smoothstep(0.01, 0.16, h) * uCloud;
             vec3 cloud = mix(vec3(0.97, 0.97, 0.98), uHorizon * 1.15, 0.25) * uCloudLit;
             c = mix(c, cloud, d * 0.85);
+          }
+          // Stars: a sparse grid of points on the sky, fading out toward the glow of the horizon.
+          if (uStars > 0.0 && h > 0.08) {
+            vec2 g = vec2(atan(vDir.z, vDir.x) * 180.0, h * 260.0);
+            vec2 cell = floor(g);
+            float r = hash(cell);
+            if (r > 0.985) {
+              vec2 at = cell + 0.5 + (vec2(hash(cell + 3.1), hash(cell + 7.7)) - 0.5) * 0.6;
+              float d = length(g - at);
+              c += vec3(0.6, 0.62, 0.7) * smoothstep(0.35, 0.0, d) * (r - 0.985) * 40.0 * smoothstep(0.08, 0.35, h) * uStars;
+            }
           }
           if (h < -0.02) c = uHorizon;
           gl_FragColor = vec4(c, 1.0);
@@ -1206,6 +1219,7 @@ export class World {
     this.sky.material.uniforms.uHorizon.value.copy(p.horizon);
     this.sky.material.uniforms.uCloud.value = this.lightMode === "dusk" ? 0.6 : evening ? 0.55 : dark ? 0 : 1;
     this.sky.material.uniforms.uCloudLit.value = evening ? 0.16 : 1;
+    this.sky.material.uniforms.uStars.value = this.lightMode === "night" ? 1 : 0;
     const night = this.lightMode === "night";
     // Floodlit at night: an even, white light from above; the sun becomes a dim moon.
     this.hemi.intensity = night ? 1.6 : dark ? 0.9 : 1.4;
