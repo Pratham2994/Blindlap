@@ -234,6 +234,10 @@ From `web/` with the dev server running (`npm run dev`, port 5173):
 - `node scripts/responsive.mjs [dir]`: 11 screen sizes × 6 pages, with screenshots.
 - `node scripts/capture.mjs [dark]`: screenshots of every page for review.
 - `node scripts/shot-spot.mjs <session> <metres> <camera> <out.png>`: one spot on one circuit.
+- `node scripts/record-demo.mjs`: the README stills (Spa). `node scripts/record-video.mjs`: the README
+  video and GIF, filmed frame by frame on Playwright's paused fake clock, so they are smooth.
+  Both use the real graphics card on Windows (headless Chrome with `--use-angle=d3d11`), about 100
+  times faster than the software renderer the tests use.
 
 From `pipeline/`: `.venv/Scripts/python.exe check.py` (data invariants).
 

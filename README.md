@@ -26,7 +26,8 @@ session.
 | ![Chase camera mid-lap](docs/media/lap.png) | ![Overhead camera with evidence captions](docs/media/above.png) |
 | ![Reveal with ruled evidence caption and team radio](docs/media/reveal.png) | ![Driver DNA](docs/media/dna.png) |
 
-A one-minute screen recording is in [docs/media/demo.mp4](docs/media/demo.mp4), and 30 seconds of
+A 50-second recording (a lap at Spa, the reveal, a corner replay and the Shootout) is in
+[docs/media/demo.mp4](docs/media/demo.mp4), filmed frame by frame by `web/scripts/record-video.mjs`; 30 seconds of
 the synthesised engine on a Singapore lap is in [docs/media/engine.mp3](docs/media/engine.mp3). The full technical
 write-up, file by file, is in [docs/OVERVIEW.md](docs/OVERVIEW.md).
 

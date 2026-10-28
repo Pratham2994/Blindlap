@@ -7,7 +7,10 @@ const root = new URL("../../docs/media/", import.meta.url).pathname.replace(/^\/
 const tmp = `${root}tmp/`;
 mkdirSync(tmp, { recursive: true });
 const size = { width: 1280, height: 720 };
-const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
+// The real graphics card on Windows (headless Chrome can use it through ANGLE and Direct3D 11);
+// the software renderer elsewhere. The tests keep the software renderer: it is the slow-machine check.
+const GPU = process.platform === "win32" ? ["--use-angle=d3d11", "--enable-gpu", "--ignore-gpu-blocklist"] : ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"];
+const browser = await chromium.launch({ args: GPU });
 const context = await browser.newContext({ viewport: size, recordVideo: { dir: tmp, size } });
 await context.addInitScript(() => {
     localStorage.setItem("blindlap.speed.v1", "2");
@@ -19,7 +22,8 @@ const wait = (ms) => page.waitForTimeout(ms);
 await page.goto("http://localhost:5173/#/");
 await wait(4000);
 await page.screenshot({ path: `${root}title.png` });
-await page.getByRole("link", { name: /start a lap/i }).click();
+// A daytime circuit, so the README's pictures are never a dark night scene.
+await page.goto("http://localhost:5173/#/play/9935");
 await page.locator(".evidence .t").filter({ hasText: /^T\d+/ }).waitFor({ timeout: 40000 });
 await wait(6000);
 await page.locator(".lineup .row").nth(1).click();
