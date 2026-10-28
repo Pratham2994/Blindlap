@@ -13,6 +13,9 @@ session.
 - **Play**: one anonymous lap, the model's live line-up, your pick, the reveal.
 - **Teammates**: same car, two drivers: which one is it? You against the model, chance 50%.
 - **Duel**: after the reveal, race the lap against the driver the model picked, with a live gap.
+- **Shootout**: every driver's best lap of a session run at once on the same track, with a live
+  timing tower and each car's gap to the pole lap at that point. Follow any driver: the camera,
+  engine and telemetry are theirs.
 - **Challenge link**: send a friend one exact lap, without giving the driver away.
 - **Driver DNA**: every driver's corner style projected into 3D, with the habits that give them away.
 - **Telemetry lab**: any session, any two drivers, speed traces and braking overlaid corner by corner.
@@ -46,6 +49,11 @@ F1DB release ─► careers.py        ▼
 web/  Vite + TypeScript + Three.js + Web Audio
       model.ts replays the held-out models' corner scores in the browser, corner by corner
 ```
+
+Two things on screen are drawn rather than measured, and the game says so: where across the road
+the car drives (OpenF1 snaps every car to one line, so each lap reshapes the circuit's racing line
+from how it really took each corner), and the engine sound (made live from the real speed, gear and
+throttle). Speed, gear, throttle, brake and timing are the car's own.
 
 1. **Data.** Car telemetry (~3.7 Hz), 3D position (~4 Hz) and team radio from
    [OpenF1](https://openf1.org); corner positions from MultiViewer's circuit maps; career totals from

@@ -92,6 +92,12 @@ These are the most important things to get right. They come from many correction
   final position, career totals, how each model ranked the driver, the three corners that gave them
   away, team radio with auto captions; duel replay against the model's pick; challenge link.
 - **Teammates mode**, **Driver DNA** (style map), **Telemetry lab**, **How it knows**.
+- **Shootout** (`#/shootout/<session>`, `ui/shootout.ts`): every driver's best lap of a session at
+  once. Live tower ordered by distance, gap to the pole lap at the same point, follow a driver
+  (click a row, or arrow up and down) for the camera, engine and telemetry; flag card at the end
+  with "Guess a blind lap here". The followed car is the modelled car; the rest are the built car
+  merged into one mesh each (`tokenCar`), on their own lap lines (`setField`, `setFieldS`), in
+  three lanes where they would overlap. Linked from the top bar, a home tile and the reveal.
 - Light and dark themes; laid out and checked for 11 screen sizes from 360 px phones to 27".
 
 ### 3.1 The 3D scene
