@@ -83,10 +83,10 @@ drivers. Read live from `pipeline/model_out/report.json` and shown on the How it
 | Model | Top-1 driver | Top-3 driver | Right team | Right teammate |
 |---|---|---|---|---|
 | Chance | 4.2% | 12.6% | about 9% | 50% |
-| Blend of the three below | **44.4%** | **74.1%** | **59.8%** | **74.2%** |
-| Gradient-boosted trees | 42.9% | 72.6% | 58.7% | 73.5% |
-| Random forest (in the blend only) | 40.3% | 68.6% | 56.4% | 69.6% |
-| Logistic regression | 34.7% | 64.2% | 49.1% | 71.4% |
+| Blend of the three below | **46.6%** | **74.1%** | **60.8%** | **74.9%** |
+| Gradient-boosted trees | 43.7% | 73.2% | 59.2% | 74.0% |
+| Random forest (in the blend only) | 42.2% | 70.7% | 58.4% | 71.7% |
+| Logistic regression | 35.0% | 64.0% | 50.3% | 71.1% |
 | Cross-season (logistic): trained on 2025 only, tested on 2026 laps | 25.4% | 55.6% | 40.3% | |
 
 - The blend is right about 10 times as often as picking at random, on circuits it never saw.

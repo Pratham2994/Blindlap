@@ -13,7 +13,7 @@ const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--ena
 async function shoot(width, height, prefix) {
   const page = await browser.newPage({ viewport: { width, height } });
   await page.addInitScript((t) => {
-    localStorage.setItem("blindlap.speed.v1", "4");
+    localStorage.setItem("blindlap.speed.v1", "4"); localStorage.setItem("blindlap.intro.v1", "1");
     localStorage.setItem("blindlap.theme.v1", t);
   }, theme);
   const wait = (ms) => page.waitForTimeout(ms);
@@ -23,7 +23,7 @@ async function shoot(width, height, prefix) {
   await page.screenshot({ path: `${out}${prefix}.png` });
 
   await page.goto(base + "#/play");
-  await page.locator(".evidence .t").filter({ hasText: /^T\d+/ }).waitFor({ timeout: 40000 });
+  await page.locator(".evidence .t").filter({ hasText: /^T\d+/ }).waitFor({ timeout: 120000 });
   await wait(2500);
   await page.locator(".lineup .row").nth(2).click();
   await page.screenshot({ path: `${out}${prefix}-play.png` });
@@ -50,7 +50,7 @@ async function shoot(width, height, prefix) {
   await page.screenshot({ path: `${out}${prefix}-lab.png` });
 
   await page.goto(base + "#/mates");
-  await page.locator(".evidence .t").filter({ hasText: /^T\d+/ }).waitFor({ timeout: 40000 });
+  await page.locator(".evidence .t").filter({ hasText: /^T\d+/ }).waitFor({ timeout: 120000 });
   await wait(2500);
   await page.screenshot({ path: `${out}${prefix}-mates.png` });
   await page.close();

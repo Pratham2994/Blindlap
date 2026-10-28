@@ -63,7 +63,10 @@ async function audit(page, name, label) {
 
 for (const [name, w, h] of SIZES) {
   const page = await browser.newPage({ viewport: { width: w, height: h } });
-  await page.addInitScript(() => localStorage.setItem("blindlap.speed.v1", "4"));
+  await page.addInitScript(() => {
+    localStorage.setItem("blindlap.speed.v1", "4");
+    localStorage.setItem("blindlap.intro.v1", "1");
+  });
   await page.goto(base + "#/");
   await page.waitForTimeout(1500);
   await audit(page, name, "home");

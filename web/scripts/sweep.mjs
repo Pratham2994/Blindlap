@@ -6,7 +6,10 @@ import { chromium } from "@playwright/test";
 const base = "http://localhost:5173/";
 const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-await page.addInitScript(() => localStorage.setItem("blindlap.speed.v1", "4"));
+await page.addInitScript(() => {
+    localStorage.setItem("blindlap.speed.v1", "4");
+    localStorage.setItem("blindlap.intro.v1", "1");
+  });
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 const problems = [];

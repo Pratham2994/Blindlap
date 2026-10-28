@@ -14,6 +14,7 @@ import requests
 OPENF1 = "https://api.openf1.org/v1/"
 MULTIVIEWER = "https://api.multiviewer.app/api/v1/circuits/{key}/{year}"
 RAW = Path(__file__).parent / "raw"
+BUILD = Path(__file__).parent / "build"
 YEAR = int(os.environ.get("BLINDLAP_YEAR", "2025"))
 # Qualifying feeds the game; practice sessions (BLINDLAP_SESSION="Practice 3") only add training laps.
 SESSION_NAME = os.environ.get("BLINDLAP_SESSION", "Qualifying")
@@ -59,6 +60,10 @@ def save(path: Path, data):
 def fetch_session(s):
     sk = s["session_key"]
     out = RAW / str(sk)
+    # Already processed (build/<sk>.pkl exists): its telemetry is not needed again. This lets the
+    # weekly update run with only the small files of past sessions (see .github/workflows/data.yml).
+    if (BUILD / f"{sk}.pkl").exists() and (out / "session.json").exists():
+        return
     save(out / "session.json", s)
 
     drivers_path = out / "drivers.json"

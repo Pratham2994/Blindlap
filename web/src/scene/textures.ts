@@ -20,6 +20,31 @@ export function asphaltTexture(): THREE.CanvasTexture {
   return t;
 }
 
+// The ground texture's size: 2048 px is sharp enough from every camera and a quarter of the memory
+// and upload time of 4096.
+export const GROUND_PX = 2048;
+
+let speckleTile: HTMLCanvasElement | null = null;
+
+/** A 256 px tile of light grey noise, made once; multiplied over the ground it breaks up flat
+ * colour at almost no cost (one pattern fill instead of a loop over every pixel). */
+function speckle(): HTMLCanvasElement {
+  if (speckleTile) return speckleTile;
+  const c = document.createElement("canvas");
+  c.width = c.height = 256;
+  const g = c.getContext("2d")!;
+  const img = g.createImageData(256, 256);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const v = 232 + Math.random() * 23;
+    img.data[i] = img.data[i + 1] = v;
+    img.data[i + 2] = v - 4;
+    img.data[i + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  speckleTile = c;
+  return c;
+}
+
 /** Real areas to paint into the ground, as polygons in texture pixels: [outer ring, holes...],
  * each ring x0, y0, x1, y1... (from OpenStreetMap, see scene/environment.ts). */
 export interface GroundAreas {
@@ -39,7 +64,7 @@ export interface GroundAreas {
  * and parks are printed on it too, in their natural colours.
  */
 export function posterGround(name: string, year: string, dark = false, areas?: GroundAreas): THREE.CanvasTexture {
-  const size = 4096;
+  const size = GROUND_PX;
   const c = document.createElement("canvas");
   c.width = c.height = size;
   const g = c.getContext("2d")!;
@@ -62,14 +87,11 @@ export function posterGround(name: string, year: string, dark = false, areas?: G
     // grey at a street circuit, with a fine speckle so it never reads as one flat colour.
     g.fillStyle = areas.verge.street ? (dark ? "#1d1d1c" : "#c3c0b8") : dark ? "#1c2118" : "#bdbd94";
     g.fillRect(0, 0, size, size);
-    const img = g.getImageData(0, 0, size, size);
-    for (let i = 0; i < img.data.length; i += 4) {
-      const n = (Math.random() - 0.5) * 18;
-      img.data[i] += n;
-      img.data[i + 1] += n;
-      img.data[i + 2] += n * 0.7;
-    }
-    g.putImageData(img, 0, 0);
+    g.save();
+    g.globalCompositeOperation = "multiply";
+    g.fillStyle = g.createPattern(speckle(), "repeat")!;
+    g.fillRect(0, 0, size, size);
+    g.restore();
     const fill = (polys: number[][][], colour: string) => {
       g.fillStyle = colour;
       for (const rings of polys) {

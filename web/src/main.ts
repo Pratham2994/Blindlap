@@ -2,14 +2,13 @@ import "./styles.css";
 import * as THREE from "three";
 import { EngineSynth } from "./audio/engine";
 import type { Index, ModelReport, Report } from "./data";
-import { loadCareers, loadDna, loadIndex, loadReport, loadSession } from "./data";
+import { loadCareers, loadDna, loadEnvIndex, loadIndex, loadReport, loadSession } from "./data";
+import { LapPlayer } from "./lap";
 import { World } from "./scene/world";
-import { DnaView } from "./ui/dna";
-import { howView } from "./ui/how";
+import type { CameraMode } from "./scene/world";
 import { icons } from "./ui/icons";
-import { LabView } from "./ui/lab";
 import { PlayView } from "./ui/play";
-import { dockStage } from "./ui/stage";
+import { dockStage, flushStage } from "./ui/stage";
 import { isDark, onTheme, setTheme } from "./theme";
 
 interface View {
@@ -60,27 +59,63 @@ onTheme(() => {
 showTheme();
 
 function mount(v: View) {
-  current?.dispose?.();
-  view.replaceChildren(v.root);
-  current = v;
-  window.scrollTo(0, 0);
+  const swap = () => {
+    current?.dispose?.();
+    view.replaceChildren(v.root);
+    current = v;
+    window.scrollTo(0, 0);
+    // The new page asked for the 3D view while it was being built; it moves in now it is shown.
+    // A page without a frame for it (How, Lab, a lap still loading) gets it parked out of sight.
+    if (v.root.querySelector(".stage-slot")) flushStage();
+    else dockStage(null);
+  };
+  // The page changes at once and its own content fades in (CSS "arrive"). A browser view
+  // transition was tried and removed: it froze a picture of the old page while the new one built
+  // its circuit, so the old page hung on screen with an empty 3D box for most of a second.
+  swap();
 }
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 
 async function homeView(): Promise<View> {
-  const report = (await loadReport().catch(() => null)) as Report | null;
+  // The page shows at once; the numbers and the 3D broadcast fill in when their data arrives.
+  const report = (await Promise.race([loadReport().catch(() => null), new Promise((r) => setTimeout(() => r(null), 150))])) as Report | null;
   const best = report ? (report as unknown as Record<string, ModelReport>)[index.models[0].id] : null;
-  // Beside the headline: a random circuit, orbiting, with the session's fastest lap laid down.
-  if (homeSession === null) homeSession = index.sessions[Math.floor(Math.random() * index.sessions.length)].key;
-  const session = await loadSession(homeSession);
-  world.setSession(session);
-  const fastest = [...session.laps].sort((a, b) => a.lapTime - b.lapTime)[0];
-  world.setLap(fastest);
-  world.revealLine(true);
-  world.showCar(false);
-  world.mode = "orbit";
-  world.labelsOn = false;
+  let player: LapPlayer | null = null;
+  const shots: CameraMode[] = ["tv", "chase", "side", "tv", "heli"];
+  let t = 0;
+  let shot = 0;
+  let shotTime = 0;
+  let caption = "Loading a circuit";
+  // Beside the headline: a broadcast of a random circuit's fastest lap, cutting between cameras.
+  // Daytime sessions only, so the first thing a visitor sees is never a dark night scene.
+  const startBroadcast = async () => {
+    if (homeSession === null) {
+      const env = await loadEnvIndex();
+      const day = index.sessions.filter((s) => env[String(s.key)]?.light === "day");
+      const pool = day.length ? day : index.sessions;
+      homeSession = pool[Math.floor(Math.random() * pool.length)].key;
+    }
+    const session = await loadSession(homeSession);
+    if (current?.root !== root) return; // the visitor already left the home page
+    // Back on the home page with the same circuit: the scene is already built.
+    if (world.sessionShown !== session.key) world.setSession(session);
+    const fastest = [...session.laps].sort((a, b) => a.lapTime - b.lapTime)[0];
+    world.setLap(fastest);
+    world.revealLine(false);
+    world.hideLivery();
+    world.showCar(true);
+    world.labelsOn = false;
+    player = new LapPlayer(fastest);
+    t = player.duration * Math.random();
+    world.mode = shots[0];
+    world.setCarS(player.at(t).s);
+    world.snapCamera();
+    caption = `${session.circuit} ${session.date.slice(0, 4)} · fastest lap of the session · who is it?`;
+    const cap = root.querySelector(".hero-stage figcaption");
+    if (cap) cap.textContent = caption;
+    root.querySelector(".hero-stage")?.classList.add("ready");
+  };
 
   const laps = index.sessions.reduce((a, s) => a + s.laps, 0);
   const root = document.createElement("div");
@@ -94,8 +129,18 @@ async function homeView(): Promise<View> {
       </div>
       <figure class="hero-stage frame">
         <div class="stage-slot"></div>
-        <figcaption class="caps">${session.circuit} ${session.date.slice(0, 4)} · fastest lap of the session</figcaption>
+        <figcaption class="caps">${caption}</figcaption>
       </figure>
+    </section>
+
+    <section class="howto" aria-label="How to play">
+      <h2 class="caps">How to play</h2>
+      <ol>
+        <li><b>Watch</b><span>A real qualifying lap, the driver's name hidden. Same car colours for everyone.</span></li>
+        <li><b>Read</b><span>Where they brake, how much speed they carry, when they get back on the power. Every driver has a signature.</span></li>
+        <li><b>Guess</b><span>Tap a driver before the flag. Right: 3 points, their teammate: 1. Hints help, and cost a point each.</span></li>
+        <li><b>Reveal</b><span>Who it was, how three models read the same lap, and their team radio.</span></li>
+      </ol>
     </section>
 
     <section class="modes" aria-label="Ways to play">
@@ -136,7 +181,25 @@ async function homeView(): Promise<View> {
     if (v) location.hash = `#/play/${v}`;
   });
   dockStage(root.querySelector(".stage-slot"));
-  return { root, frame: (dt) => world.update(dt) };
+  // Start the 3D after the page has painted, so the text never waits for it.
+  requestAnimationFrame(() => setTimeout(() => void startBroadcast(), 0));
+  return {
+    root,
+    frame: (dt) => {
+      if (!player) return;
+      // Drive the lap at real speed, loop it, and cut to the next camera every 6 seconds.
+      t = (t + dt) % player.duration;
+      const smp = player.at(t);
+      world.setCarS(smp.s);
+      shotTime += dt;
+      if (shotTime > 6) {
+        shotTime = 0;
+        shot = (shot + 1) % shots.length;
+        world.mode = shots[shot];
+      }
+      world.update(dt, smp.speed, smp.brake);
+    },
+  };
 }
 
 async function route() {
@@ -148,7 +211,6 @@ async function route() {
   document.body.dataset.route = name || "home";
   world.labelsOn = true;
   world.setFrameShift(0);
-  dockStage(null);
   try {
     if (!index) index = await loadIndex();
     if (name === "play") {
@@ -166,11 +228,14 @@ async function route() {
       mount(new PlayView(world, engine, index, null, true));
     } else if (name === "dna") {
       const [dna, careers] = await Promise.all([loadDna(), loadCareers()]);
+      const { DnaView } = await import("./ui/dna");
       mount(new DnaView(world, dna, arg ?? null, careers));
     } else if (name === "lab") {
+      const { LabView } = await import("./ui/lab");
       mount(new LabView(index));
     } else if (name === "how") {
-      mount({ root: howView(index, await loadReport()) });
+      const [{ howView }, report] = await Promise.all([import("./ui/how"), loadReport()]);
+      mount({ root: howView(index, report) });
     } else {
       mount(await homeView());
     }

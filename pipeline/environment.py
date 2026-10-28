@@ -279,7 +279,10 @@ def main():
     alignment = json.loads((ROOT / "model_out" / "alignment.json").read_text(encoding="utf-8"))
     index = json.loads((WEB / "index.json").read_text(encoding="utf-8"))
     OUT.mkdir(parents=True, exist_ok=True)
-    sessions_out = {}
+    # Start from the last full index, so while this runs every session keeps its surroundings
+    # (the site reads these files; an index of only the circuits done so far left the rest empty).
+    old = OUT / "index.json"
+    sessions_out = json.loads(old.read_text(encoding="utf-8")) if old.exists() else {}
     summary = []
     for name, al in sorted(alignment.items()):
         if not al.get("ok"):

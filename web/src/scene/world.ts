@@ -7,6 +7,29 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 
+/** Speed blur: samples pulled toward the middle of the view, stronger toward the edges and the
+ * faster the car goes, as a fast camera smears the scenery passing it. */
+const SpeedBlurShader = {
+  uniforms: { tDiffuse: { value: null }, uStrength: { value: 0 } },
+  vertexShader: /* glsl */ `
+    varying vec2 vUv;
+    void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: /* glsl */ `
+    uniform sampler2D tDiffuse;
+    uniform float uStrength;
+    varying vec2 vUv;
+    void main() {
+      vec4 c = texture2D(tDiffuse, vUv);
+      if (uStrength <= 0.001) { gl_FragColor = c; return; }
+      vec2 d = vUv - 0.5;
+      float edge = smoothstep(0.16, 0.7, length(d * vec2(1.4, 1.0)));
+      vec2 stepv = -d * 0.045 * uStrength * edge;
+      vec4 acc = c;
+      for (int k = 1; k <= 6; k++) acc += texture2D(tDiffuse, vUv + stepv * float(k));
+      gl_FragColor = acc / 7.0;
+    }`,
+};
+
 /** A light camera grade after tone mapping: a little contrast and saturation, and a soft
  * vignette, like broadcast footage. */
 const GradeShader = {
@@ -31,7 +54,7 @@ const GradeShader = {
 };
 import type { LapData, Session } from "../data";
 import { contactShadow, fitF1Model, loadF1Model, makeF1Car } from "./car";
-import { asphaltTexture, boardTexture, labelTexture, posterGround } from "./textures";
+import { asphaltTexture, boardTexture, GROUND_PX, labelTexture, posterGround } from "./textures";
 import type { GroundAreas } from "./textures";
 import { loadEnv, loadEnvIndex } from "../data";
 import type { EnvData, EnvSession } from "./environment";
@@ -63,6 +86,20 @@ const DUSK = {
 };
 // A clear day: deep blue overhead, pale at the horizon, and fog in the horizon colour so distance
 // fades into blue air. (A flat grey sky and fog made the scene look like a model under a cloth.)
+// Quality levels, best first. The game starts at 0 (or 1 on small devices) and steps down by
+// itself while frames are slow.
+const QUALITY = [
+  { name: "full", pixels: 2, shadow: 4096, bloom: true, crowds: true },
+  { name: "balanced", pixels: 1.25, shadow: 2048, bloom: true, crowds: true },
+  { name: "light", pixels: 1, shadow: 1024, bloom: false, crowds: true },
+  { name: "minimal", pixels: 0.75, shadow: 1024, bloom: false, crowds: false },
+];
+
+// Index of the apex_offset feature in a lap's raw corner values (pipeline/features.py FEATURES).
+const APEX_OFFSET = 4;
+
+// How much the light ground texture is dimmed in the dark theme and at night.
+const GROUND_DIM = 0.2;
 const DAY = {
   background: new THREE.Color("#a9c8e4"),
   haze: new THREE.Color().setRGB(0.52, 0.64, 0.78, THREE.LinearSRGBColorSpace),
@@ -163,11 +200,21 @@ function trackEdges(pos: THREE.Vector3[], tan: THREE.Vector3[], side: THREE.Vect
  * (the minimum of the squared second difference), updated in place and held inside the track
  * edges; coarse spans first so whole corners settle, then finer. Returns the sideways offset
  * from the centre line. */
-function racingLine(pos: THREE.Vector3[], side: THREE.Vector3[], step: number, edges: TrackEdges): Float64Array {
+function racingLine(pos: THREE.Vector3[], side: THREE.Vector3[], step: number, edges: TrackEdges, cornerAt: number[] = []): Float64Array {
   const n = pos.length;
-  // Keep the 2 m wide car a little inside the white line, on each side.
-  const lo = Float64Array.from(edges.half[1], (h) => -Math.max(0.3, h - 1.6));
-  const hi = Float64Array.from(edges.half[0], (h) => Math.max(0.3, h - 1.6));
+  // How far the middle of the 2 m car may go toward each edge: on the straights about a metre
+  // inside the white line; within 45 m of a corner right out to it, wheels on the line but never
+  // over the kerb (the kerbs are drawn outside the road, and a car on them looked as if it drove
+  // through them).
+  const nearCorner = new Uint8Array(n);
+  const reach = Math.round(45 / step);
+  for (const s of cornerAt) {
+    const c = Math.round(s / step);
+    for (let d = -reach; d <= reach; d++) nearCorner[(((c + d) % n) + n) % n] = 1;
+  }
+  const margin = (i: number) => (nearCorner[i] ? 1.05 : 1.3);
+  const lo = Float64Array.from(edges.half[1], (h, i) => -Math.max(0.3, h - margin(i)));
+  const hi = Float64Array.from(edges.half[0], (h, i) => Math.max(0.3, h - margin(i)));
   const a = new Float64Array(n);
   const qx = (i: number) => pos[i].x + side[i].x * a[i];
   const qz = (i: number) => pos[i].z + side[i].z * a[i];
@@ -245,6 +292,13 @@ export class World {
   private frame: TrackFrame | null = null;
   private car: THREE.Group;
   private carWheels: THREE.Object3D[] = [];
+  private apexes: [number, number][] = []; // per corner: distance along the lap, apex shift in m
+  private quality = 0;
+  private speedBlur!: ShaderPass;
+  private roll = 0; // camera lean into corners, radians
+  private lastCarS = 0;
+  private lastFrame = 0;
+  private frameTimes: number[] = [];
   private ghostWheels: THREE.Object3D[] = [];
   private carColours: [THREE.ColorRepresentation, THREE.ColorRepresentation] = [INK, RED];
   private pulses: { mesh: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>; age: number }[] = [];
@@ -287,6 +341,8 @@ export class World {
     crowd: new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.9 }),
   };
   private outerMat = new THREE.MeshStandardMaterial({ roughness: 1 });
+  private vergeMat = new THREE.MeshStandardMaterial({ roughness: 0.95, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1 });
+  private vergeStreet = false;
   private outerStreet = false;
   private liveryHidden = true;
   private radius = 1000;
@@ -339,7 +395,10 @@ export class World {
 
   constructor(private canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Small devices (few cores or little memory) start at a lower quality level.
+    const nav = navigator as Navigator & { deviceMemory?: number };
+    if ((navigator.hardwareConcurrency || 8) <= 4 || (nav.deviceMemory ?? 8) <= 4) this.quality = 1;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, QUALITY[this.quality].pixels));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
     this.renderer.shadowMap.enabled = true;
@@ -354,7 +413,7 @@ export class World {
     // One low raking light, like late sun across a moulded sidewall: it makes the relief read.
     this.sun = new THREE.DirectionalLight("#fff4e6", 3.2);
     this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(4096, 4096);
+    this.sun.shadow.mapSize.set(QUALITY[this.quality].shadow, QUALITY[this.quality].shadow);
     this.sun.shadow.bias = -0.0004;
     this.sun.shadow.normalBias = 0.02;
     this.scene.add(this.sun, this.sun.target);
@@ -392,6 +451,8 @@ export class World {
     this.composer.addPass(new RenderPass(this.scene, this.camera));
     this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.45, 0.45, 0.88);
     this.composer.addPass(this.bloom);
+    this.speedBlur = new ShaderPass(SpeedBlurShader);
+    this.composer.addPass(this.speedBlur);
     this.composer.addPass(new OutputPass());
     this.composer.addPass(new ShaderPass(GradeShader));
     this.resize();
@@ -416,7 +477,7 @@ export class World {
       side: THREE.BackSide,
       depthWrite: false,
       fog: false,
-      uniforms: { uZenith: { value: DAY.zenith.clone() }, uHorizon: { value: DAY.horizon.clone() } },
+      uniforms: { uZenith: { value: DAY.zenith.clone() }, uHorizon: { value: DAY.horizon.clone() }, uCloud: { value: 1 } },
       vertexShader: /* glsl */ `
         varying vec3 vDir;
         void main() {
@@ -428,6 +489,18 @@ export class World {
         varying vec3 vDir;
         uniform vec3 uZenith;
         uniform vec3 uHorizon;
+        uniform float uCloud; // 1 by day, less at dusk, 0 at night
+        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float noise(vec2 p) {
+          vec2 i = floor(p), f = fract(p);
+          vec2 u = f * f * (3.0 - 2.0 * f);
+          return mix(mix(hash(i), hash(i + vec2(1, 0)), u.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), u.x), u.y);
+        }
+        float fbm(vec2 p) {
+          float v = 0.0, a = 0.5;
+          for (int k = 0; k < 5; k++) { v += a * noise(p); p *= 2.03; a *= 0.5; }
+          return v;
+        }
         void main() {
           float h = vDir.y;
           // Haze is a touch brighter on the side the light sits (+x), and thins quickly with height.
@@ -435,6 +508,14 @@ export class World {
           vec3 horizon = mix(uHorizon, uHorizon * 1.12, pow(sun, 8.0));
           float t = smoothstep(-0.02, 0.28, h);
           vec3 c = mix(horizon, uZenith, t);
+          // Fair-weather clouds: noise on a flat sky plane, thinning toward the horizon.
+          if (h > 0.01 && uCloud > 0.0) {
+            vec2 q = vDir.xz / (h + 0.08) * 1.6;
+            float d = smoothstep(0.52, 0.78, fbm(q + vec2(3.1, 7.7)));
+            d *= smoothstep(0.01, 0.16, h) * uCloud;
+            vec3 cloud = mix(vec3(0.97, 0.97, 0.98), uHorizon * 1.15, 0.25);
+            c = mix(c, cloud, d * 0.85);
+          }
           if (h < -0.02) c = uHorizon;
           gl_FragColor = vec4(c, 1.0);
         }`,
@@ -461,8 +542,14 @@ export class World {
   }
 
   /** Build the circuit for a session. The lap paints the rubber line. */
+  /** The session the scene is built for, so a page can reuse it instead of rebuilding. */
+  get sessionShown(): number {
+    return this.sessionKey;
+  }
+
   setSession(session: Session) {
     this.session = session;
+    this.apexes = []; // the next setLap fills them; the track itself uses the plain line
     this.snap = true;
     this.sessionKey = session.key;
     this.groundAreas = undefined;
@@ -518,14 +605,14 @@ export class World {
       }
     }
     // The ground's height comes from the road's natural height (before any bridge is lifted).
-    this.terrainSamples = pos.filter((_, i) => i % 3 === 0).map((p) => ({ x: p.x, z: p.z, y: p.y }));
+    this.terrainSamples = pos.filter((_, i) => i % 6 === 0).map((p) => ({ x: p.x, z: p.z, y: p.y }));
     raiseCrossings(pos, step);
     // Headings over ±12 m, so the car and camera never twitch on a straight.
     const tan = pos.map((_, i) => pos[(i + 3) % n].clone().sub(pos[(i - 3 + n) % n]).setY(0).normalize());
     const side = tan.map((t) => new THREE.Vector3(-t.z, 0, t.x));
     const s = pos.map((_, i) => i * step);
     const edges = trackEdges(pos, tan, side, step);
-    this.frame = { pos, tan, side, s, length: session.length, line: racingLine(pos, side, step, edges), edges };
+    this.frame = { pos, tan, side, s, length: session.length, line: racingLine(pos, side, step, edges, session.corners.map((c) => c.s)), edges };
     this.radius = Math.max(...pos.map((p) => Math.hypot(p.x, p.z)));
 
     this.trackGroup.add(
@@ -534,6 +621,8 @@ export class World {
       this.buildKerbs(session),
       this.buildBarriers(),
       this.buildBrakeBoards(session),
+      this.buildStartLine(),
+      this.buildRubber(session),
     );
     for (const [k, c] of session.corners.entries()) {
       const sprite = new THREE.Sprite(
@@ -559,8 +648,9 @@ export class World {
     const size = Math.max(this.radius * 2.9, 2 * (this.radius + 1000));
     this.groundSize = size;
     this.groundText = [session.circuit, session.date.slice(0, 4)];
-    this.groundMat = new THREE.MeshStandardMaterial({ map: posterGround(...this.groundText, this.skyDark), roughness: 0.95 });
-    this.groundKey = `${this.skyDark}:plain`;
+    this.groundMat = new THREE.MeshStandardMaterial({ map: posterGround(...this.groundText, false), roughness: 0.95 });
+    this.groundKey = "plain";
+    this.groundMat.color.setScalar(this.skyDark ? GROUND_DIM : 1);
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(size, size), this.groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
@@ -580,18 +670,34 @@ export class World {
       return; // no surroundings: the plain ground stays
     }
     if (key !== this.sessionKey || !this.frame) return;
-    this.applySurroundings(env, es);
+    await this.applySurroundings(env, es);
   }
 
-  private applySurroundings(env: EnvData, es: EnvSession) {
+  /** Builds the surroundings in steps, one per frame (ground, buildings, stands, trackside,
+   * trees), so the scene never freezes for half a second; each step stops if the visitor has
+   * already moved on to another circuit. */
+  async applySurroundings(env: EnvData, es: EnvSession) {
+    const key = this.sessionKey;
+    // The next frame, or 50 ms in a hidden tab (which gets no frames), so building never stalls.
+    const nextFrame = () =>
+      new Promise<void>((r) => {
+        const t = setTimeout(r, 50);
+        requestAnimationFrame(() => {
+          clearTimeout(t);
+          r();
+        });
+      });
+    const stale = () => key !== this.sessionKey;
     const toTrack = mapToTrack(es);
     const toScene = (x: number, y: number) => {
       const [tx, ty] = toTrack(x, y);
       return this.toScene(tx, ty);
     };
     const size = this.groundSize;
-    const terrain = new Terrain(size, 200, this.terrainSamples, 0.6);
+    const terrain = new Terrain(size, 140, this.terrainSamples, 0.6);
     this.terrain = terrain;
+    await nextFrame();
+    if (stale()) return;
     // Water, woods and parks are printed into the ground texture, so they lie on the terrain.
     const px = (polys: number[][][]) =>
       polys.map((rings) =>
@@ -599,12 +705,12 @@ export class World {
           const out: number[] = [];
           for (let i = 0; i < r.length; i += 2) {
             const p = toScene(r[i], r[i + 1]);
-            out.push(((p.x + size / 2) / size) * 4096, ((p.y + size / 2) / size) * 4096);
+            out.push(((p.x + size / 2) / size) * GROUND_PX, ((p.y + size / 2) / size) * GROUND_PX);
           }
           return out;
         }),
       );
-    const k = 4096 / size;
+    const k = GROUND_PX / size;
     const f = this.frame!;
     const verge = f.pos.flatMap((p) => [(p.x + size / 2) * k, (p.z + size / 2) * k]);
     this.groundAreas = {
@@ -622,6 +728,11 @@ export class World {
       this.groundMesh = terrain.mesh(this.groundMat);
       this.trackGroup.add(this.groundMesh);
     }
+    await nextFrame();
+    if (stale()) return;
+    this.trackGroup.add(this.buildVerge(terrain, !!env.street));
+    await nextFrame();
+    if (stale()) return;
     // Plain ground in the base colour out to the horizon, so the edge of the map never shows.
     let low = Infinity;
     for (const h of terrain.heights) low = Math.min(low, h);
@@ -633,6 +744,9 @@ export class World {
     this.trackGroup.add(outer);
     const g = new THREE.Group();
     this.envGroup = g;
+    this.trackGroup.add(g);
+    await nextFrame();
+    if (stale()) return;
     // Everything from the map is placed in scene coordinates and kept clear of the track first.
     const clear = new TrackClearance(f.pos);
     this.clearance = clear;
@@ -645,6 +759,8 @@ export class World {
       if (fitted) buildings.push([b[0], b[1], b[2], fitted.flatMap((p) => [p.x, p.y]), b[4], b[5]]);
     }
     // Buildings, and grandstand roofs mapped as raised canopies; stands on the ground are seating.
+    await nextFrame();
+    if (stale()) return;
     const plain = buildingsMesh(buildings, false, id, terrain, this.envMats.building);
     if (plain) g.add(plain);
     const canopies = buildingsMesh(buildings.filter((b) => b[1] > 0), true, id, terrain, this.envMats.stand);
@@ -664,7 +780,11 @@ export class World {
     };
     // A spectator is half a body wide: the middle of the seat stays that much further back.
     const seatOk = (x: number, z: number) => clear.near(x, z).d >= TrackClearance.CLEAR + 0.6;
+    await nextFrame();
+    if (stale()) return;
     g.add(standsGroup(buildings, id, terrain, nearest, this.envMats.stand, this.envMats.crowd, 22000, seatOk));
+    await nextFrame();
+    if (stale()) return;
     // Trackside first, so no tree grows through a stand it places.
     const lively = this.buildLiveliness(env, buildings, toScene, terrain, nearest);
     g.add(lively.group);
@@ -674,6 +794,8 @@ export class World {
       // A crown is up to 3.6 m across the middle of the tree: keep the whole crown clear.
       if (!lively.covers(p.x, p.y) && clear.near(p.x, p.y).d >= TrackClearance.CLEAR + 3.6) trees.push(env.trees[i], env.trees[i + 1]);
     }
+    await nextFrame();
+    if (stale()) return;
     g.add(treesGroup(trees, toScene, terrain, this.envMats.crown, this.envMats.trunk));
     for (const [x, y, h] of env.wheels) {
       const p = toScene(x, y);
@@ -684,8 +806,75 @@ export class World {
       if (at) wheel.rotation.y = Math.atan2(at.x - p.x, at.z - p.y);
       g.add(wheel);
     }
-    this.trackGroup.add(g);
     this.setLight(es.light);
+  }
+
+  /** The verge: level with the road from its edge out to 14 m (past the barriers, fence and
+   * boards, so they stand on it), then sloping down to the ground by 28 m. The track is a raised
+   * strip and the ground is kept below it, so without this the barriers floated over a drop.
+   * Where another part of the track runs within 30 m at another height (Suzuka's bridge), the
+   * verge stays level and short, so it never slopes across the road below. */
+  private buildVerge(terrain: Terrain, street: boolean): THREE.Mesh {
+    const f = this.frame!;
+    const n = f.pos.length;
+    const apart = Math.ceil(300 / (f.s[1] - f.s[0] || 4));
+    const crowded = new Uint8Array(n);
+    for (let i = 0; i < n; i++)
+      for (let j = 0; j < n; j++) {
+        const sep = Math.abs(i - j);
+        if (Math.min(sep, n - sep) < apart) continue;
+        const a = f.pos[i];
+        const b = f.pos[j];
+        if (Math.abs(a.y - b.y) > 3 && (a.x - b.x) ** 2 + (a.z - b.z) ** 2 < 900) {
+          crowded[i] = 1;
+          break;
+        }
+      }
+    const pos: number[] = [];
+    const idx: number[] = [];
+    const row = 4; // vertices per side per point: road edge, level end, two along the slope
+    for (let i = 0; i <= n; i++) {
+      const k = i % n;
+      const p = f.pos[k];
+      const sd = f.side[k];
+      for (const [sign, e] of [[1, 0], [-1, 1]] as const) {
+        const edge = f.edges.half[e][k];
+        const level = f.edges.open[e][k] ? Math.max(edge + 1, 14) : f.edges.wall[e][k] + 0.3;
+        const out = f.edges.open[e][k] && !crowded[k] ? 28 : level + 0.01;
+        const y = p.y - 0.03;
+        const at = (d: number) => [p.x + sd.x * d * sign, p.z + sd.z * d * sign];
+        const [ox, oz] = at(out);
+        const low = Math.min(terrain.at(ox, oz) + 0.05, y);
+        const [mx, mz] = at((level + out) / 2);
+        const mid = Math.min(terrain.at(mx, mz) + 0.05, y + (low - y) * 0.5);
+        for (const [d, h] of [[edge, y], [level, y], [(level + out) / 2, mid], [out, low]] as const) {
+          const [x, z] = at(d);
+          pos.push(x, h, z);
+        }
+      }
+      if (i < n) {
+        const a = i * row * 2;
+        const b = a + row * 2;
+        for (const off of [0, row]) {
+          for (let q = 0; q < row - 1; q++) {
+            const v0 = a + off + q;
+            const v1 = b + off + q;
+            // Wound so the top faces up on both sides of the road.
+            if (off === 0) idx.push(v0, v1, v0 + 1, v0 + 1, v1, v1 + 1);
+            else idx.push(v0, v0 + 1, v1, v0 + 1, v1 + 1, v1);
+          }
+        }
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    this.vergeMat.color.set(street ? "#b9b6af" : "#93b874");
+    this.vergeStreet = street;
+    const m = new THREE.Mesh(geo, this.vergeMat);
+    m.receiveShadow = true;
+    return m;
   }
 
   /** What every broadcast shows that the map does not: grandstands where the map has few, crowd
@@ -854,6 +1043,7 @@ export class World {
     (this.scene.fog as THREE.Fog).color.copy(p.haze);
     this.sky.material.uniforms.uZenith.value.copy(p.zenith);
     this.sky.material.uniforms.uHorizon.value.copy(p.horizon);
+    this.sky.material.uniforms.uCloud.value = this.lightMode === "dusk" ? 0.6 : dark ? 0 : 1;
     const night = this.lightMode === "night";
     // Floodlit at night: an even, white light from above; the sun becomes a dim moon.
     this.hemi.intensity = night ? 1.6 : dark ? 0.9 : 1.4;
@@ -871,6 +1061,8 @@ export class World {
     m.crown.color.setScalar(dark ? 0.55 : 1);
     m.crowd.color.setScalar(dark ? 0.5 : 1);
     this.outerMat.color.set(this.outerStreet ? "#c3c0b8" : "#bdbd94");
+    this.vergeMat.color.set(this.vergeStreet ? "#b9b6af" : "#93b874");
+    if (dark) this.vergeMat.color.multiplyScalar(0.3);
     if (dark) this.outerMat.color.multiplyScalar(0.18);
     m.crowd.emissive.set(night ? "#2a2620" : "#000000");
     m.trunk.color.set(dark ? "#3a322b" : "#6b5d4f");
@@ -881,13 +1073,14 @@ export class World {
     m.building.emissiveIntensity = night ? 0.9 : 0;
     m.stand.emissive.set(night ? "#1f1d1a" : "#000000");
     m.wheel.emissive.set(night ? "#4a4030" : "#000000");
-    const key = `${dark}:${this.groundAreas ? this.sessionKey : "plain"}`;
+    const key = this.groundAreas ? String(this.sessionKey) : "plain";
     if (this.groundMat && key !== this.groundKey) {
       this.groundKey = key;
       this.groundMat.map?.dispose();
-      this.groundMat.map = posterGround(...this.groundText, dark, this.groundAreas);
+      this.groundMat.map = posterGround(...this.groundText, false, this.groundAreas);
       this.groundMat.needsUpdate = true;
     }
+    this.groundMat?.color.setScalar(dark ? GROUND_DIM : 1);
   }
 
   /** Raised asphalt strip with rubber sides, following the real elevation. */
@@ -1055,6 +1248,110 @@ export class World {
     return g;
   }
 
+  /** The start/finish line: a chequered strip across the road and a gantry over it carrying the
+   * five start lights, as at every circuit. */
+  private buildStartLine(): THREE.Group {
+    const f = this.frame!;
+    const g = new THREE.Group();
+    const p = this.pointAt(0);
+    const t = this.headingAt(0);
+    const yaw = Math.atan2(-t.z, t.x);
+    const hL = f.edges.half[0][0];
+    const hR = f.edges.half[1][0];
+    const c = document.createElement("canvas");
+    c.width = 256;
+    c.height = 32;
+    const x = c.getContext("2d")!;
+    for (let i = 0; i < 16; i++)
+      for (let j = 0; j < 2; j++) {
+        x.fillStyle = (i + j) % 2 ? "#111111" : "#f4f4f2";
+        x.fillRect(i * 16, j * 16, 16, 16);
+      }
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const strip = new THREE.Mesh(new THREE.PlaneGeometry(1.6, hL + hR).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8 }));
+    tex.rotation = Math.PI / 2;
+    tex.center.set(0.5, 0.5);
+    const sd = this.sideAt(0);
+    strip.position.copy(p).addScaledVector(sd, (hL - hR) / 2).setY(p.y + 0.06);
+    strip.rotation.y = yaw;
+    strip.receiveShadow = true;
+    g.add(strip);
+    // Gantry: two posts outside the barriers and a beam across at 7 m with the light pod.
+    const ink = new THREE.MeshStandardMaterial({ color: "#2a2a2a", roughness: 0.6, metalness: 0.3 });
+    const span = f.edges.wall[0][0] + f.edges.wall[1][0] + 1;
+    for (const [sign, e] of [[1, 0], [-1, 1]] as const) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.6, 7.6, 0.6).translate(0, 3.8, 0), ink);
+      post.position.copy(p).addScaledVector(sd, sign * (f.edges.wall[e][0] + 0.5));
+      post.castShadow = true;
+      g.add(post);
+    }
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.0, span), ink);
+    beam.position.copy(p).addScaledVector(sd, (f.edges.wall[0][0] - f.edges.wall[1][0]) / 2).setY(p.y + 7.2);
+    beam.rotation.y = yaw;
+    beam.castShadow = true;
+    g.add(beam);
+    const pod = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.9, 5.2), new THREE.MeshStandardMaterial({ color: "#111111", roughness: 0.4 }));
+    pod.position.copy(p).setY(p.y + 6.3);
+    pod.rotation.y = yaw;
+    g.add(pod);
+    const lamp = new THREE.MeshBasicMaterial({ color: "#5a0d0a" });
+    for (let k = 0; k < 5; k++) {
+      const l = new THREE.Mesh(new THREE.CircleGeometry(0.32, 16), lamp);
+      // Facing the cars as they arrive (the side the lap ends from).
+      l.position.copy(p).addScaledVector(t, -0.66).addScaledVector(sd, (k - 2) * 0.95).setY(p.y + 6.3);
+      l.rotation.y = yaw - Math.PI / 2;
+      g.add(l);
+    }
+    return g;
+  }
+
+  /** Dark rubber laid down on the racing line in every braking zone: 120 m before each braked
+   * corner, darkest where the braking is hardest, as on any circuit after a weekend's running. */
+  private buildRubber(session: Session): THREE.Mesh {
+    const pos: number[] = [];
+    const col: number[] = [];
+    const idx: number[] = [];
+    const w = 0.95;
+    for (const c of session.corners) {
+      if (!c.braked) continue;
+      const base = pos.length / 3;
+      const steps = 30;
+      for (let k = 0; k <= steps; k++) {
+        const s = c.s - 130 + (k / steps) * 120;
+        const p = this.carPointAt(s);
+        const sd = this.sideAt(s);
+        for (const o of [-w, w]) pos.push(p.x + sd.x * o, p.y + 0.04, p.z + sd.z * o);
+        // Fades in toward the corner and out at the very start of the zone.
+        const a = Math.sin((k / steps) * Math.PI * 0.5) ** 1.5;
+        col.push(a, a);
+        if (k < steps) {
+          const q = base + k * 2;
+          idx.push(q, q + 2, q + 1, q + 1, q + 2, q + 3);
+        }
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute("aStrength", new THREE.Float32BufferAttribute(col, 1));
+    geo.setIndex(idx);
+    const mat = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      vertexShader: /* glsl */ `
+        attribute float aStrength; varying float vA; varying vec2 vUv;
+        void main() { vA = aStrength; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      fragmentShader: /* glsl */ `
+        varying float vA;
+        void main() { gl_FragColor = vec4(0.05, 0.05, 0.05, 0.42 * vA); }`,
+    });
+    const m = new THREE.Mesh(geo, mat);
+    m.renderOrder = 1;
+    return m;
+  }
+
   /** 150, 100 and 50 m boards before every heavy-braking corner, on the outside. The numbers are
    * the true distance to the corner marker. */
   private buildBrakeBoards(session: Session): THREE.Group {
@@ -1089,7 +1386,8 @@ export class World {
       new THREE.MeshStandardMaterial({ color: PAPER, roughness: 0.6 }),
       new THREE.MeshStandardMaterial({ color: RED, roughness: 0.6 }),
     ];
-    const box = new THREE.BoxGeometry(3.2, 0.35, 1.6);
+    // Low and flat, as real kerbs are (a few centimetres proud of the road), not blocks.
+    const box = new THREE.BoxGeometry(3.2, 0.1, 1.6);
     for (const c of session.corners) {
       const turn = this.turnSign(c.s);
       let k = 0;
@@ -1101,7 +1399,7 @@ export class World {
         const i = this.nearestIndex(s);
         if (!this.frame!.edges.open[e][i]) continue;
         const m = new THREE.Mesh(box, mats[k % 2]);
-        m.position.copy(p).addScaledVector(sd, turn * (this.frame!.edges.half[e][i] + 0.6)).setY(p.y + 0.1);
+        m.position.copy(p).addScaledVector(sd, turn * (this.frame!.edges.half[e][i] + 0.8)).setY(p.y + 0.02);
         m.rotation.y = Math.atan2(-t.z, t.x);
         m.receiveShadow = true;
         g.add(m);
@@ -1112,6 +1410,16 @@ export class World {
 
   /** Paint the lap's rubber line: red under braking, paper white at full throttle. */
   setLap(lap: LapData) {
+    // This lap's apex at each corner against the field (metres, clamped), for carPointAt.
+    const session = this.session;
+    this.apexes = [];
+    if (session) {
+      session.corners.forEach((c, k) => {
+        const raw = lap.raw?.[k]?.[APEX_OFFSET];
+        const med = session.field.med[k]?.[APEX_OFFSET];
+        if (raw != null && med != null) this.apexes.push([c.s, THREE.MathUtils.clamp(raw - med, -18, 18)]);
+      });
+    }
     if (this.line) this.trackGroup.remove(this.line);
     const f = this.frame!;
     const n = f.pos.length;
@@ -1130,7 +1438,7 @@ export class World {
       const c = brake ? RED : thr >= 95 ? PAPER : new THREE.Color("#8a8780");
       const p = f.pos[k];
       const sd = f.side[k];
-      const o = f.line[k]; // drawn on the racing line, where the car drives
+      const o = this.lineOffsetAt(sv - this.apexShift(sv)); // exactly where the car drives
       pos.push(p.x + sd.x * (o + w), p.y + 0.08, p.z + sd.z * (o + w), p.x + sd.x * (o - w), p.y + 0.08, p.z + sd.z * (o - w));
       col.push(c.r, c.g, c.b, c.r, c.g, c.b);
       sAttr.push(sv, sv);
@@ -1280,9 +1588,21 @@ export class World {
     return line[i] + (line[j] - line[i]) * u;
   }
 
-  /** Where the car is at distance s: on the racing line, not the centre line. */
+  /** Where the car is at distance s: on the racing line, not the centre line. The line's shape is
+   * moved earlier or later through each corner by this lap's own measured apex (where its minimum
+   * speed was, against the field), so a late-apex lap visibly turns in later. */
   carPointAt(s: number): THREE.Vector3 {
-    return this.pointAt(s).addScaledVector(this.sideAt(s), this.lineOffsetAt(s));
+    return this.pointAt(s).addScaledVector(this.sideAt(s), this.lineOffsetAt(s - this.apexShift(s)));
+  }
+
+  /** The lap's apex shift at s: each corner's offset, spread over about 60 m around it. */
+  private apexShift(s: number): number {
+    let shift = 0;
+    for (const [cs, d] of this.apexes) {
+      const x = (s - cs) / 45;
+      if (x > -2.5 && x < 2.5) shift += d * Math.exp(-x * x);
+    }
+    return shift;
   }
 
   /** The car's direction of travel along the racing line, over 8 m behind to 8 m ahead. */
@@ -1388,7 +1708,39 @@ export class World {
   }
 
   /** Move the camera toward the mode's target; dt in seconds. */
+  /** Step quality down one level: sharpness, shadow detail and glow, then crowds and trees. */
+  private lowerQuality() {
+    if (this.quality >= QUALITY.length - 1) return;
+    this.quality++;
+    const q = QUALITY[this.quality];
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, q.pixels));
+    this.resize();
+    this.sun.shadow.mapSize.set(q.shadow, q.shadow);
+    this.sun.shadow.map?.dispose();
+    this.sun.shadow.map = null;
+    this.bloom.enabled = q.bloom;
+    this.envGroup?.traverse((o) => {
+      if ((o as THREE.InstancedMesh).isInstancedMesh && !q.crowds) o.visible = false;
+    });
+    console.info(`Blind Lap: quality lowered to level ${this.quality} (${q.name})`);
+  }
+
+  /** Watch the time between frames; if the last 90 average over 33 ms (under 30 fps), lower
+   * quality and watch again. Only while the page is visible and drawing. */
+  private watchFrames() {
+    const now = performance.now();
+    const gap = now - this.lastFrame;
+    this.lastFrame = now;
+    if (gap <= 0 || gap > 250 || document.hidden) return; // paused, hidden or the first frame
+    this.frameTimes.push(gap);
+    if (this.frameTimes.length < 90) return;
+    const avg = this.frameTimes.reduce((a, b) => a + b, 0) / this.frameTimes.length;
+    this.frameTimes = [];
+    if (avg > 33) this.lowerQuality();
+  }
+
   update(dt: number, speedKmh = 0, braking = false) {
+    this.watchFrames();
     if (!this.frame) {
       this.composer.render();
       return;
@@ -1493,7 +1845,27 @@ export class World {
       this.camLook.copy(p).add(this.lookOffset);
     }
     this.camera.position.copy(this.camPos);
+    // (No camera shake: it read as the game glitching, and it ran on while paused.)
+    const close = this.mode === "chase" || this.mode === "onboard" || this.mode === "side";
+    // Lean and blur only while the car is moving, so a paused view is perfectly still.
+    const moving = Math.abs(this.carS - this.lastCarS) > 0.01;
+    this.lastCarS = this.carS;
+    const moveSpeed = moving ? speedKmh : 0;
     this.camera.lookAt(this.camLook);
+    // Lean into the corner with the cornering force (v squared times curvature), up to about
+    // 4 degrees at 5 g, like a camera bolted to a car.
+    if (close && !REDUCED_MOTION && this.frame) {
+      const h0 = this.carHeadingAt(this.carS - 10);
+      const h1 = this.carHeadingAt(this.carS + 10);
+      const turn = Math.atan2(h0.x * h1.z - h0.z * h1.x, h0.dot(h1)); // radians over 20 m
+      const v = moveSpeed / 3.6;
+      const g = (v * v * (turn / 20)) / 9.81;
+      const want = THREE.MathUtils.clamp(g * 0.014, -0.075, 0.075) * (this.mode === "side" ? 0.4 : 1);
+      this.roll += (want - this.roll) * Math.min(dt * 4, 1);
+      this.camera.rotateZ(this.roll);
+    } else this.roll = 0;
+    const blur = close && !REDUCED_MOTION && QUALITY[this.quality].bloom ? THREE.MathUtils.clamp((moveSpeed - 110) / 220, 0, 1) : 0;
+    this.speedBlur.uniforms.uStrength.value += (blur - this.speedBlur.uniforms.uStrength.value) * Math.min(dt * 3, 1);
     this.updateFog(snap ? 10 : dt);
     this.updateShadow(p);
     // The view widens with speed on board, so 330 km/h feels faster than 80.

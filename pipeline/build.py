@@ -90,7 +90,15 @@ def process(sk: int):
 
 
 def main():
-    keys = [int(a) for a in sys.argv[1:]] or sorted(int(p.name) for p in RAW.iterdir() if (p / "circuit.json").exists())
+    # --new: only sessions with telemetry on disk and no build yet (the weekly update).
+    if sys.argv[1:] == ["--new"]:
+        keys = sorted(
+            int(p.name) for p in RAW.iterdir()
+            if (p / "circuit.json").exists() and any(p.glob("location_*.json")) and not (OUT / f"{p.name}.pkl").exists()
+        )
+        print(f"{len(keys)} new sessions to build: {keys}")
+    else:
+        keys = [int(a) for a in sys.argv[1:]] or sorted(int(p.name) for p in RAW.iterdir() if (p / "circuit.json").exists())
     for sk in keys:
         try:
             process(sk)

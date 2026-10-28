@@ -1,0 +1,78 @@
+name: Update data
+
+# Every Monday, after the race weekend: download any new qualifying (and practice 3) sessions,
+# rebuild the models and the game data, commit them, and redeploy the site. Nothing happens in
+# weeks without a new session. Can also be started by hand from the Actions tab.
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: data-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+      - name: Get the pipeline cache
+        uses: actions/checkout@v4
+        with:
+          ref: data-cache
+          path: cache
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pipeline/requirements.txt
+      - name: Install
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          pip install -r pipeline/requirements.txt faster-whisper==1.2.1
+      - name: Restore past sessions
+        run: python pipeline/cache.py unpack cache
+      - name: Download new sessions
+        working-directory: pipeline
+        run: |
+          YEAR=$(date -u +%Y)
+          BLINDLAP_YEAR=$YEAR python fetch.py
+          BLINDLAP_YEAR=$YEAR BLINDLAP_SESSION="Practice 3" python fetch.py
+      - name: Anything new?
+        id: new
+        working-directory: pipeline
+        run: |
+          N=$(python -c "from pathlib import Path; print(sum(1 for p in Path('raw').iterdir() if p.name.isdigit() and any(p.glob('location_*.json')) and not Path('build', p.name + '.pkl').exists()))")
+          echo "sessions=$N" >> "$GITHUB_OUTPUT"
+          echo "$N new sessions"
+      - name: Rebuild models and game data
+        if: steps.new.outputs.sessions != '0'
+        run: bash pipeline/run_all.sh
+      - name: Check the site builds
+        if: steps.new.outputs.sessions != '0'
+        working-directory: web
+        run: npm ci && npm run build
+      - name: Commit, push and redeploy
+        if: steps.new.outputs.sessions != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Commits carry the owner's own name only.
+          git config --global user.name "Pratham2994"
+          git config --global user.email "prathampanchal02994@gmail.com"
+          python pipeline/cache.py pack cache
+          (cd cache && git add -A && git diff --cached --quiet || (git commit -q -m "Pipeline cache: ${{ steps.new.outputs.sessions }} new sessions" && git push origin data-cache))
+          git add web/public/data pipeline/model_out docs/alignment
+          git diff --cached --quiet && exit 0
+          git commit -q -m "Data update: ${{ steps.new.outputs.sessions }} new sessions"
+          git push origin master
+          # A push made by this workflow does not start other workflows, so start the deploy.
+          gh workflow run pages.yml --ref master

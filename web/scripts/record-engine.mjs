@@ -5,7 +5,10 @@ import { writeFileSync } from "node:fs";
 const out = new URL("../../docs/media/engine.webm", import.meta.url).pathname.replace(/^\/(\w:)/, "$1");
 const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--autoplay-policy=no-user-gesture-required"] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
-await page.addInitScript(() => localStorage.setItem("blindlap.speed.v1", "1"));
+await page.addInitScript(() => {
+    localStorage.setItem("blindlap.speed.v1", "1");
+    localStorage.setItem("blindlap.intro.v1", "1");
+  });
 await page.goto("http://localhost:5173/#/");
 await page.waitForTimeout(2500);
 await page.getByRole("link", { name: /start a lap/i }).click();

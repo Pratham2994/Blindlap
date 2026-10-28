@@ -2,7 +2,10 @@ import { expect, test } from "@playwright/test";
 
 // End-to-end: real data, real WebGL, real model in the page. Laps run at 4x to keep this short.
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem("blindlap.speed.v1", "4"));
+  await page.addInitScript(() => {
+    localStorage.setItem("blindlap.speed.v1", "4");
+    localStorage.setItem("blindlap.intro.v1", "1");
+  });
 });
 
 test("home states the honest accuracy and links to play", async ({ page }) => {
@@ -17,6 +20,8 @@ test("a full round: model reads every corner, you guess, reveal, duel", async ({
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/#/play");
 
+  // The lap screen appears once the circuit and its surroundings have loaded.
+  await page.locator(".telemetry .tm-rule .tick").first().waitFor({ timeout: 30_000 });
   const corners = await page.locator(".telemetry .tm-rule .tick").count();
   expect(corners).toBeGreaterThan(5);
 
@@ -85,6 +90,33 @@ test("the lap bar seeks, the model forgets corners behind it, and volume is reme
   expect(await page.evaluate(() => localStorage.getItem("blindlap.volume.v1"))).toBe("0.3");
   await page.reload();
   await expect(page.getByRole("slider", { name: "Volume" })).toHaveValue("30");
+});
+
+test("a first visit explains the game, then hints cost points", async ({ page }) => {
+  // A visitor who has never played: clear the flag once (not again on the reload below).
+  await page.addInitScript(() => {
+    if (!sessionStorage.getItem("fresh")) {
+      localStorage.removeItem("blindlap.intro.v1");
+      sessionStorage.setItem("fresh", "1");
+    }
+  });
+  await page.goto("/#/play/9908");
+  const intro = page.locator(".intro");
+  await expect(intro).toBeVisible({ timeout: 30_000 });
+  await expect(intro).toContainText("Tap your driver");
+  await page.getByRole("button", { name: /start the lap/i }).click();
+  await expect(intro).toBeHidden();
+  await expect(page.locator(".evidence .t")).toHaveText(/^T\d+/, { timeout: 30_000 });
+  await page.keyboard.press("Space"); // pause, so the flag does not close the hints
+  // Two hints: style and team; a right guess is now worth 1.
+  await page.getByRole("button", { name: "Driving style" }).click();
+  await expect(page.locator(".hint-list li")).toHaveCount(1);
+  await page.getByRole("button", { name: "Team", exact: true }).click();
+  await expect(page.locator(".hint-list li").nth(1)).toHaveText(/^Drives for /);
+  await expect(page.locator("[data-k=worth]")).toHaveText("right = 1 pt");
+  // The next visit goes straight to the lights.
+  await page.reload();
+  await expect(page.locator(".evidence .t")).toHaveText(/^T\d+/, { timeout: 30_000 });
 });
 
 test("C cycles through the five cameras", async ({ page }) => {

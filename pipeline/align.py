@@ -90,6 +90,47 @@ def fetch(name, kind):
     raise RuntimeError(f"Overpass failed for {name} {kind}: {r.status_code}")
 
 
+def find_centre(name, location, country, length):
+    """Where a circuit not in CENTRES is (a new venue): look up the town with OpenStreetMap's
+    Nominatim, then take the group of raceway ways within 25 km whose total length is closest to
+    the lap. Cached in raw/osm/centres.json, so each new circuit is looked up once."""
+    path = CACHE / "centres.json"
+    known = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    if name in known:
+        return tuple(known[name])
+    CACHE.mkdir(parents=True, exist_ok=True)
+    r = requests.get("https://nominatim.openstreetmap.org/search", params={"q": f"{location}, {country}", "format": "json", "limit": 1},
+                     headers={"User-Agent": "blindlap-align/0.1"}, timeout=60)
+    hits = r.json() if r.status_code == 200 else []
+    if not hits:
+        raise RuntimeError(f"{name}: no place found for {location}, {country}; add it to CENTRES")
+    lat, lon = float(hits[0]["lat"]), float(hits[0]["lon"])
+    q = f"[out:json][timeout:120];way[\"highway\"=\"raceway\"](around:25000,{lat},{lon});out geom;"
+    data = requests.post(OVERPASS, data={"data": q}, headers={"User-Agent": "blindlap-align/0.1"}, timeout=180).json()
+    ways = [w for w in ways_xy(data, lat, lon) if len(w) > 1]
+    best = (lat, lon)
+    if ways:
+        mids = [w.mean(0) for w in ways]
+        lens = [float(np.hypot(*np.diff(w, axis=0).T).sum()) for w in ways]
+        groups = []  # ways whose middles lie within 1.5 km of a group's first way
+        for m, l in zip(mids, lens):
+            for g in groups:
+                if np.hypot(*(m - g["at"])) < 1500:
+                    g["len"] += l
+                    g["pts"].append(m)
+                    break
+            else:
+                groups.append({"at": m, "len": l, "pts": [m]})
+        g = min(groups, key=lambda g: abs(g["len"] - length))
+        c = np.mean(g["pts"], axis=0)
+        best = (lat + c[1] / 110540.0, lon + c[0] / (math.cos(math.radians(lat)) * 111320.0))
+    known[name] = [round(best[0], 5), round(best[1], 5)]
+    path.write_text(json.dumps(known, indent=1), encoding="utf-8")
+    print(f"{name}: centre from OpenStreetMap {known[name]}", flush=True)
+    time.sleep(2)
+    return best
+
+
 def project(lat, lon, lat0, lon0):
     """Local metres east and north of (lat0, lon0)."""
     return ((lon - lon0) * math.cos(math.radians(lat0)) * 111320.0, (lat - lat0) * 110540.0)
@@ -249,12 +290,14 @@ def svg(name, track_xy, ways_race, ways_road):
 
 def main():
     index = json.loads((WEB / "index.json").read_text(encoding="utf-8"))
-    sessions = {}
+    sessions, info = {}, {}
     for s in index["sessions"]:
         sessions.setdefault(s["circuit"], s["key"])  # one session per circuit is enough
+        info.setdefault(s["circuit"], s)
     results, cards = {}, []
     for name, key in sorted(sessions.items()):
-        lat0, lon0 = CENTRES[name]
+        s = info[name]
+        lat0, lon0 = CENTRES.get(name) or find_centre(name, s["location"], s["country"], s["length"])
         t = json.loads((WEB / "sessions" / f"{key}.json").read_text(encoding="utf-8"))["track"]
         track = resample(np.array(t["x"]), np.array(t["y"]), 5.0)
         offset = track.mean(0)

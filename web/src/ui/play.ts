@@ -3,7 +3,7 @@
 // that carries the telemetry during the lap and becomes the reveal afterwards.
 import { gearRatios, EngineSynth, VOLUME_KEY } from "../audio/engine";
 import type { DriverInfo, Index, LapData, LapRef, Session, SessionResult } from "../data";
-import { careerLine, loadCareers, loadRadio, loadResults, loadSession } from "../data";
+import { careerLine, loadCareers, loadDna, loadRadio, loadResults, loadSession, prefetchSurroundings } from "../data";
 import { formatLapTime, LapPlayer } from "../lap";
 import type { Evidence } from "../model";
 import { Guesser } from "../model";
@@ -14,7 +14,7 @@ import { dockStage } from "./stage";
 import { Minimap } from "./minimap";
 import { Telemetry } from "./telemetry";
 
-type Phase = "loading" | "lights" | "lap" | "reveal" | "duel";
+type Phase = "loading" | "intro" | "lights" | "lap" | "reveal" | "duel";
 
 interface Score {
   you: number;
@@ -24,6 +24,23 @@ interface Score {
 
 const SCORE_KEY = "blindlap.score.v1";
 const SPEED_KEY = "blindlap.speed.v1";
+const INTRO_KEY = "blindlap.intro.v1"; // set once the visitor has read the rules
+
+function readFlag(key: string): boolean {
+  try {
+    return localStorage.getItem(key) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeFlag(key: string) {
+  try {
+    localStorage.setItem(key, "1");
+  } catch {
+    // A private window may refuse storage: the intro just shows again next time.
+  }
+}
 // The cameras offered during a lap, in the order C cycles through them.
 const CAMERAS: [CameraMode, string, string][] = [
   ["chase", "Chase", "Behind the car"],
@@ -92,6 +109,7 @@ export class PlayView {
   private t = 0;
   private nextCorner = 0;
   private evidence: Evidence[] = [];
+  private hints = 0; // hints taken this round: each lowers what a right guess is worth
   private speed = readSpeed();
   private paused = false;
   private lightsAt = 0;
@@ -172,7 +190,8 @@ export class PlayView {
     }
 
     try {
-      this.session = await loadSession(summary.key);
+      // The surroundings come with the lap, so stands and buildings appear with the track.
+      [this.session] = await Promise.all([loadSession(summary.key), prefetchSurroundings(summary.key)]);
     } catch (e) {
       this.root.innerHTML = `<div class="error"><p>Couldn't load ${summary.circuit}: ${(e as Error).message}.</p><a class="btn" href="#/">Back to menu</a></div>`;
       return;
@@ -196,6 +215,7 @@ export class PlayView {
     this.guesser = new Guesser(this.session, this.index, this.mates ? [this.lap.code, mateOf(this.lap.code)!] : undefined, PlayView.model ?? undefined);
     this.ratios = gearRatios(this.lap.v, this.lap.rpm, this.lap.gear);
     this.evidence = [];
+    this.hints = 0;
     this.nextCorner = 0;
     this.t = 0;
 
@@ -208,10 +228,26 @@ export class PlayView {
     this.world.snapCamera();
     document.body.classList.add("playing");
     this.buildHud();
+    // The first lap of a visitor's life starts with the rules and a button; after that the
+    // lights go straight away, with one line of reminder.
+    if (!readFlag(INTRO_KEY)) {
+      this.phase = "intro";
+      this.root.dataset.phase = "intro";
+      const go = this.root.querySelector<HTMLButtonElement>("[data-go]")!;
+      go.addEventListener("click", () => this.startLights());
+      go.focus({ preventScroll: true });
+      return;
+    }
+    this.startLights();
+  }
+
+  private startLights() {
+    writeFlag(INTRO_KEY);
     this.phase = "lights";
     this.root.dataset.phase = "lights";
     this.lightsAt = performance.now();
     this.goAt = this.lightsAt + 5 * 700 + 400 + Math.random() * 900;
+    this.engine.start();
     this.engine.setActive(true);
   }
 
@@ -284,16 +320,27 @@ export class PlayView {
     stage.className = "stage-frame";
     stage.innerHTML = `<div class="stage-slot"></div>
       <div class="countdown"><div class="lights" role="img" aria-label="Start lights">${"<i></i>".repeat(5)}</div>
-        <p class="caps">Watch the lap. Tap the driver you think it is, any time before the flag.</p></div>
+        <div class="intro">
+          <p class="caps intro-h">${this.mates ? `Which ${this.team} driver?` : "Who is driving?"}</p>
+          <ol>
+            <li><b>Watch the lap.</b> A real qualifying lap with the name hidden.</li>
+            <li><b>Read the corners.</b> Where they brake, how fast they turn in, when they get back on the power: every driver does it differently. Three models read the same corners on the right.</li>
+            <li><b>Tap your driver</b> any time before the flag. Right: 3 points, their teammate: 1. Stuck? Take a hint; each one costs a point.</li>
+          </ol>
+          <button type="button" class="btn primary" data-go>Start the lap ${icons.next}</button>
+        </div>
+        <p class="caps reminder">Watch how they take each corner. Tap your driver before the flag.</p></div>
       <p class="paused-note caps" aria-live="polite">Paused · Space to resume</p>`;
     const w = this.world;
-    this.minimap = new Minimap(w.outline(), s.corners.map((c) => c.s), s.length, (d) => w.pointAt(d));
+    this.minimap = new Minimap(s.circuit, w.outline(), s.corners.map((c) => ({ s: c.s, n: c.n })), s.length, (d) => w.pointAt(d));
     stage.appendChild(this.minimap.root);
 
     // Hold the left button (or a finger) and drag to look around the car; double-click to reset.
     let drag: { x: number; y: number; id: number } | null = null;
     stage.addEventListener("pointerdown", (e) => {
-      if (e.button !== 0 || this.phase === "loading" || this.phase === "lights") return;
+      // Not on a button (the intro's start button), and not before the lap is running.
+      if (e.button !== 0 || this.phase === "loading" || this.phase === "intro" || this.phase === "lights") return;
+      if ((e.target as HTMLElement).closest("button, a, input, select")) return;
       drag = { x: e.clientX, y: e.clientY, id: e.pointerId };
       stage.setPointerCapture(e.pointerId);
       stage.classList.add("dragging");
@@ -335,6 +382,7 @@ export class PlayView {
     });
     this.lineup.root.querySelector("header")!.after(switcher);
     side.appendChild(this.lineup.root);
+    side.appendChild(this.buildHints());
 
     this.band = document.createElement("section");
     this.band.className = "band";
@@ -383,6 +431,47 @@ export class PlayView {
     } else if (e.key === "Enter" && this.phase === "reveal") {
       void this.newRound();
     }
+  }
+
+  /** Hints for the player (the models get none): the driver's style from their DNA, the team,
+   * the car number. Each one taken lowers a right guess from 3 points by one, to at least 1. */
+  private buildHints(): HTMLElement {
+    const box = document.createElement("section");
+    box.className = "hints";
+    const kinds: [string, string][] = [["style", "Driving style"], ...(this.mates ? [] : [["team", "Team"] as [string, string]]), ["number", "Car number"]];
+    box.innerHTML = `
+      <p class="caps hints-h"><span>Stuck? Take a hint</span><span class="num" data-k="worth">right = 3 pts</span></p>
+      <div class="hint-buttons">${kinds.map(([k, label]) => `<button type="button" data-hint="${k}">${label}</button>`).join("")}</div>
+      <ul class="hint-list" aria-live="polite"></ul>`;
+    const list = box.querySelector(".hint-list")!;
+    const worth = box.querySelector("[data-k=worth]")!;
+    box.querySelector(".hint-buttons")!.addEventListener("click", async (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-hint]");
+      if (!b || b.disabled || this.phase === "reveal" || this.phase === "duel" || this.phase === "loading") return;
+      b.disabled = true;
+      b.blur();
+      this.hints++;
+      const n = Math.max(1, 3 - this.hints);
+      worth.textContent = `right = ${n} pt${n === 1 ? "" : "s"}`;
+      const code = this.lap.code;
+      const d = this.driverOf(code);
+      let text = "";
+      if (b.dataset.hint === "style") {
+        const dna = await loadDna().catch(() => null);
+        const tell = dna?.drivers.find((x) => x.code === code)?.tells?.[0];
+        text = tell ? `This driver ${tell}.` : "No style data for this driver yet.";
+      } else if (b.dataset.hint === "team") {
+        text = `Drives for ${d.team}.`;
+        this.lineup.highlight(Object.values(this.session.drivers).filter((x) => x.team === d.team).map((x) => x.code));
+      } else {
+        const number = Object.entries(this.session.drivers).find(([, x]) => x.code === code)?.[0];
+        text = `Car number ${number}.`;
+      }
+      const li = document.createElement("li");
+      li.textContent = text;
+      list.appendChild(li);
+    });
+    return box;
   }
 
   /** "Saturday 5 April 2025 · Q3 · their best Q3 lap · qualified P1": when and where in qualifying
@@ -534,6 +623,17 @@ export class PlayView {
 
   private async reveal() {
     this.phase = "reveal";
+    // The chequered flag: a moment on the finished lap before the answer, not a jump cut.
+    this.root.dataset.phase = "flag";
+    const flag = document.createElement("div");
+    flag.className = "flag-card";
+    flag.innerHTML = `<p class="caps">Lap complete</p><b class="num">${formatLapTime(this.lap.lapTime)}</b><p class="caps">Who was it?</p>`;
+    this.root.querySelector(".stage-frame")?.appendChild(flag);
+    this.engine.setActive(false, 1.2);
+    await new Promise((r) => setTimeout(r, 1500));
+    if (this.disposed) return;
+    flag.classList.add("out");
+    setTimeout(() => flag.remove(), 500);
     this.root.dataset.phase = "reveal";
     this.engine.update(5000, 0, 0, 0);
     // Cut the engine quickly: the team radio is quiet and must not fight it.
@@ -551,17 +651,21 @@ export class PlayView {
     const modelPick = guesses[0].code;
     const rank = guesses.findIndex((g) => g.code === truth) + 1;
     const teamOf = (code: string) => this.driverOf(code)?.team;
-    const grade = (code: string | null) => (code === truth ? 3 : code && teamOf(code) === driver.team ? 1 : 0);
-    const you = grade(this.lineup.pick);
-    const model = grade(modelPick);
+    const outcome = (code: string | null) => (code === truth ? "right" : code && teamOf(code) === driver.team ? "teammate" : "wrong");
+    const points = (o: string, hints: number) => (o === "right" ? Math.max(1, 3 - hints) : o === "teammate" ? 1 : 0);
+    const youOutcome = outcome(this.lineup.pick);
+    const modelOutcome = outcome(modelPick);
+    const you = points(youOutcome, this.hints);
+    const model = points(modelOutcome, 0);
+    this.root.querySelector(".hints")?.classList.add("done");
     this.score = { you: this.score.you + you, model: this.score.model + model, rounds: this.score.rounds + 1 };
     writeScore(this.score, this.scoreKey);
     this.lineup.reveal(truth);
     const scoreEl = this.root.querySelector(".play-bar .score");
     if (scoreEl) scoreEl.innerHTML = `You <b>${this.score.you}</b> <span>·</span> Model <b>${this.score.model}</b>`;
 
-    const verdict = (who: string, pts: number, code: string | null) =>
-      `<span class="tag ${pts === 3 ? "win" : pts === 1 ? "half" : "miss"}">${who}: ${code ?? "no guess"} · ${pts === 3 ? "right" : pts === 1 ? "teammate" : "wrong"}</span>`;
+    const verdict = (who: string, o: string, pts: number, code: string | null, hints = 0) =>
+      `<span class="tag ${o === "right" ? "win" : o === "teammate" ? "half" : "miss"}">${who}: ${code ?? "no guess"} · ${o}${o === "right" && hints ? ` with ${hints} hint${hints > 1 ? "s" : ""}` : ""} · +${pts}</span>`;
 
     // The corners that pointed hardest at the real driver.
     const best = [...this.evidence].sort((a, b) => (b.deltas[truth] ?? 0) - (a.deltas[truth] ?? 0)).slice(0, 3);
@@ -577,7 +681,7 @@ export class PlayView {
     this.band.style.setProperty("--on-team", inkOn(driver.colour));
     this.band.innerHTML = `
       <div class="who-block">
-        <div class="verdicts">${verdict("You", you, this.lineup.pick)}${verdict(SHORT_MODEL[this.guesser.model] ?? "Model", model, modelPick)}</div>
+        <div class="verdicts">${verdict("You", youOutcome, you, this.lineup.pick, this.hints)}${verdict(SHORT_MODEL[this.guesser.model] ?? "Model", modelOutcome, model, modelPick)}</div>
         <h2 class="display" style="--longest:${Math.max(...[first, ...rest].map((w) => w.length))}"><span>${first}</span> ${rest.join(" ")}</h2>
         <p class="caps team">${driver.team} · lap ${this.lap.lapNumber} · ${formatLapTime(this.lap.lapTime)}</p>
         <p class="context num">${context}</p>
@@ -612,6 +716,7 @@ export class PlayView {
     if (next) {
       this.nextKey = next.key;
       void loadSession(next.key).catch(() => (this.nextKey = null));
+      void prefetchSurroundings(next.key);
     }
     const card = this.band;
     card.querySelector("[data-next]")!.addEventListener("click", () => void this.newRound());

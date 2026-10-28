@@ -21,7 +21,7 @@ const rows = await page.evaluate(async () => {
     const es = envIndex[s.key];
     const env = await (await fetch(`/data/env/${es.env}.json`)).json();
     w.setSession(session);
-    w.applySurroundings(env, es);
+    await w.applySurroundings(env, es);
     // 1. Ground under the road.
     let buried = 0;
     for (let i = 0; i < w.frame.pos.length; i++) {
@@ -57,7 +57,7 @@ const rows = await page.evaluate(async () => {
         for (let i = 0; i < o.count; i++) {
           o.getMatrixAt(i, m);
           v.setFromMatrixPosition(m);
-          test(v.x, v.y, v.z, Math.min(r, 3), o.geometry.type === "ConeGeometry" ? "tree" : "spectator");
+          test(v.x, v.y, v.z, Math.min(r, 3), o.geometry.type === "ConeGeometry" || o.geometry.type === "IcosahedronGeometry" ? "tree" : "spectator");
         }
         return;
       }

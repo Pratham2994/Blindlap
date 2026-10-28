@@ -204,6 +204,11 @@ export const loadResults = () =>
 export const loadEnvIndex = () =>
   get<Record<string, EnvSession>>("env/index.json").catch(() => ({}) as Record<string, EnvSession>);
 export const loadEnv = (name: string) => get<EnvData>(`env/${name}.json`);
+/** Fetch a session's surroundings ahead of time, so they appear with the track, not after it. */
+export const prefetchSurroundings = (key: number) =>
+  loadEnvIndex()
+    .then((index) => (index[String(key)] ? loadEnv(index[String(key)].env) : null))
+    .catch(() => null);
 export const loadCareers = () => get<Careers>("careers.json").catch((): Careers => ({ source: "", drivers: {} }));
 
 /** "73 wins · 50 poles · 4 titles", dropping zero counts after the first. */

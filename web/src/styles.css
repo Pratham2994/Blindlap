@@ -488,6 +488,98 @@ a.mode.quick:hover p {
   font-weight: 650;
 }
 
+/* How to play: four numbered steps under the hero. */
+.howto {
+  margin-top: var(--gutter);
+  border: var(--rule);
+}
+
+.howto h2 {
+  margin: 0;
+  padding: 10px 16px;
+  border-bottom: var(--rule);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.howto ol {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+
+.howto li {
+  counter-increment: step;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 16px 18px 18px;
+}
+
+.howto li + li {
+  border-left: var(--rule);
+}
+
+.howto b {
+  font-weight: 900;
+  font-variation-settings: "wdth" 125;
+  text-transform: uppercase;
+  font-size: 1.25rem;
+}
+
+.howto b::before {
+  content: counter(step);
+  display: inline-grid;
+  place-items: center;
+  width: 1.5em;
+  height: 1.5em;
+  margin-right: 8px;
+  background: var(--red);
+  color: #fff;
+  font-size: 0.8em;
+}
+
+.howto span {
+  color: var(--ink-2);
+  line-height: 1.45;
+  font-size: 0.92rem;
+}
+
+/* The home page arrives: everything is visible from the very first frame (no fade or wipe from
+   empty, which showed a blank page for a moment) and only settles a few pixels into place. */
+@keyframes rise {
+  from {
+    transform: translateY(14px);
+  }
+}
+
+.hero-block h1,
+.hero-block .lede,
+.hero-block .btn {
+  animation: rise 0.7s var(--ease-out) both;
+}
+
+.hero-block .lede {
+  animation-delay: 0.12s;
+}
+
+.hero-block .btn {
+  animation-delay: 0.22s;
+}
+
+.hero-stage {
+  animation: rise 0.8s 0.1s var(--ease-out) both;
+}
+
+.howto,
+.modes,
+.home .facts {
+  animation: rise 0.7s 0.3s var(--ease-out) both;
+}
+
 .home .facts {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -626,16 +718,16 @@ a.mode.quick:hover p {
   border-right: var(--rule);
 }
 
-/* The live track map, top right of the 3D view, as on the broadcast. */
+/* The live track map, top right of the 3D view: a dark broadcast card in both themes. */
 .minimap {
   position: absolute;
   top: 12px;
   right: 12px;
-  width: clamp(110px, 12vw, 210px);
+  width: clamp(150px, 15vw, 260px);
   margin: 0;
-  padding: 4px;
-  background: color-mix(in srgb, var(--paper) 86%, transparent);
-  border: 2px solid var(--ink);
+  background: rgba(12, 12, 12, 0.86);
+  border: 2px solid #f1f0ec;
+  color: #f1f0ec;
   pointer-events: none;
 }
 
@@ -643,55 +735,102 @@ a.mode.quick:hover p {
   display: block;
   width: 100%;
   height: auto;
+  padding: 2px 4px 6px;
 }
 
-.mm-track-under {
+.mm-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  padding: 6px 9px 5px;
+  border-bottom: 1px solid rgba(241, 240, 236, 0.25);
+  color: #f1f0ec;
+  font-weight: 800;
+  font-variation-settings: "wdth" 115;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.62rem;
+}
+
+.mm-next {
+  color: #ffd84a;
+  font-variant-numeric: tabular-nums;
+}
+
+.mm-casing {
   fill: none;
-  stroke: var(--paper);
+  stroke: #000;
   stroke-width: 9;
   stroke-linejoin: round;
 }
 
 .mm-track {
   fill: none;
-  stroke: var(--ink);
-  stroke-width: 4;
+  stroke: #f1f0ec;
+  stroke-width: 4.5;
   stroke-linejoin: round;
 }
 
 .mm-driven {
   fill: none;
-  stroke: var(--red);
-  stroke-width: 4;
+  stroke: #e10600;
+  stroke-width: 4.5;
   stroke-linejoin: round;
 }
 
 .mm-corner {
-  fill: var(--paper);
-  stroke: var(--ink);
-  stroke-width: 1.2;
+  fill: #0c0c0c;
+  stroke: #f1f0ec;
+  stroke-width: 1;
 }
 
 .mm-corner.read {
-  fill: var(--red);
-  stroke: var(--red);
+  fill: #ffd84a;
+  stroke: #ffd84a;
 }
 
 .mm-start {
-  stroke: var(--ink);
-  stroke-width: 3;
+  stroke: #f1f0ec;
+  stroke-width: 4;
 }
 
-.mm-car {
-  fill: var(--red);
-  stroke: var(--paper);
-  stroke-width: 2.5;
+.mm-start-check {
+  stroke: #0c0c0c;
+  stroke-width: 4;
+  stroke-dasharray: 2 2;
+}
+
+.mm-dot {
+  fill: #e10600;
+  stroke: #fff;
+  stroke-width: 2.4;
+}
+
+.mm-pulse {
+  fill: none;
+  stroke: #e10600;
+  stroke-width: 2;
+  transform-origin: center;
+  transform-box: fill-box;
+  animation: mm-pulse 1.4s var(--ease-out) infinite;
+}
+
+@keyframes mm-pulse {
+  from {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(2.6);
+    opacity: 0;
+  }
 }
 
 .mm-ghost {
-  fill: var(--ink-3);
-  stroke: var(--paper);
-  stroke-width: 2.5;
+  fill: #9a978f;
+  stroke: #fff;
+  stroke-width: 2.4;
 }
 
 .stage-frame.dragging {
@@ -708,11 +847,53 @@ a.mode.quick:hover p {
   pointer-events: none;
 }
 
-.countdown p {
+.countdown .reminder {
   margin: 0;
   padding: 8px 12px;
   background: var(--paper);
   border: var(--rule);
+}
+
+/* The rules, before a visitor's first lap; the lights wait for the button. */
+.intro {
+  display: none;
+  pointer-events: auto;
+  width: min(560px, calc(100% - 32px));
+  max-height: calc(100% - 32px);
+  overflow-y: auto;
+  padding: 20px 22px;
+  background: var(--paper);
+  border: var(--rule);
+}
+
+.play[data-phase="intro"] .intro {
+  display: block;
+}
+
+.play[data-phase="intro"] .lights,
+.play[data-phase="intro"] .reminder {
+  display: none;
+}
+
+.intro-h {
+  margin: 0 0 12px;
+  font-size: 1.5rem;
+  font-weight: 900;
+  font-variation-settings: "wdth" 125;
+  letter-spacing: 0;
+}
+
+.intro ol {
+  margin: 0 0 16px;
+  padding-left: 1.3em;
+  display: grid;
+  gap: 8px;
+  line-height: 1.45;
+  font-size: 0.95rem;
+}
+
+.intro b {
+  font-weight: 800;
 }
 
 .lights {
@@ -856,6 +1037,12 @@ a.mode.quick:hover p {
   font-weight: 700;
 }
 
+/* Drivers of the team a hint named. */
+.row.hinted .code {
+  text-decoration: underline 3px var(--red);
+  text-underline-offset: 3px;
+}
+
 .row.pick {
   background: var(--yellow);
   color: var(--on-signal);
@@ -878,6 +1065,68 @@ a.mode.quick:hover p {
 
 .row.truth .code {
   color: var(--green);
+}
+
+/* Hints for the player, under the model's grid. */
+.hints {
+  padding: 10px 14px 12px;
+  border-top: var(--hair);
+}
+
+.hints.done .hint-buttons {
+  display: none;
+}
+
+.hints-h {
+  display: flex;
+  justify-content: space-between;
+  margin: 0 0 8px;
+  color: var(--ink-3);
+}
+
+.hint-buttons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.hint-buttons button {
+  flex: 1;
+  border: 2px solid var(--ink);
+  background: var(--paper);
+  padding: 6px 6px;
+  font-weight: 800;
+  font-variation-settings: "wdth" 112;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.62rem;
+}
+
+.hint-buttons button:hover:not(:disabled) {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.hint-buttons button:disabled {
+  background: var(--yellow);
+  border-color: var(--yellow);
+  color: var(--on-signal);
+  cursor: default;
+}
+
+.hint-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
+.hint-list li {
+  padding-left: 10px;
+  border-left: 3px solid var(--yellow);
 }
 
 .lineup .hint {
@@ -1911,6 +2160,15 @@ figcaption {
 }
 
 @media (max-width: 860px) {
+  .howto ol {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .howto li:nth-child(3) {
+    border-left: 0;
+  }
+  .howto li:nth-child(n + 3) {
+    border-top: var(--rule);
+  }
   .menu-toggle {
     display: inline-block;
   }
@@ -2041,10 +2299,20 @@ figcaption {
 }
 
 @media (max-width: 520px) {
+  .howto ol {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .howto li + li {
+    border-left: 0;
+    border-top: var(--rule);
+  }
   .minimap {
-    width: 96px;
+    width: 128px;
     top: 8px;
     right: 8px;
+  }
+  .mm-head span:first-child {
+    display: none;
   }
   .modes {
     grid-template-columns: 1fr;
@@ -2110,10 +2378,127 @@ figcaption {
     height: calc(100svh - 52px);
   }
   .minimap {
-    width: 92px;
+    width: 128px;
     top: 8px;
     right: 8px;
   }
+  .mm-head span:first-child {
+    display: none;
+  }
+}
+
+/* The home 3D view: a soft moving shimmer until the circuit is ready, then the scene fades in. */
+.hero-stage #stage {
+  opacity: 0;
+  transition: opacity 0.6s var(--ease-out);
+}
+
+.hero-stage.ready #stage {
+  opacity: 1;
+}
+
+.hero-stage:not(.ready) .stage-slot {
+  background: linear-gradient(100deg, var(--paper-2) 30%, var(--paper-3) 50%, var(--paper-2) 70%) 0 0 / 300% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -150% 0;
+  }
+}
+
+/* Every page's content arrives with a short fade and a small rise, including the lap screen
+   when its circuit has loaded. */
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.page,
+.home,
+.play:not([data-phase="loading"]) > .play-bar,
+.play:not([data-phase="loading"]) > .side,
+.play:not([data-phase="loading"]) > .band {
+  animation: arrive 0.35s var(--ease-out) both;
+}
+
+.play:not([data-phase="loading"]) > .stage-frame {
+  animation: arrive-fade 0.5s var(--ease-out) both;
+}
+
+@keyframes arrive-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* The chequered flag at the end of the lap. */
+.flag-card {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 5;
+  transform: translate(-50%, -50%);
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 22px 34px 18px;
+  background: var(--paper);
+  border: var(--rule);
+  border-top: 14px solid transparent;
+  border-image: repeating-linear-gradient(90deg, #111 0 14px, #f4f4f2 14px 28px) 14 0 0 0 / 14px 0 0 0;
+  animation: flag-in 0.45s var(--ease-out) both;
+  pointer-events: none;
+}
+
+.flag-card b {
+  font-weight: 900;
+  font-variation-settings: "wdth" 125;
+  font-size: clamp(2rem, 4vw, 3.4rem);
+  line-height: 1;
+}
+
+.flag-card p {
+  margin: 0;
+  color: var(--ink-3);
+}
+
+.flag-card.out {
+  animation: flag-out 0.45s var(--ease-in, ease-in) both;
+}
+
+@keyframes flag-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -40%) scale(0.96);
+  }
+}
+
+@keyframes flag-out {
+  to {
+    opacity: 0;
+    transform: translate(-50%, -60%);
+  }
+}
+
+/* The reveal panel arrives in steps after the flag. */
+.band.reveal > * {
+  animation: arrive 0.45s var(--ease-out) both;
+}
+
+.band.reveal > :nth-child(2) {
+  animation-delay: 0.08s;
+}
+
+.band.reveal > :nth-child(3) {
+  animation-delay: 0.16s;
+}
+
+.band.reveal > :nth-child(4) {
+  animation-delay: 0.24s;
 }
 
 @media (prefers-reduced-motion: reduce) {

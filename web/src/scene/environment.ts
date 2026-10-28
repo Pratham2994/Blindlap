@@ -205,7 +205,9 @@ export function buildingsMesh(
       cx += p.x;
       cz += p.y;
     }
-    const ground = terrain.at(cx / pts.length, cz / pts.length);
+    // The lowest ground under the footprint, a little below: no corner may float over a slope
+    // (the ground is a 30 m grid; the middle alone left one side of a building in the air).
+    const ground = Math.min(...pts.map((p) => terrain.at(p.x, p.y))) - 0.4;
     const y0 = ground + minh;
     const y1 = ground + h;
     // Walls: one quad per edge, outward facing, with window bays (u along the wall, v per floor)
@@ -266,7 +268,13 @@ export function treesGroup(
   const n = flat.length / 2;
   if (!n) return g;
   // Few sides each: there are thousands of trees. Open-ended so no hidden caps are drawn.
+  // Two kinds, chosen per tree: round broadleaf crowns (most trees by a track) and conifers.
+  const round = new THREE.IcosahedronGeometry(3.1, 1).translate(0, 6.2, 0);
+  round.scale(1, 0.85, 1);
   const crowns = new THREE.InstancedMesh(new THREE.ConeGeometry(2.6, 7, 6, 1, true).translate(0, 6.5, 0), crown, n);
+  const blobs = new THREE.InstancedMesh(round, crown, n);
+  let nc = 0;
+  let nb = 0;
   const trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.25, 0.35, 3.2, 4, 1, true).translate(0, 1.6, 0), trunk, n);
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
@@ -277,12 +285,20 @@ export function treesGroup(
     const k = 0.75 + hash * 0.6;
     s.set(k, k, k);
     m.compose(new THREE.Vector3(p.x, terrain.at(p.x, p.y), p.y), q, s);
-    crowns.setMatrixAt(i, m);
     trunks.setMatrixAt(i, m);
     // Greens vary from tree to tree, as they do in a real wood.
     green.setHSL(0.25 + hash * 0.07, 0.32 + hash * 0.16, (0.3 + hash * 0.12) * shade);
-    crowns.setColorAt(i, green);
+    if ((hash * 7.13) % 1 < 0.62) {
+      blobs.setMatrixAt(nb, m);
+      blobs.setColorAt(nb++, green);
+    } else {
+      crowns.setMatrixAt(nc, m);
+      crowns.setColorAt(nc++, green);
+    }
   }
+  crowns.count = nc;
+  blobs.count = nb;
+  g.add(blobs);
   // No shadows from trees: one instanced mesh is drawn whole into the shadow map, doubling its cost
   // for shadows that the close cameras barely show.
   g.add(crowns, trunks);
@@ -360,7 +376,7 @@ export function standsGroup(
     const ds = pts.map(depthOf);
     const d0 = Math.min(...ds);
     const depth = Math.max(...ds) - d0 || 1;
-    const ground = terrain.at(centre.x, centre.y);
+    const ground = Math.min(...pts.map((p) => terrain.at(p.x, p.y))) - 0.4; // never floating
     const front = 1.5;
     const top = Math.max(front + 2, h);
     const yAt = (p: THREE.Vector2) => ground + front + ((depthOf(p) - d0) / depth) * (top - front);
@@ -382,6 +398,34 @@ export function standsGroup(
         col.push(c.r, c.g, c.b);
       }
     }
+    // A roof over the back of bigger stands: the footprint cut to its rear 60% (by distance from
+    // the track), floating 2.6 m above the top row, as a cantilevered canopy.
+    if (depth > 7 && top > 5) {
+      const cut = d0 + depth * 0.4;
+      const back: THREE.Vector2[] = [];
+      for (let i = 0; i < pts.length; i++) {
+        const a = pts[i];
+        const b = pts[(i + 1) % pts.length];
+        const da = depthOf(a) - cut;
+        const db = depthOf(b) - cut;
+        if (da >= 0) back.push(a);
+        if (da >= 0 !== db >= 0) back.push(a.clone().lerp(b, da / (da - db)));
+      }
+      if (back.length >= 3) {
+        const roofY = ground + top + 2.6;
+        c.set("#d9d6cf");
+        for (const [i, j, k] of THREE.ShapeUtils.triangulateShape(back, [])) {
+          for (const p of [back[i], back[k], back[j]]) {
+            pos.push(p.x, roofY, p.y);
+            col.push(c.r, c.g, c.b);
+          }
+          for (const p of [back[i], back[j], back[k]]) {
+            pos.push(p.x, roofY - 0.15, p.y);
+            col.push(c.r * 0.82, c.g * 0.82, c.b * 0.82);
+          }
+        }
+      }
+    }
     // Seats in rows across the stand: 0.9 m between rows, 0.7 m between seats.
     const poly = pts.map((p) => [p.x, p.y]);
     const inside = (x: number, z: number) => {
@@ -395,10 +439,13 @@ export function standsGroup(
     };
     const span = Math.max(...pts.map((p) => Math.abs(p.clone().sub(centre).dot(across)))) + 1;
     const dist = track.distanceTo(centre);
+    // Only a stand with a corner close to the track needs each seat tested (the test is the slow
+    // part); for the rest every seat is clear already.
+    const checkSeats = pts.some((p) => !seatOk(p.x, p.y)) || !seatOk(centre.x, centre.y);
     for (let r = d0 + 0.8; r < d0 + depth - 0.4; r += 0.9) {
       for (let a = -span; a <= span; a += 0.7) {
         const p = centre.clone().addScaledVector(toTrack, -r).addScaledVector(across, a);
-        if (!inside(p.x, p.y) || !seatOk(p.x, p.y)) continue;
+        if (!inside(p.x, p.y) || (checkSeats && !seatOk(p.x, p.y))) continue;
         seats.push({ x: p.x, y: yAt(p), z: p.y, d: dist + (r - d0), face: Math.atan2(toTrack.x, toTrack.y) });
       }
     }

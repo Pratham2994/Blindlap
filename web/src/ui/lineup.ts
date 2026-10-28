@@ -89,6 +89,11 @@ export class Lineup {
     this.counter.textContent = `${corners} corner${corners === 1 ? "" : "s"} read`;
   }
 
+  /** A hint named the team: mark its drivers so the choice narrows. */
+  highlight(codes: string[]) {
+    for (const [c, r] of this.rows) r.classList.toggle("hinted", codes.includes(c));
+  }
+
   reveal(truth: string) {
     this.locked = true;
     this.list.scrollTo({ top: 0, behavior: "smooth" });

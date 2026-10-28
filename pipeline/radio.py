@@ -45,8 +45,14 @@ def main():
         if lap["radio"]
     })
     CACHE.mkdir(parents=True, exist_ok=True)
+    # Keep what is known (speech start and the captions captions.py added); only new clips are
+    # downloaded and measured. (Rewriting the file from scratch used to drop every caption.)
+    known = json.loads((DATA / "radio.json").read_text()) if (DATA / "radio.json").exists() else {}
     out = {}
     for k, url in enumerate(urls):
+        if url in known:
+            out[url] = known[url]
+            continue
         path = CACHE / (hashlib.sha1(url.encode()).hexdigest()[:16] + ".mp3")
         if not path.exists():
             r = requests.get(url, timeout=60)

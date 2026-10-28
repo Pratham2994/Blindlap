@@ -33,18 +33,29 @@ export class Occupancy {
     if (k >= 0) this.grid[k] = 1;
   }
 
-  /** Mark a polygon (scene x, z points): every cell whose centre lies inside, plus its corners. */
+  /** Mark a polygon (scene x, z points): every cell whose centre lies inside, plus its corners.
+   * Filled row by row (scanline): each row finds where the edges cross it once, so a map shape
+   * with thousands of points (Monaco's sea) costs rows x edges, not cells x edges. */
   polygon(pts: THREE.Vector2[]) {
-    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    let z0 = Infinity;
+    let z1 = -Infinity;
     for (const p of pts) {
-      x0 = Math.min(x0, p.x);
-      x1 = Math.max(x1, p.x);
       z0 = Math.min(z0, p.y);
       z1 = Math.max(z1, p.y);
+      this.set(p.x, p.y);
     }
-    for (const p of pts) this.set(p.x, p.y);
-    for (let z = z0 + this.cell / 2; z < z1; z += this.cell)
-      for (let x = x0 + this.cell / 2; x < x1; x += this.cell) if (inside(pts, x, z)) this.set(x, z);
+    const xs: number[] = [];
+    for (let z = z0 + this.cell / 2; z < z1; z += this.cell) {
+      xs.length = 0;
+      for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+        const a = pts[i];
+        const b = pts[j];
+        if (a.y > z !== b.y > z) xs.push(a.x + ((z - a.y) * (b.x - a.x)) / (b.y - a.y));
+      }
+      xs.sort((p, q) => p - q);
+      for (let k = 0; k + 1 < xs.length; k += 2)
+        for (let x = xs[k] + this.cell / 2; x < xs[k + 1]; x += this.cell) this.set(x, z);
+    }
   }
 
   free(x: number, z: number): boolean {
@@ -153,7 +164,8 @@ export function marshalPosts(list: { p: THREE.Vector3; yaw: number }[]): THREE.G
  * the surroundings may come closer to the centreline than CLEAR: the fence stands at about 11 m. */
 export class TrackClearance {
   static readonly CLEAR = 13;
-  private cells = new Map<string, number[]>();
+  // Grid cells keyed by a number (text keys were the slow part: this runs for every seat).
+  private cells = new Map<number, number[]>();
   private readonly cell = 40;
 
   constructor(private pts: THREE.Vector3[]) {
@@ -166,7 +178,11 @@ export class TrackClearance {
   }
 
   private key(x: number, z: number) {
-    return `${Math.floor(x / this.cell)},${Math.floor(z / this.cell)}`;
+    return TrackClearance.cellKey(Math.floor(x / this.cell), Math.floor(z / this.cell));
+  }
+
+  private static cellKey(cx: number, cz: number) {
+    return (cx + 50000) * 100000 + (cz + 50000);
   }
 
   /** Nearest centreline point to (x, z) within 80 m, and the distance to it (Infinity if none). */
@@ -177,7 +193,7 @@ export class TrackClearance {
     let bp: THREE.Vector3 | null = null;
     for (let dz = -2; dz <= 2; dz++)
       for (let dx = -2; dx <= 2; dx++)
-        for (const i of this.cells.get(`${cx + dx},${cz + dz}`) ?? []) {
+        for (const i of this.cells.get(TrackClearance.cellKey(cx + dx, cz + dz)) ?? []) {
           const p = this.pts[i];
           const d = Math.hypot(p.x - x, p.z - z);
           if (d < best) {
@@ -210,8 +226,14 @@ export class TrackClearance {
       z0 = Math.min(z0, p.y);
       z1 = Math.max(z1, p.y);
     }
-    // Covering the track: some centreline point lies inside the footprint.
-    for (const p of this.pts) if (p.x > x0 && p.x < x1 && p.z > z0 && p.z < z1 && inside(dense, p.x, p.z)) return null;
+    // Covering the track: some centreline point lies inside the footprint. Only the points in the
+    // grid cells under the footprint are tested.
+    for (let cz = Math.floor(z0 / this.cell); cz <= Math.floor(z1 / this.cell); cz++)
+      for (let cx = Math.floor(x0 / this.cell); cx <= Math.floor(x1 / this.cell); cx++)
+        for (const i of this.cells.get(TrackClearance.cellKey(cx, cz)) ?? []) {
+          const p = this.pts[i];
+          if (p.x > x0 && p.x < x1 && p.z > z0 && p.z < z1 && inside(dense, p.x, p.z)) return null;
+        }
     let moved = false;
     // Pushed back from the nearest track point, a corner can end up near another one: repeat
     // until every corner is clear of all of them.

@@ -9,7 +9,10 @@ mkdirSync(tmp, { recursive: true });
 const size = { width: 1280, height: 720 };
 const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
 const context = await browser.newContext({ viewport: size, recordVideo: { dir: tmp, size } });
-await context.addInitScript(() => localStorage.setItem("blindlap.speed.v1", "2"));
+await context.addInitScript(() => {
+    localStorage.setItem("blindlap.speed.v1", "2");
+    localStorage.setItem("blindlap.intro.v1", "1");
+  });
 const page = await context.newPage();
 const wait = (ms) => page.waitForTimeout(ms);
 

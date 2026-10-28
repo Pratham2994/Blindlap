@@ -1,354 +1,249 @@
 # Blind Lap: handoff
 
-State on 2026-10-23, 18:00, at commit `6f9037f` (46 commits, all authored by Pratham2994 and pushed
-to `github.com/Pratham2994/Blindlap`, branch `master`). This document is the starting point for
-the next session, human or agent: what exists, why it is that way, what was discussed and decided,
-what is still open, and the plan for the next feature. Deeper references:
-
-- `README.md`: what it is, results, how to run.
-- `docs/OVERVIEW.md`: file by file, how each part works, and section 10, every piece of owner
-  feedback and what changed.
-- `DESIGN.md` and `.impeccable/design.json`: the shipped design system (poster world, dark theme).
-- `PRODUCT.md`, `.impeccable/surfaces/web-index-html.md`: product context and the design contract.
+For the next agent or developer. Read this first, then `README.md` (what it is, how to run) and
+`docs/OVERVIEW.md` (file by file, and section 10: every piece of owner feedback and what changed).
+State on 2026-10-28. Repository: `github.com/Pratham2994/Blindlap`, branch `master` (plus
+`data-cache`, see 6.3). Every commit is authored by the owner, Pratham2994; keep it that way (2.1).
 
 ---
 
 ## 1. What Blind Lap is
 
-A real 2025 or 2026 F1 qualifying lap is replayed in 3D with the driver's name removed, with an
-engine synthesised from the car's own speed, gear and throttle. As the car leaves each corner, a
-model trained on other circuits reads that corner and updates its guess of who is driving. The
-player guesses too. The reveal names the driver, shows how each model ranked them and why, and
-plays the driver's real team radio with captions.
+A real F1 qualifying lap (2025 and 2026 seasons) is replayed in 3D with the driver's name hidden.
+The engine sound is synthesised from the car's own speed, gear and throttle. As the car leaves each
+corner, three models trained on other circuits read how that corner was driven and update their
+guess. The player guesses too, with optional hints. The reveal names the driver, shows how each
+model ranked them and why, the qualifying context (date, Q1/Q2/Q3, final position), and plays the
+driver's real team radio with captions. Each circuit is set in its real surroundings, taken from
+OpenStreetMap.
 
-It is a portfolio project: an ML pipeline (Python, offline) plus a static web app (TypeScript,
-Three.js, Web Audio), with no server.
-
----
-
-## 2. How it was built: timeline
-
-### Night (02:00 to 06:15): the first complete build
-
-The owner set the brief: one impressive, resume-worthy project, AI/ML or backend, not frontend
-only, using F1 data, novel, visually striking, built overnight with the impeccable design process.
-Built in that time:
-
-- **Data pipeline** (`pipeline/`): OpenF1 telemetry, positions and team radio; MultiViewer corner
-  maps; F1DB career totals. FastF1 was ruled out (its live-timing source returns 401).
-- **Track alignment**: one centripetal Catmull-Rom centreline per circuit, every position sample
-  projected onto it with a KD-tree, strict lap validation.
-- **Corner features**: 10 style features per corner (braking point and length, entry and apex
-  speed, apex position, throttle pickup, how sharply and smoothly the throttle opens, deepest lift,
-  coasting), as robust z-scores against the field, in slow / medium / fast blocks.
-- **Honest evaluation**: leave-one-circuit-out across both seasons; a teammate test (same car,
-  which of the two drivers); a cross-season test (train on 2025, test on 2026).
-- **Web app**: game loop, 3D scene, engine synth, driver DNA (PCA of driving style), telemetry
-  lab, How it knows page, Daily five (since removed), Teammates mode, challenge links, duel replay.
-- Three rounds of impeccable finish review, E2E tests, demo media, and `docs/OVERVIEW.md`.
-
-### Morning and day (10:40 to 18:00): owner feedback, in order
-
-| Owner feedback | Outcome |
-|---|---|
-| Car moves stop-start, sound not in sync | Car distance now integrates the speed sensor, drift corrected from positions: motion error ±53 km/h → ±1.5 km/h. |
-| Is the car on the right part of the track? | OpenF1 positions are snapped to one line: the data has no per-driver racing line. Explained; later solved with a computed line (below). |
-| Team radio: only the second half audible | Clips start with silence; playback starts where speech starts (ffmpeg silencedetect), engine cuts out first. |
-| Questions on the model | Answered: data, features and why, one model per held-out circuit, what the cross-season test proves. |
-| Test the best models, keep logistic regression | Boosted trees, random forest, logistic regression computed offline and switchable in the game. |
-| Louder radio, subtle captions | Captions with faster-whisper (334 of 348 clips). Louder is **open**, see section 6. |
-| Space to pause breaks things; sound stuck after pause or with the tab hidden | One pause state; mute and "lap running" separated; a hidden tab pauses and suspends audio. |
-| UI bland and all black, confusing navigation | Owner chose direction C, "bold poster", from three mockups. Full redesign: home hub, top bar on every page, Menu exit in every lap. |
-| No sense of speed; car shakes on straights | Barriers, brake boards, camera dynamics; heading smoothing (on-screen jitter under half a pixel). |
-| Better car model | Owner downloaded "( FREE ) Formula One LP-830 SDC" (CC BY 4.0). Geometry only: its textures carried Blender, Sketchfab, sponsor and Pirelli logos. Repainted in the game; credited. |
-| Dark mode | Top-bar toggle, remembered, follows the system by default; 3D scene, DNA and charts follow. |
-| Suzuka: tracks touch at the crossover | Crossings detected; the upper road is lifted into a bridge with 13 m clearance. |
-| Interlagos: car looks airborne downhill; car bobs as if the road were bumpy | Car pitches with the slope; heights smoothed over ~85 m, exaggeration 2× → 1.25×. |
-| 300 km/h does not feel fast; braking feels stop-start | Measured: the camera moved up to 11 m against the car on braking (74 km/h relative). Camera distance now depends on speed only; low and close; catch-fence posts. Relative movement now ≤ 6 km/h. |
-| Show date, Q1/Q2/Q3 and final position on the reveal | `pipeline/results.py`: OpenF1 session results, segment boundaries found by a vote (robust to red flags), all 40 sessions labelled. |
-| Think about the best three models | `compare_models.py` tested ten models and blends. Owner chose: Blend, Boosted trees, Logistic. |
-| Volume slider; back and forward | Volume (engine and radio, remembered); lap bar is a seek slider with −5 s / +5 s and arrow keys; seeking back un-reads corners so the model is never ahead of the car. |
-| Next lap blacks out; lap bar line ahead of the car; black screens elsewhere | Shared canvas lost when the view cleared itself (fixed); fog washout when the camera flew out (fixed); lap bar handle measured time, fill measured distance (fixed). Bug sweep script added. |
-| Drag the camera; more angles | Chase, Onboard, Side, TV, Above; drag to look around; double-click resets; onboard glides in. |
-| Car looks like it floats; add a driver | Shadow box follows the car (sharp shadow), contact shadow; driver with helmet, visor, stripe, arms, gloves on the wheel. |
-| Racing line in the middle of the road | Minimum-curvature racing line per circuit (first version minimised length and hugged the inside; fixed). |
-| Baku: two tracks collide | Audit of all 40 sessions: only Baku (two stretches 9 m apart). Roads narrow and share one wall where sections run side by side. |
+A portfolio piece: an ML pipeline (Python, offline) plus a static web app (TypeScript, Three.js,
+Web Audio). No server: the site reads committed JSON.
 
 ---
 
-## 3. Current state
+## 2. The owner: how they work and what they expect
 
-### Product
+These are the most important things to get right. They come from many corrections.
 
-- **Home**: Start a lap, three ways to play (Quick lap, Teammates, Pick a circuit) and the honest
-  accuracy. Driver DNA, Telemetry lab and How it knows are in the top bar only.
-- **Play**: anonymous lap with start lights; five cameras and drag; model grid with a three-model
-  switch; telemetry band (speed, gear, pedals, seekable lap bar); evidence line per corner; pause,
-  1×/2×/4×, sound and volume.
-- **Reveal**: team-colour field, verdicts, driver, team, lap time, date, qualifying segment and
-  final position, career totals, the rank each model gave, the three corners that gave the driver
-  away, team radio with captions; duel replay against the model's pick; challenge link.
-- **Driver DNA**, **Telemetry lab**, **How it knows**, **Teammates**.
-- Light and dark themes; phone layout.
+### 2.1 Hard rules
+- **Commits and pushes carry only the owner's name and email.** No `Co-Authored-By`, no
+  "Generated with", no mention of Claude or AI anywhere in commits, pushes or the repo (the
+  `.claude/` folder is git-ignored). This overrides any tool default that adds attribution.
+- Never force-push, delete branches or rewrite pushed history.
+- Never commit secrets. Diff before committing.
+- Do not download or add third-party assets (models, audio, fonts) without asking first: name the
+  file, source, licence and size. The car model was approved this way (CC BY 4.0, credited).
+- Louder team radio was ruled out: it would mean rehosting copyrighted F1 clips. Leave it.
+- Surroundings: "do whatever, it doesn't have to be 100% real, but every circuit should feel like
+  itself". Real map data first; invented dressing (extra stands, boards) only on free ground, and
+  never on or over the track.
 
-### Data
+### 2.2 How they communicate
+- Messages are fast and full of typos; read for intent. They often send several new requests while
+  you are working. Note each one, finish what is in hand, then do them all; do not drop any.
+- They test in a real browser (Brave, dark theme often, a 1920 px monitor) and send screenshots and
+  screen recordings of problems. Every report so far has been a real bug: reproduce it, find the
+  cause, fix it everywhere it can happen, and say what the cause was.
+- They want honest, plain answers. Say what is not done or not verified. Never claim smooth or fixed
+  without having measured or looked.
+- Reply in simple, short sentences (their global instruction: ASD-STE100 style). Code, docs and the
+  app's own text are normal English.
 
-- 40 qualifying sessions (23 from 2025, 17 from 2026), 3,669 push laps scored, 24 drivers.
-- 18 practice 3 sessions used as extra training data only (58 sessions in training).
-- The game ships 1,611 laps (best laps per driver per session) on 26 circuits, 34 MB of static JSON.
+### 2.3 What they care about (in order, from their feedback)
+1. **It must never look broken.** No floating stands or buildings, nothing on the track, no road
+   covered by ground, no car driving through kerbs, no black or empty boxes while loading, no lost
+   3D view after navigation. These are the reports that annoyed them most.
+2. **Speed and smoothness on any machine** ("should run on a potato"): no visible delay when
+   loading, switching pages or themes.
+3. **Feels real and alive:** sense of speed, crowds, lighting, surroundings specific to each track.
+4. **Clear for a first-time visitor:** what the game is, how to guess, hints.
+5. **Clean UI** with the poster look (they like the colours and both themes) and no clutter: they
+   removed Daily five and duplicate links ("too many modes doing the same thing").
+6. **Finish features before adding new ones.** They plan to add "tons of new F1 features with new
+   datasets" next, but only once the current product is polished.
 
-### Models (leave-one-circuit-out, 3,669 laps)
+### 2.4 Working style that worked
+- Plan briefly, then do; keep a visible task list.
+- After any visual change: take screenshots (scripts in 7), look at them, and fix what you see
+  before reporting.
+- Write a check script for every class of bug they report, prove it catches the bug by switching
+  the fix off once, and keep it in `web/scripts/` (see 7).
+- Measure performance on the real GPU in the app's built-in browser (it has the owner's RTX 5070);
+  headless Playwright uses a software renderer and is 50 to 100 times slower.
 
-| Model | Top-1 | Top-3 | Right team | Right teammate | In the game |
+---
+
+## 3. What exists now
+
+- **Home:** "Who's driving?", a live 3D broadcast of a random daytime circuit (cuts between
+  cameras), How to play in four steps, three ways to play (Quick lap, Teammates, Pick a circuit),
+  the honest accuracy. Top bar: Home, Play, Driver DNA, Telemetry lab, How it knows, theme toggle.
+- **First lap ever:** a rules card with a Start button; after that the lights start at once.
+- **Play:** start lights, the lap in 3D; five cameras (Chase, Onboard, Side, TV, Above; C cycles;
+  drag to look around; double-click resets); live track map (top right of the view); the models'
+  grid with a three-model switch (Blend, Boosted trees, Logistic); hints (driving style, team, car
+  number; each costs a point: right = 3, then 2, then 1); telemetry band with a seekable lap bar
+  (drag, −5/+5 s, arrow keys); evidence line per corner; pause, 1x/2x/4x, sound and volume.
+- **End of lap:** a chequered "Lap complete" card for 1.5 s, then the reveal panel arrives in steps.
+- **Reveal:** team-colour field, verdicts with points, name, team, lap time, date, Q segment and
+  final position, career totals, how each model ranked the driver, the three corners that gave them
+  away, team radio with auto captions; duel replay against the model's pick; challenge link.
+- **Teammates mode**, **Driver DNA** (style map), **Telemetry lab**, **How it knows**.
+- Light and dark themes; laid out and checked for 11 screen sizes from 360 px phones to 27".
+
+### 3.1 The 3D scene
+- Track from the car's own position data; heights smoothed; bridges lifted where the track crosses
+  itself (Suzuka); roads narrowed where two sections run side by side (Baku).
+- Racing line: minimum-curvature line per circuit, wheels right out to the white line near corners
+  but never on the kerb; each lap shifts its apexes by that lap's real measured apex (`apex_offset`).
+- Car: "( FREE ) Formula One LP-830 SDC" (CC BY 4.0), repainted: plain while the driver is hidden,
+  team colour after; neutral driver figure; contact shadow and a car-following shadow map.
+- Surroundings from OpenStreetMap for all 26 circuits: buildings (real footprint, height, colour),
+  grandstands as raked seating with crowds and roofs, water and sea, woods, trees, Ferris wheels,
+  gravel traps, tarmac run-off, pit lane, grass. A grassy or paved verge carries the barriers.
+  Trackside dressing where the map has little: extra stands, terraces, boards, marshal posts.
+- Start/finish gantry with lights, chequered line, braking-zone rubber, low flat kerbs.
+- Sky with clouds; night races (from the sun's real altitude at the session time) get a dark sky,
+  floodlights and lit windows; camera grade; speed blur and lean into corners at speed.
+
+### 3.2 Data and models
+- 41 qualifying sessions (23 from 2025, 18 from 2026, up to Austin 2026-10-24), 26 circuits,
+  24 drivers, 1,655 laps in the game, 3,759 laps scored. Practice 3 sessions train only.
+- Leave-one-circuit-out results (each circuit's laps guessed by models that never saw it):
+
+| Model | Top-1 | Top-3 | Team | Teammate | In game |
 |---|---|---|---|---|---|
-| Blend (trees + forest + logistic) | **44.4%** | **74.1%** | **59.8%** | 74.2% | yes, default |
-| Gradient-boosted trees | 42.9% | 72.6% | 58.7% | 73.5% | yes |
-| Random forest | 40.3% | 68.6% | 56.4% | 69.6% | only inside the blend |
-| Logistic regression | 34.7% | 64.2% | 49.1% | 71.4% | yes |
-| Cross-season (logistic, 2025 → 2026) | 25.4% | 55.6% | 40.3% | | How page |
-| Chance | 4.2% | 12.6% | ~9% | 50% | |
-
-Tuned trees, a neural net and lap-level models were tested the same way and did no better
-(`pipeline/model_out/compare.json`; analysis in OVERVIEW section 10).
-
-### Verification
-
-- `npx playwright test`: 12 E2E tests, all passing (about 2 minutes).
-- `node scripts/sweep.mjs`: 44-step bug sweep over every flow (script errors, missing or blank
-  stage, layout off screen, lap bar out of step). Passing. It was checked to catch the black-stage
-  bug when that fix is removed.
-- `pipeline/check.py`: data invariants. Passing.
-- `npm run build`: passing.
+| Blend (trees + forest + logistic) | 46.6% | 74.1% | 60.8% | 74.9% | yes, default |
+| Gradient-boosted trees | 43.7% | 73.2% | 59.2% | 74.0% | yes |
+| Random forest | 42.2% | 70.7% | 58.4% | 71.7% | blend only |
+| Logistic regression | 35.0% | 64.0% | 50.3% | 71.1% | yes |
+| Cross-season (2025 → 2026) | 25.7% | 55.4% | 40.3% | | How page |
+| Chance | 4.2% | 12.5% | ~9% | 50% | |
 
 ---
 
-## 4. Architecture in brief
+## 4. Architecture
 
 ```
-pipeline/ (Python 3.12, offline)
-  fetch.py      OpenF1 + MultiViewer downloads (paced, resumable)
-  track.py      centreline, projection, lap validation, push-lap filter
-  features.py   10 corner features, field z-scores, corner classes
-  build.py      per-session build
-  model.py      LOCO evaluation of logreg / forest / gbm, the blend, cross-season test
-  export.py     web JSON: sessions (laps, per-corner model scores), index, report, DNA
-  results.py    qualifying segments and final positions per lap
-  radio.py, captions.py, careers.py, check.py, compare_models.py, run_all.sh
-web/ (Vite, TypeScript strict, Three.js 0.170, Web Audio)
-  main.ts       hash router, home hub, theme toggle, render loop
-  lap.ts        LapPlayer: smooth motion from the speed sensor
-  model.ts      replays the models' stored per-corner scores; evidence sentences
-  scene/world.ts  track, racing line, edges, barriers, cameras, fog, shadows
-  scene/car.ts    car model, driver, contact shadow
-  ui/play.ts    the round state machine and every play-screen control
-  ui/stage.ts   one WebGL canvas docked into each page's frame
+pipeline/ (Python 3.12 venv, uv)            web/ (Vite, TypeScript strict, Three.js 0.170)
+  fetch.py     OpenF1 + MultiViewer           main.ts         router, home, theme, render loop
+  build.py     laps + corner features         lap.ts          smooth motion from the speed sensor
+  model.py     3 models + blend, LOCO eval    model.ts        replays stored per-corner scores
+  export.py    web JSON                       scene/world.ts  track, line, cameras, lights, scene
+  results.py   Q1/Q2/Q3, positions            scene/environment.ts  terrain, buildings, stands, trees
+  radio.py     speech start (ffmpeg)          scene/trackside.ts    clearance, occupancy, dressing
+  captions.py  faster-whisper                 scene/car.ts    car, driver, contact shadow
+  careers.py   F1DB totals                    ui/play.ts      the round: intro, hints, reveal, duel
+  align.py     fit circuits to OSM            ui/minimap.ts   live track map
+  environment.py  OSM surroundings + light    ui/stage.ts     one canvas docked per page
+  check.py     data invariants                ui/telemetry.ts, lineup.ts, dna.ts, lab.ts, how.ts
+  cache.py     pack/unpack the update cache
+  run_all.sh   everything after fetch, in order
 ```
 
-Mechanisms worth knowing before changing anything:
-
-- **One canvas.** `ui/stage.ts` holds the canvas directly and moves it into each page's
-  `.stage-slot`; a page must park it (`dockStage(null)`) before clearing its own HTML.
-- **No model runs in the browser.** Each model's held-out log-probability for every corner of
-  every lap is computed offline and shipped in tenths (`lap.steps[model]`); the game replays sums.
-- **Distances stay on the centreline.** Telemetry, corners and seeking use centreline metres; only
-  the drawn car, cameras and rubber line use the racing line (`carPointAt`).
-- **Track geometry per circuit** (`setSession`): smoothing, height smoothing, bridge lift at
-  crossings, `trackEdges` (roads that run alongside), `racingLine`. About 0.2 s on Spa.
-- **Fog** follows the camera's real distance; a new circuit snaps the camera into place.
-
----
-
-## 5. Decisions and the reasons for them
-
-- **Data source**: OpenF1 (free, no key, telemetry + positions + radio). Rate limit about 30
-  requests a minute, so a season takes about an hour. Exported data is committed.
-- **Leave-one-circuit-out**: the same circuit appears in two seasons; leaving out only a session
-  would leak the circuit. Every number, and every guess in the game, is made blind to the circuit.
-- **Three models shown**: the blend is most accurate; boosted trees are the best single model;
-  logistic regression is readable and matches the evidence sentences. Random forest overlaps the
-  trees, so it only feeds the blend (owner's choice).
-- **No real racing line in the data**: positions are snapped to one line. The racing line is
-  therefore computed (minimum curvature), the same for every driver. It is presentation, not data.
-- **Anonymity**: the car is ink (paper in dark mode) until the reveal; the driver figure and helmet
-  are neutral; team colour appears only once the driver is named.
-- **Design**: owner-pinned direction C, "bold poster": paper, heavy ink type, one F1-red block,
-  team colours as flat fields, the 3D view as a framed picture.
-- **Car asset**: CC BY 4.0; credited in the README and on the How page; logo textures removed by
-  `web/scripts/prep-car.mjs`; the raw download folder is git-ignored.
-- **Git**: commits and pushes carry only the owner's name; no AI attribution anywhere.
+Mechanisms to know before changing anything:
+- **One WebGL canvas** (`ui/stage.ts`) moves into each page's `.stage-slot`. A page not yet on
+  screen only *requests* it; `flushStage()` moves it after the page is shown (`main.ts mount`).
+  Getting this wrong loses the 3D view or leaves a black box (it happened three times).
+- **No model runs in the browser:** every lap ships each model's held-out per-corner scores.
+- **Distances are centreline metres;** only drawing the car, cameras and rubber line uses the
+  racing line (`carPointAt`).
+- **Surroundings build in steps across frames** (`applySurroundings`, async), so nothing freezes;
+  each step stops if the circuit changed. They are prefetched with the lap.
+- **Nothing may touch the track:** `TrackClearance` pulls every footprint back to 13 m from the
+  centreline (fence at ~11 m); trees, seats and wheels likewise. The ground is capped below every
+  road. `web/scripts/track-check.mjs` verifies all of it on all sessions.
+- **Adaptive quality:** starts lower on small devices and steps down by itself (pixel ratio,
+  shadow size, bloom, crowds) while frames stay over 33 ms.
+- **Ground texture** is drawn once in light colours (2048 px) and tinted for dark/night, so theme
+  switches cost nothing.
 
 ---
 
-## 6. Open items and known limits
+## 5. Decisions and reasons (do not undo without asking)
 
-- **Louder team radio (owner decision pending)**: the F1 audio host sends no CORS headers, so the
-  page cannot boost it through Web Audio; it plays at the browser's maximum. Louder would mean
-  rehosting copyrighted clips in a public repository. Not done.
-- **Circuit load time** grew by about 0.2 s (racing line and edges). Could move to the pipeline
-  and ship precomputed, or optimise the loops.
-- **Racing line** is geometric and the same for every driver and lap; real lines vary with car,
-  speed and driver.
-- **Driver figure** is simple geometry: good at game distances, plain in extreme close-ups.
-- **Grid rows** in flight during the 4× re-sort can overlap for a frame.
-- **One E2E run** failed once while the machine was busy (a timeout); it passed on every rerun.
-- **Demo media** (README GIF, video, screenshots) predates the cameras, driver and racing line.
-- **Design review**: the impeccable finish reviewer has not been rerun since the poster redesign;
-  later changes were checked with screenshots.
-- **Engine sound**: tuned from a recording and spectrogram, not yet by ear at length.
-- **Touch**: drag-to-look is sideways only on phones, so the page can still scroll.
+- OpenF1 data (free, no key). FastF1's source returns 401.
+- Leave-one-circuit-out: the same circuit appears in two seasons; anything weaker leaks.
+- The three models shown were the owner's choice after `compare_models.py` tested ten.
+- OpenF1 positions are snapped to one line, so there is no real per-driver line; the racing line is
+  computed and shifted by the lap's real apexes. Presentation, not data.
+- Anonymity until the reveal: plain car, neutral helmet, no team colour.
+- Poster design (owner picked "C, bold poster"): paper, ink, one red; `DESIGN.md` records it.
+- Removed on request: Daily five, links that repeated the top bar, camera shake (looked glitchy),
+  a browser page cross-fade (froze the old page while the new one built; see OVERVIEW).
 
 ---
 
-## 7. Next feature: track-specific surroundings from real references
+## 6. Status of the infrastructure
 
-Owner direction: each circuit must look like itself, built from **real references**. Nothing is
-placed where it does not exist: no generic stadiums, no random buildings.
+### 6.1 Deploy: needs one click from the owner
+`.github/workflows/pages.yml` builds on every push to `master` (the build step passes) but the
+publish step fails because GitHub Pages is not switched on for the repository. The owner must open
+**Settings → Pages → Build and deployment → Source: GitHub Actions** once. After that every push
+deploys to `https://pratham2994.github.io/Blindlap/` (relative paths; works on the sub-path).
+Agents cannot do this: it needs the owner signed in to GitHub.
 
-### 7.1 Source of truth: OpenStreetMap
+### 6.2 Weekly data updates: built, not yet run on GitHub
+`.github/workflows/data.yml` runs every Monday 06:00 UTC (and by hand from the Actions tab):
+restore the cache, download new qualifying and practice 3 sessions for the current year, run
+`run_all.sh` (build only new sessions, retrain, export, results, radio, captions, careers, align,
+surroundings, checks), build the site, commit the data under the owner's name, push, and start the
+Pages deploy. Weeks without new sessions do nothing. A new venue is located automatically
+(`align.find_centre`, Nominatim + raceway search). First real run: the Monday after the next race.
+Watch for: Actions runtime (the retrain takes ~20 to 40 min), OpenF1 rate limits, and faster-whisper
+download size.
 
-For each circuit, query OpenStreetMap (Overpass API) within about 1 km of the track for:
-
-| Feature | OSM tags (typical) | Rendered as |
-|---|---|---|
-| The track itself | `highway=raceway`; for street circuits, the named public roads | alignment only (7.2) |
-| Pit lane and pit building | `highway=raceway` + `service=pit_lane` or names; `building` at the pit straight | pit lane strip, pit building |
-| Grandstands | `building=grandstand`, `leisure=stadium`, `building=stadium` | tiered stands at their real footprint |
-| Buildings | `building=*` with `height` or `building:levels` | extruded footprints at real height |
-| Water | `natural=water`, `natural=coastline`, `waterway`, `leisure=marina`, `harbour=*` | flat water |
-| Woodland and trees | `landuse=forest`, `natural=wood`, `natural=tree_row`, `natural=tree` | instanced trees inside the real areas |
-| Grass, parks | `landuse=grass`, `leisure=park` | ground colour |
-| Landmarks | named features, e.g. `attraction=big_wheel` (Suzuka), hotels and towers by name | simple hand-made meshes, placed only at their OSM position |
-
-### 7.2 Alignment: the hard part
-
-Our track coordinates are circuit-local (OpenF1 / MultiViewer `x`, `y`): **no latitude or
-longitude** (confirmed in `raw/<session>/circuit.json`). So each circuit is aligned by its shape:
-
-1. Project the OSM track polyline to metres (local equirectangular projection).
-2. Resample it and our centreline by arc length.
-3. Search the start offset and direction, then fit a similarity transform (rotation, scale,
-   translation) by Procrustes, refined with ICP.
-4. Accept only if the remaining error is small (target: RMS under 10 m); report it per circuit and
-   save an overlay image (OSM track over our centreline) for review.
-5. Transform every feature into track coordinates with the same transform.
-
-Risks: OSM may hold several layouts (pick the loop that matches); street circuits (Monaco, Baku,
-Singapore, Las Vegas, Miami, Jeddah, Melbourne, Madring) are mapped as ordinary roads, not
-raceways, so the matching roads must be stitched first.
-
-**Step 1 result (done, 2026-10-25):** `pipeline/align.py` aligns **all 26 circuits**: 98-100% of
-each centreline lies within 10 m of the real track, average errors 1.8-3.9 m. Findings that matter
-for the next steps:
-
-- OpenF1's frame is effectively **east/north at true scale**: rotations within ±2.3°, scale
-  0.99-1.00, never mirrored. The search is therefore limited to ±10° and no mirror; a full search
-  produced false matches in dense cities (Baku, Singapore).
-- 19 circuits match on the OSM raceway alone; street circuits need the public roads too
-  (Baku, Las Vegas, Madring, Monaco, Singapore, Melbourne on roads only).
-- The 2026 "Kuala Lumpur" data matches Sepang International Circuit.
-- Transforms: `pipeline/model_out/alignment.json` (world = M · (track − offset) + t, in metres
-  east/north of lat0/lon0). Report with overlays: `docs/alignment/index.html`.
-- Raw OSM downloads are cached in `pipeline/raw/osm/` (git-ignored).
-
-**Steps 2 to 5 result (done, 2026-10-25):** `pipeline/environment.py` exports every circuit's real
-surroundings to `web/public/data/env/` (about 5.7 MB for 26 circuits, ODbL, LICENSE.txt there):
-buildings with mapped heights and colours (else typical for the type), grandstands, water including
-the sea from coastlines, woods, grass, trees, Ferris wheels (deduplicated; one Suzuka entry was a
-mistagged grandstand). Every one of the 40 sessions has its own fit (all ≥ 98% within 10 m) and a
-light from the sun's altitude 30 minutes into the session: night for Jeddah, Las Vegas, Lusail,
-Sakhir, Singapore (both years) and Yas Marina (sun −13°). `check.py` validates all of it.
-In the game (`web/src/scene/environment.ts`, `World.applySurroundings`): a terrain blended from the
-track's height, extruded buildings in vertex colour, instanced trees, wheels, floodlights and a
-night palette at night races. Costs measured on Interlagos (4,500 buildings): about 50 ms to place,
-and the software-rendered test frame went from 16 to 21 ms.
-
-**Trackside (2026-10-26, owner: "still looks empty near the track"):** a second OSM query per circuit
-adds what lies right beside the track: gravel traps (natural=sand/scree/shingle, surface=gravel), tarmac
-run-off and car parks (surface=asphalt areas, area:highway, amenity=parking), the pit lane, grass, and
-bleachers (as stands). Under them a base verge is painted along the whole track, about 35 m of grass
-each side at permanent circuits and 12 m of pavement at street circuits: not a mapped object, but
-every real circuit has one, and the mapped surfaces are drawn over it. Grandstands on the ground are
-now raked seating facing the nearest track, with up to 22,000 spectators nearest the track (stands
-are mapped; qualifying always has a crowd). Cost, measured with forced frame sync at Monza (46
-stands): about 520,000 triangles a frame after trimming hidden faces and dropping tree shadows.
-
-**Atmosphere (2026-10-26, owner: "every circuit should feel like it, doesn't have to be 100% real"):**
-the owner relaxed the real-references rule for trackside dressing. `scene/trackside.ts` adds, on an
-occupancy grid so nothing lands on a mapped building, water or another road: grandstands at the
-start straight and the five heaviest braking zones where fewer than 10 real stands are mapped,
-terraces at the six heaviest braking zones, boards along straights, marshal posts every 300 m.
-Lighting: blue sky and haze, warm sun, coloured fill, a camera grade pass. Buildings: window bays
-from a facade texture, darker at the base, lit windows at night. Ground capped below every road
-(`scripts/track-check.mjs`). Responsive: `scripts/responsive.mjs` (11 sizes, 6 pages each).
-
-Previously not built: temporary grandstands at street circuits, which OpenStreetMap does not map
-(street circuits show only the stands it has), and hand-made landmark models.
-
-### 7.3 Temporary structures
-
-Grandstands at street circuits are temporary and usually missing from OSM. For those, use the
-**official circuit maps** published for each event (grandstand names and positions), entered by
-hand into a small per-circuit file, marked as hand-placed with the source noted. Nothing is
-invented: if a reference does not show it, it is not built.
-
-### 7.4 Pipeline and data
-
-- New `pipeline/environment.py`: fetch (cached in `raw/osm/`), align, simplify (Douglas-Peucker),
-  clip, export `web/public/data/env/<circuitKey>.json` in track coordinates; alignment report.
-- `check.py`: every env file loads, alignment error under the limit, nothing overlaps the track.
-
-### 7.5 Rendering, in the poster style
-
-- Extruded footprints in paper and ink tones; grandstands tiered, seats in a single accent; water
-  flat; trees instanced; landmarks as simple shapes.
-- **Night races** derived, not listed: the session's local start time (`date_start` +
-  `gmt_offset`) and the sun's position decide night (Singapore, Las Vegas, Jeddah, Lusail,
-  Sakhir) or dusk (Yas Marina): dark sky, lit track, floodlights, independent of the UI theme.
-- Performance budget: instancing and merged geometry; keep 60 fps on a laptop.
-
-### 7.6 Order of work and checks
-
-1. Alignment for all 26 circuits, with the report and overlay images. Stop if any fails.
-2. Export and render buildings, grandstands, water and trees on three circuits (one permanent,
-   one street, one parkland: e.g. Silverstone, Monaco, Spa); compare screenshots with satellite
-   views.
-3. Roll out to all circuits; hand-placed temporary grandstands for street circuits.
-4. Landmarks where OSM confirms them.
-5. Night races.
-6. Sweep, E2E tests, performance check, docs.
-
-### 7.7 Licence
-
-OpenStreetMap data is under the ODbL. Credit "© OpenStreetMap contributors" in the README and on
-the How page. The exported environment files are a derived database and must stay under the ODbL
-(add a licence note in `web/public/data/env/`).
+### 6.3 The `data-cache` branch
+Holds what the weekly job needs without the 6.3 GB of telemetry: `build/*.pkl`, the small raw
+files per session, `raw/osm/`, `raw/f1db/` (about 300 MB). Pack and unpack with
+`pipeline/cache.py`. The job updates it after each run.
 
 ---
 
-## 8. Other backlog
+## 7. Checks (run before reporting anything as done)
 
-- Owner decision on louder radio (section 6).
-- Refresh demo media after the surroundings land.
-- Rerun the impeccable finish review on the current build and update `DESIGN.md`.
-- Precompute the racing line and edges in the pipeline to cut load time.
-- Optional: per-driver racing-line variation from braking points (stays presentation, not data).
+From `web/` with the dev server running (`npm run dev`, port 5173):
+- `npx tsc --noEmit` and `npm run build`.
+- `npx playwright test`: 13 end-to-end tests (~6 min).
+- `node scripts/sweep.mjs`: 44 steps through every flow; script errors, missing/blank 3D view,
+  layout off screen, lap bar out of step.
+- `node scripts/track-check.mjs`: every session; ground under the road, nothing within 12.5 m.
+- `node scripts/responsive.mjs [dir]`: 11 screen sizes × 6 pages, with screenshots.
+- `node scripts/capture.mjs [dark]`: screenshots of every page for review.
+- `node scripts/shot-spot.mjs <session> <metres> <camera> <out.png>`: one spot on one circuit.
+
+From `pipeline/`: `.venv/Scripts/python.exe check.py` (data invariants).
+
+Status at handoff: all of the above pass on the final code (sweep 44/44, track check on all 41
+sessions, 11 screen sizes, data checks, build).
 
 ---
 
-## 9. How to run and check
+## 8. Lessons learned (save the next person time)
 
-```bash
-# web (from web/)
-npm install
-npm run dev                  # http://localhost:5173
-npx tsc --noEmit             # typecheck
-npx playwright test          # 12 E2E tests
-node scripts/sweep.mjs       # bug sweep over every flow (dev server running)
-node scripts/capture.mjs     # screenshots of every page, desktop and phone (add "dark" for the dark theme)
-node scripts/shot-spot.mjs <session> <metres> <camera> <out.png> [drag px]   # one spot on one circuit
-npm run build                # static site in web/dist
+- **Windows + Git Bash:** long heredocs with mixed quotes break the shell; write Python patch
+  scripts to the scratchpad and run them. Open files with `encoding="utf-8"` (default is cp1252).
+  `\d` in Python strings needs raw strings or `\\d`.
+- **Edit by exact replacement with assertions** (`assert s.count(a) == 1`) so a stale anchor fails
+  loudly instead of silently doing nothing.
+- **The built-in browser pane may be hidden;** then `requestAnimationFrame` never fires. Code that
+  waits for frames must have a timer fallback (`applySurroundings` does).
+- **Headless timings mislead;** measure on the real GPU in the built-in browser.
+- **When the owner reports one instance, search for the class:** one floating stand meant ground
+  sampled at one point for every building; one Baku collision meant checking all 41 sessions.
+- **Browser view transitions** freeze the old page while the next one works; do not use them here.
 
-# pipeline (from pipeline/, Python 3.12 venv)
-./run_all.sh                 # build, train, export, results, careers, check
-.venv/Scripts/python.exe compare_models.py   # the model comparison (about 30 minutes)
-```
+---
+
+## 9. What is left
+
+1. **Owner:** enable GitHub Pages (6.1). Then check the live site on a phone and a weak laptop.
+2. Confirm the final sweep passes, and watch the first weekly data run (6.2).
+3. Demo media in the README (GIF, video, screenshots) is from an older look; re-record with
+   `web/scripts/record-demo.mjs`.
+4. The impeccable finish review has not been run on the latest design; `DESIGN.md` covers the
+   poster world and the later additions (map, hints, trackside) in its component notes.
+5. Ideas the owner raised for later: many new F1 features with new datasets (after polish).
+6. Known limits: the racing line is computed, not measured; street circuits show only the stands
+   OpenStreetMap or the dressing provides; captions are machine transcripts.
