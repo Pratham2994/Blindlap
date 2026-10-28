@@ -177,12 +177,13 @@ Mechanisms to know before changing anything:
 
 ## 6. Status of the infrastructure
 
-### 6.1 Deploy: needs one click from the owner
-`.github/workflows/pages.yml` builds on every push to `master` (the build step passes) but the
-publish step fails because GitHub Pages is not switched on for the repository. The owner must open
-**Settings → Pages → Build and deployment → Source: GitHub Actions** once. After that every push
-deploys to `https://pratham2994.github.io/Blindlap/` (relative paths; works on the sub-path).
-Agents cannot do this: it needs the owner signed in to GitHub.
+### 6.1 Deploy: live
+The site is live at **https://pratham2994.github.io/Blindlap/**. GitHub Pages is switched on
+(source: GitHub Actions); `.github/workflows/pages.yml` builds and publishes on every push to
+`master`, in about 1 to 2 minutes. Relative paths, so the sub-path works. Checked on 2026-10-29:
+the home page broadcast, a full Austin 2026 lap with surroundings, map and hints, no errors; the
+lap screen appeared 0.48 s after clicking. Note: the debug handles (`window.world`) exist only on
+the development server, not on the live site.
 
 ### 6.2 Weekly data updates: built, not yet run on GitHub
 `.github/workflows/data.yml` runs every Monday 06:00 UTC (and by hand from the Actions tab):
@@ -238,7 +239,7 @@ sessions, 11 screen sizes, data checks, build).
 
 ## 9. What is left
 
-1. **Owner:** enable GitHub Pages (6.1). Then check the live site on a phone and a weak laptop.
+1. Check the live site on a phone and a weak laptop (6.1).
 2. Confirm the final sweep passes, and watch the first weekly data run (6.2).
 3. Demo media in the README (GIF, video, screenshots) is from an older look; re-record with
    `web/scripts/record-demo.mjs`.
