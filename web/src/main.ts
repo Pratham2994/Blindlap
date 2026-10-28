@@ -21,8 +21,10 @@ const view = document.getElementById("view")!;
 const world = new World(document.getElementById("stage") as HTMLCanvasElement);
 const engine = new EngineSynth();
 // Development builds expose these to the check scripts in web/scripts.
-if (import.meta.env.DEV) Object.assign(window, { world, engine, THREE });
 let current: View | null = null;
+// Development builds expose these to the check scripts in web/scripts (frame() drives the page
+// when the browser gives no animation frames, as in a hidden pane).
+if (import.meta.env.DEV) Object.assign(window, { world, engine, THREE, frame: (dt: number) => current?.frame?.(dt) });
 let index: Index;
 let homeSession: number | null = null;
 
@@ -149,6 +151,7 @@ async function homeView(): Promise<View> {
     <section class="modes" aria-label="Ways to play">
       <a class="mode quick" href="#/play"><h2 class="display">Quick lap</h2><p>One random lap from ${index.sessions.length} qualifying sessions. Sound on.</p><span class="go">${icons.next}</span></a>
       <a class="mode" href="#/mates"><h2 class="display">Teammates</h2><p>Same car, two drivers. Which one is at the wheel?</p><span class="go">${icons.next}</span></a>
+      <a class="mode" href="#/shootout"><h2 class="display">Shootout</h2><p>Every driver's best lap of a session, all at once, with live gaps. Just watch.</p><span class="go">${icons.next}</span></a>
       <label class="mode pick"><h2 class="display">Pick a circuit</h2>
         <select aria-label="Pick a circuit to play">
           <option value="">Choose a circuit</option>
@@ -237,6 +240,12 @@ async function route() {
       engine.start();
       engine.setActive(true);
       mount(new PlayView(world, engine, index, null, true));
+    } else if (name === "shootout") {
+      engine.start();
+      engine.setActive(true);
+      const { ShootoutView } = await import("./ui/shootout");
+      const key = Number(arg);
+      mount(new ShootoutView(world, engine, index, Number.isInteger(key) && key > 0 ? key : null));
     } else if (name === "dna") {
       const [dna, careers] = await Promise.all([loadDna(), loadCareers()]);
       const { DnaView } = await import("./ui/dna");

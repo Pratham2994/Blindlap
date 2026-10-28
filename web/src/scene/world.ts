@@ -6,6 +6,7 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 /** Speed blur: samples pulled toward the middle of the view, stronger toward the edges and the
  * faster the car goes, as a fast camera smears the scenery passing it. */
@@ -131,6 +132,26 @@ function startQuality(renderer: THREE.WebGLRenderer): number {
   // Phones: a small touch screen.
   if (matchMedia("(pointer: coarse)").matches && Math.min(screen.width, screen.height) < 600) q = Math.max(q, 2);
   return q;
+}
+
+/** The shootout's field: the built car merged into one mesh, so twenty of them cost twenty draws
+ * (the modelled car is kept for the one being followed). Made once, shared by every car. */
+let tokenGeometry: THREE.BufferGeometry | null = null;
+function tokenCar(): THREE.BufferGeometry {
+  if (tokenGeometry) return tokenGeometry;
+  const { group } = makeF1Car(new THREE.Color("#ffffff"));
+  group.updateMatrixWorld(true);
+  const parts: THREE.BufferGeometry[] = [];
+  group.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    let g = m.geometry.clone().applyMatrix4(m.matrixWorld);
+    if (g.index) g = g.toNonIndexed();
+    for (const name of Object.keys(g.attributes)) if (name !== "position" && name !== "normal") g.deleteAttribute(name);
+    parts.push(g);
+  });
+  tokenGeometry = mergeGeometries(parts) ?? new THREE.BoxGeometry(5, 1, 2);
+  return tokenGeometry;
 }
 
 // Indices of features in a lap's raw corner values and z-scores (pipeline/features.py FEATURES).
@@ -442,6 +463,12 @@ export class World {
   // How the shown lap (and the duel rival's lap) drove each corner: the shape of their lines.
   private lapLine: LapLine | null = null;
   private ghostLine: LapLine | null = null;
+  // The shootout: every driver's car on its own lap's line (setField), and how far each one, and
+  // the followed car, is moved across the road so cars side by side never sit inside each other.
+  private field: { car: THREE.Mesh; line: LapLine; lateral: number }[] = [];
+  private fieldGroup = new THREE.Group();
+  private fieldHidden = -1;
+  private carLateral = 0;
   private quality = 0;
   private speedBlur!: ShaderPass;
   private roll = 0; // camera lean into corners, radians
@@ -600,7 +627,7 @@ export class World {
     this.car.add(this.carLight);
     // Ahead of the car, low, so it lights the asphalt it is about to cross, not its own roof.
     this.carLight.position.set(9, 2.5, 0);
-    this.scene.add(this.trackGroup, this.car);
+    this.scene.add(this.trackGroup, this.car, this.fieldGroup);
 
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
@@ -719,6 +746,7 @@ export class World {
     this.session = session;
     this.lapLine = null; // the next setLap fills it; the track itself uses the plain line
     this.ghostLine = null;
+    this.setField(null); // a field belongs to one circuit's lines
     this.snap = true;
     this.sessionKey = session.key;
     this.groundAreas = undefined;
@@ -1934,6 +1962,7 @@ export class World {
     if (!this.frame) return;
     const p = this.carPointAt(s);
     const t = this.carHeadingAt(s);
+    if (this.carLateral) p.addScaledVector(this.sideAt(s), this.carLateral);
     this.car.position.copy(p);
     this.car.rotation.y = Math.atan2(-t.z, t.x);
     this.car.rotation.z = this.pitchAt(s);
@@ -1949,6 +1978,81 @@ export class World {
     const side = this.carOffsetAt(s, line) > 0 ? 1 : -1;
     const ridges = REDUCED_MOTION ? 0 : 0.006 * Math.sin((s / 1.6) * Math.PI * 2);
     return k * (side * 0.035 + ridges);
+  }
+
+  /** The shootout's field: one car per lap, in its team colour, on its own line. null clears it. */
+  setField(entries: { lap: LapData; colour: string }[] | null) {
+    for (const f of this.field) (f.car.material as THREE.Material).dispose();
+    this.fieldGroup.clear();
+    this.field = [];
+    this.fieldHidden = -1;
+    this.carLateral = 0;
+    if (!entries || !this.session || !this.frame) return;
+    const geo = tokenCar();
+    for (const e of entries) {
+      const mat = new THREE.MeshStandardMaterial({ color: e.colour, roughness: 0.42, metalness: 0.15, envMap: this.reflections?.texture ?? null, envMapIntensity: 0.6 });
+      const car = new THREE.Mesh(geo, mat);
+      car.castShadow = true;
+      car.rotation.order = "YZX";
+      this.fieldGroup.add(car);
+      this.field.push({ car, line: this.buildLapLine(lineShape(e.lap, this.session, (s) => this.turnSign(s))), lateral: 0 });
+    }
+  }
+
+  /** The field car the main (modelled) car stands in for: the driver being followed. */
+  setFieldHidden(i: number) {
+    this.fieldHidden = i;
+    this.field.forEach((f, k) => (f.car.visible = k !== i));
+    if (this.field[i]) this.carLateral = this.field[i].lateral;
+  }
+
+  /** Place the field at these distances (one per car, in setField order). A car that would overlap
+   * the one ahead (closer than 6 m) takes another lane, 2.4 m to one side or the other, easing
+   * into it; every car stays on the road. */
+  setFieldS(at: number[]) {
+    if (!this.frame || !this.field.length) return;
+    const cars = at.map((s, i) => ({ s, i })).sort((a, b) => a.s - b.s);
+    const target = new Float64Array(at.length);
+    const lanes = [0, 2.4, -2.4];
+    let run = 0; // how many cars in a row have overlapped so far
+    cars.forEach((c, j) => {
+      run = j > 0 && c.s - cars[j - 1].s < 6 ? run + 1 : 0;
+      target[c.i] = lanes[run % 3];
+    });
+    const half = this.frame.edges.half;
+    // The offset a car really drives at, kept on the road. A lane that would run off the road (the
+    // line is already near that edge) is taken on the other side instead, so cars never pile up
+    // on the edge.
+    const onRoad = (s: number, line: LapLine, lateral: number) => {
+      const k = this.nearestIndex(s);
+      const lo = -(half[1][k] - 1);
+      const hi = half[0][k] - 1;
+      const base = this.carOffsetAt(s, line);
+      const want = base + lateral;
+      const o = want > hi || want < lo ? base - lateral : want;
+      return THREE.MathUtils.clamp(o, lo, hi);
+    };
+    this.field.forEach((f, i) => {
+      f.lateral += (target[i] - f.lateral) * 0.12;
+      const s = at[i];
+      const line = f.line;
+      if (i === this.fieldHidden) {
+        // The followed car is the modelled one (setCarS): the same lane, as an extra offset.
+        this.carLateral = onRoad(s, line, f.lateral) - this.carOffsetAt(s, line);
+        return;
+      }
+      const o = onRoad(s, line, f.lateral);
+      const p = this.pointAt(s).addScaledVector(this.sideAt(s), o);
+      p.y += KERB_HEIGHT * this.onKerb(s, line);
+      const t = this.carHeadingAt(s, line);
+      f.car.position.copy(p);
+      f.car.rotation.y = Math.atan2(-t.z, t.x);
+      f.car.rotation.z = this.pitchAt(s);
+      f.car.rotation.x = this.kerbRoll(s, line);
+      // A car right at the camera (behind the followed car in the chase view) would fill the
+      // screen from inside: leave it out.
+      f.car.visible = p.distanceToSquared(this.camera.position) > 81;
+    });
   }
 
   /** The duel rival's lap, so its car drives its own line. */
