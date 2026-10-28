@@ -307,7 +307,7 @@ export class PlayView {
     const bar = document.createElement("header");
     bar.className = "play-bar";
     bar.innerHTML = `
-      <a class="back" href="#/">${icons.back}<span>Menu</span></a>
+      <a class="back" href="#/" aria-label="Back to the menu" title="Back to the menu (Esc)">${icons.back}<span>Menu</span></a>
       <div class="where">
         <h1 class="display">${s.circuit} <span class="year">${s.date.slice(0, 4)}</span></h1>
         <p class="caps">${this.modeLabel()} · ${(s.length / 1000).toFixed(3)} km</p>

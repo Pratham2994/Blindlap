@@ -1633,7 +1633,8 @@ export class World {
     const col: number[] = [];
     const sAttr: number[] = [];
     const idx: number[] = [];
-    const w = 0.4;
+    // 60 cm wide and a little see-through, so it reads as rubber laid on the road, not a carpet.
+    const w = 0.3;
     let j = 0;
     for (let i = 0; i <= n; i++) {
       const k = i % n;
@@ -1678,7 +1679,7 @@ export class World {
           float wake = max(exp(-max(behind, 0.0) / uFade), 0.12);
           float a = max(max(wake, vKeep * 0.95), uReveal * 0.8);
           vec3 c = vColor * (1.0 + vKeep * 0.5) * mix(0.62, 0.55, 1.0 - wake);
-          gl_FragColor = vec4(c, a);
+          gl_FragColor = vec4(c, a * 0.82);
         }`,
     });
     this.line = new THREE.Mesh(geo, mat);

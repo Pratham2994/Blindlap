@@ -2463,13 +2463,15 @@ figcaption {
     overflow-x: auto;
   }
   .play-bar .where h1 {
-    font-size: 1.1rem;
+    font-size: 0.95rem;
     white-space: nowrap;
   }
+  /* No room in one row: the "What's real" note is also on the first lap's rules and How it knows. */
   .play-bar .where p,
   .play-bar .score,
   .volume,
-  .ctl span {
+  .ctl span,
+  .ctl[data-real] {
     display: none;
   }
   .play-bar .controls {
