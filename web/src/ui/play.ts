@@ -320,14 +320,14 @@ export class PlayView {
       <div class="controls">
         <button type="button" class="ctl" data-pause aria-pressed="false" title="Pause (Space)">${icons.pause}<span>Pause</span></button>
         <div class="seg" role="group" aria-label="Playback speed">
-          ${[1, 2, 4].map((v) => `<button type="button" data-speed="${v}" aria-pressed="${v === this.speed}">${v}×</button>`).join("")}
+          ${[1, 2, 4].map((v) => `<button type="button" data-speed="${v}" aria-pressed="${v === this.speed}" title="Play the lap at ${v === 1 ? "real speed" : `${v} times real speed`}">${v}×</button>`).join("")}
         </div>
         <div class="seg cams" role="group" aria-label="Camera">
           ${CAMERAS.map(([id, label, title]) => `<button type="button" data-cam="${id}" aria-pressed="${id === "chase"}" title="${title} (C to cycle, drag the view to look around)"><span>${label}</span></button>`).join("")}
         </div>
         <button type="button" class="ctl" data-real aria-expanded="false" title="What is real data and what is drawn">${icons.info}<span>What's real</span></button>
-        <button type="button" class="ctl" data-sound aria-pressed="${!this.engine.muted}" aria-label="Engine sound">${this.engine.muted ? icons.soundOff : icons.soundOn}<span>Sound</span></button>
-        <label class="volume"><span class="caps">Vol</span><input type="range" min="0" max="100" step="1" value="${Math.round(this.engine.volume * 100)}" aria-label="Volume"></label>
+        <button type="button" class="ctl" data-sound aria-pressed="${!this.engine.muted}" aria-label="Engine sound" title="Engine sound on or off (made live from the lap's speed, gear and throttle)">${this.engine.muted ? icons.soundOff : icons.soundOn}<span>Sound</span></button>
+        <label class="volume" title="Volume of the engine and the team radio"><span class="caps">Vol</span><input type="range" min="0" max="100" step="1" value="${Math.round(this.engine.volume * 100)}" aria-label="Volume"></label>
       </div>`;
     // One level for the engine and the team radio, remembered between visits.
     bar.querySelector<HTMLInputElement>(".volume input")!.addEventListener("input", (e) => {
@@ -384,7 +384,7 @@ export class PlayView {
         </div>
         <p class="caps reminder">Watch how they take each corner. Tap your driver before the flag.</p></div>
       <p class="paused-note caps" aria-live="polite">Paused · Space to resume</p>
-      <aside class="real-note" aria-label="What is real"><p>${REAL_NOTE}</p><button type="button" class="btn" data-real-close>Got it</button></aside>`;
+      <aside class="real-note" aria-label="What is real"><p>${REAL_NOTE}</p><p class="keys caps">Keys · Space pause · C camera · ← → 5 seconds · Esc menu · drag the view to look around</p><button type="button" class="btn" data-real-close>Got it</button></aside>`;
     stage.querySelector("[data-real-close]")!.addEventListener("click", () => {
       this.root.classList.remove("show-real");
       this.root.querySelector("[data-real]")?.setAttribute("aria-expanded", "false");

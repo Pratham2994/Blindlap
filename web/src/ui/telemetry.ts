@@ -35,14 +35,14 @@ export class Telemetry {
         <div class="tm-lap-head caps">
           <span>Lap</span>
           <span class="tm-jump">
-            <button type="button" data-jump="-5" aria-label="Back 5 seconds">−5 s</button>
-            <button type="button" data-jump="5" aria-label="Forward 5 seconds">+5 s</button>
+            <button type="button" data-jump="-5" aria-label="Back 5 seconds" title="Back 5 seconds (left arrow)">−5 s</button>
+            <button type="button" data-jump="5" aria-label="Forward 5 seconds" title="Forward 5 seconds (right arrow)">+5 s</button>
           </span>
           <span class="num" data-k="clock">0:00.000</span>
         </div>
         <div class="tm-rule"><em data-k="progress"></em>${session.corners
           .map((c) => `<span class="tick" style="left:${(c.s / session.length) * 100}%" title="Turn ${c.n}"></span>`)
-          .join("")}<input class="tm-seek" type="range" min="0" max="${Math.round(session.length)}" step="1" value="0" aria-label="Position in the lap"></div>
+          .join("")}<input class="tm-seek" type="range" min="0" max="${Math.round(session.length)}" step="1" value="0" aria-label="Position in the lap" title="Drag to move through the lap. Going back, the models forget the corners after that point."></div>
       </div>`;
     const q = (k: string) => this.root.querySelector<HTMLElement>(`[data-k=${k}]`)!;
     this.speed = q("speed");

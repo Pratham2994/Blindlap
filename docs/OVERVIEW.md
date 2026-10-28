@@ -501,3 +501,16 @@ readable one, which matches the evidence sentences). The random forest stays in 
 blend needs it, but it left the switch. `model.py` builds the blend the same way as here: each base
 model's per-corner log-probabilities divided by its fitted temperature, averaged, renormalised per
 corner, then scored and temperature-fitted like any other model (44.4% top-1).
+
+## 11. Second night (2026-10-29): polish
+
+| Request | What changed |
+|---|---|
+| How can anyone guess if the line is not real? Say so in the app | A short note on what is real (speed, gear, throttle, brake, timing) and what is drawn (where across the road, the engine sound): on the home page, on the first lap's rules card, behind a "What's real" button in every lap, and as a section on How it knows. |
+| Hints in a range, from a slight nudge to very easy | A hint ladder: roughly where they qualified, how long they have raced, a habit from their DNA, the team, the car number. Each costs what it gives away (1, 1, 1, 2, 3) off a right guess worth 5, never below 1; a teammate scores 2 for you and the model. Scores moved to a new key (`blindlap.score.v2`), since the scale changed. |
+| A racing line as individual as possible, and kerbs that look ridden if the car goes over them | Each lap reshapes the circuit's minimum-curvature line from its own corners: braking point (turn-in), apex position, full-throttle point (exit), and apex speed against the field (how full the arc is). Only a fuller arc than the field's runs onto the inside kerb, and then the inside wheels ride up on it: the car lifts 9 cm, rolls a little and shakes over the ridges. Measured on every lap of all 41 sessions: kerb use ranges from 0 to 12 corners a lap, the wheels never go past the kerb, and the line moves sideways less sharply than the old shared line did. The duel rival drives its own line. |
+| Prettier tracks, light and car | Grass and ground have close-up detail and mowing stripes, made in the shader (no textures); the dark theme shows a deep blue evening instead of a black sky with full sun; the car's paint reflects the sky. |
+| Run on a potato | Quality now starts from the graphics chip: integrated and phone graphics start lower, a software renderer at the lowest. The lowest level draws without any effect pass and without shadows. Before, the lowest level also hid every tree and board (all instanced meshes); now only spectators go. |
+| Faster loading | The car model is half the size (1.36 MB to 0.68 MB): texture coordinates it no longer uses were dropped, indices are 16-bit and normals 8-bit (`prep-car.mjs`). |
+| No bare page between laps | "Next lap" used to clear the screen to a line of text while the next circuit loaded. The finished lap now stays, with a "Loading the next lap" note on its view, and a second click waits for the first. |
+| Weekly update could lose a week | The job pushed the cache before the site data; if that second push failed, the next week saw nothing new. It now lands the data first (rebasing onto master if it moved), then the cache. Sessions that cannot be built are remembered (`build/<key>.skip`), so they are not retried and retrained every Monday. |

@@ -2,6 +2,8 @@
 // 1. the ground stays below the road everywhere (centre and both edges);
 // 2. no building, grandstand, spectator, tree or Ferris wheel comes within 12.5 m of the
 //    centreline (the fence is at about 11 m), unless it is well below the road.
+// 3. no tree stands above the ground (floating); buildings and stands sit on the lowest ground under
+//    their footprint by construction.
 // Trackside furniture (boards, marshal posts) stands at the fence by design and is skipped.
 // Usage: npm run dev (in another shell), then node scripts/track-check.mjs
 import { chromium } from "@playwright/test";
@@ -31,6 +33,8 @@ const rows = await page.evaluate(async () => {
     }
     // 2. Surroundings clear of the road.
     let close = 0;
+    let floating = 0;
+    let worstFloat = 0;
     let worst = Infinity;
     let what = "";
     const v = new THREE.Vector3();
@@ -57,7 +61,16 @@ const rows = await page.evaluate(async () => {
         for (let i = 0; i < o.count; i++) {
           o.getMatrixAt(i, m);
           v.setFromMatrixPosition(m);
-          test(v.x, v.y, v.z, Math.min(r, 3), o.geometry.type === "ConeGeometry" || o.geometry.type === "IcosahedronGeometry" ? "tree" : "spectator");
+          const tree = ["ConeGeometry", "IcosahedronGeometry", "CylinderGeometry"].includes(o.geometry.type);
+          test(v.x, v.y, v.z, Math.min(r, 3), tree ? "tree" : "spectator");
+          // 3. A tree's base must be on the ground (it may sink a little into a slope).
+          if (tree) {
+            const gap = v.y - w.terrain.at(v.x, v.z);
+            if (gap > 0.4) {
+              floating++;
+              worstFloat = Math.max(worstFloat, gap);
+            }
+          }
         }
         return;
       }
@@ -80,12 +93,13 @@ const rows = await page.evaluate(async () => {
     const parts = [];
     if (buried) parts.push(`${buried} road points under the ground`);
     if (close) parts.push(`${close} points within ${LIMIT} m of the road (closest ${worst.toFixed(1)} m, ${what})`);
+    if (floating) parts.push(`${floating} trees above the ground (up to ${worstFloat.toFixed(1)} m)`);
     out.push(`${s.circuit} ${s.year}: ${parts.length ? "FAIL " + parts.join("; ") : "ok"}`);
   }
   return out;
 });
 console.log(rows.join("\n"));
 const failed = rows.filter((r) => r.includes("FAIL")).length;
-console.log(failed ? `\n${failed} sessions with something on the track` : "\ntrack clear on every session");
+console.log(failed ? `\n${failed} sessions with something on the track or floating` : "\ntrack clear and nothing floating on every session");
 await browser.close();
 process.exit(failed ? 1 : 0);

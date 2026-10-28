@@ -945,6 +945,14 @@ a.mode.quick:hover p {
   margin-bottom: 12px;
 }
 
+.real-note .keys {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 0.68rem;
+  color: var(--ink-3);
+}
+
 .play.show-real .real-note {
   display: block;
 }
@@ -1129,6 +1137,20 @@ a.mode.quick:hover p {
 .hints {
   padding: 10px 14px 12px;
   border-top: var(--hair);
+  container-type: inline-size;
+}
+
+/* A narrow column has no room for each hint's cost: the bar under it still shows how much it gives
+   away, the tooltip says the cost, and the header shows what a right guess is still worth. */
+@container (max-width: 330px) {
+  .hint-buttons button small {
+    display: none;
+  }
+}
+
+/* After the reveal: no hints taken, nothing to show. */
+.hints.done:not(:has(li)) {
+  display: none;
 }
 
 .hints.done .hint-buttons {
