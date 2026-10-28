@@ -4,7 +4,7 @@ import type { Battles, BattlePair } from "../data";
 
 const signed = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(3)}`;
 
-function pairCard(p: BattlePair, colour: string, main: boolean): string {
+function pairCard(p: BattlePair, main: boolean): string {
   const [a, b] = p.drivers;
   const [sa, sb] = p.score;
   const total = sa + sb || 1;
@@ -32,7 +32,7 @@ function pairCard(p: BattlePair, colour: string, main: boolean): string {
         <span class="num tally"><b>${sa}</b><i>–</i><b>${sb}</b></span>
         <span class="who right"><b>${b.code}</b><small>${b.name}</small></span>
       </div>
-      <div class="split" role="img" aria-label="${a.code} ahead in ${sa} of ${sa + sb} sessions"><i style="width:${(sa / total) * 100}%;background:${colour}"></i></div>
+      <div class="split" role="img" aria-label="${a.code} ahead in ${sa} of ${sa + sb} sessions"><i style="width:${(sa / total) * 100}%"></i></div>
       <p class="gap">${gapText}</p>
       <div class="cells" aria-label="Each session, in order. Filled: ${a.code} qualified ahead. Click one to play a blind lap there.">${cells}</div>
     </div>`;
@@ -73,7 +73,7 @@ export class BattlesView {
         (t) => `
         <section class="team" style="--team:${t.colour}">
           <h2 class="caps">${t.team}</h2>
-          ${t.pairs.map((p, i) => pairCard(p, t.colour, i === 0)).join("")}
+          ${t.pairs.map((p, i) => pairCard(p, i === 0)).join("")}
         </section>`,
       )
       .join("");

@@ -207,7 +207,7 @@ An info button in the play bar opens a paper card with a 3px rule over the lower
 The play layout with a timing tower in place of the grid: position, team chip, code and the gap to the pole lap at that point, in rows that keep their elements and change order (so clicks never miss). The followed driver's row is yellow. A session select sits in the play bar. The finish is a paper card with a chequered top edge over the stage: the top three, "Guess a blind lap here" (red) and "Watch again".
 
 ### Teammate battles
-A two-column grid (one on phones) of team cards: a 10px top rule in the team colour, the team in ink-3 caps, the two codes set wide and heavy with the tally between them, a split bar (team colour for the first driver), the median gap sentence, and one 14px bordered square per session (filled ink when the first driver was ahead) that opens a blind lap there. Mid-season pairings follow smaller, under a hairline.
+A two-column grid (one on phones) of team cards: a 10px top rule in the team colour, the team in ink-3 caps, the two codes set wide and heavy with the tally between them, an ink split bar for the first driver's share, the median gap sentence, and one 14px bordered square per session (filled ink when the first driver was ahead) that opens a blind lap there. Mid-season pairings follow smaller, under a hairline.
 
 ### Duel bar
 Car swatches in team colours with ink borders, codes, a huge gap numeral (green when ahead), where the gap was measured, and "Back to result".
