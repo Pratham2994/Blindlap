@@ -222,31 +222,6 @@ test("three models: switch mid-lap and compare them on the reveal", async ({ pag
   await expect(page.locator(".lineup .row.truth")).toHaveCount(1);
 });
 
-test("shootout runs every driver's best lap at once and follows the one you pick", async ({ page }) => {
-  const errors: string[] = [];
-  page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto("/#/shootout/9908");
-  const rows = page.locator(".tower-row");
-  await expect(rows.first()).toBeVisible({ timeout: 30_000 });
-  expect(await rows.count()).toBeGreaterThan(10);
-  await expect(page.locator(".evidence")).toContainText("Following");
-  // Follow another driver: the row turns yellow and the band names them.
-  const pick = rows.nth(5);
-  const code = (await pick.locator(".code").textContent())!;
-  await pick.click();
-  await expect(pick).toHaveClass(/pick/);
-  await expect(page.locator(".evidence")).toContainText("Following");
-  await expect(page.locator(".tower-row.pick .code")).toHaveText(code);
-  // Space pauses; jumping to the end shows the flag card with a way into a blind lap.
-  await page.keyboard.press("Space");
-  await expect(page.locator(".play.shootout.paused")).toHaveCount(1);
-  await page.keyboard.press("Space");
-  for (let k = 0; k < 30; k++) await page.keyboard.press("ArrowRight");
-  await expect(page.locator(".shootout-result")).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator(".shootout-result a")).toHaveAttribute("href", "#/play/9908");
-  expect(errors).toEqual([]);
-});
-
 test("teammate battles show each team's qualifying head-to-head and switch season", async ({ page }) => {
   await page.goto("/#/battles");
   const teams = page.locator(".team");

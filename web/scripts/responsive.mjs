@@ -1,4 +1,4 @@
-// Responsive audit: every page (home, lap, reveal, shootout, DNA, battles, How, lab) at common laptop, monitor, tablet and phone sizes. For each it
+// Responsive audit: every page (home, lap, reveal, DNA, battles, How, lab) at common laptop, monitor, tablet and phone sizes. For each it
 // checks horizontal scrolling, elements running off screen, text overflowing its box, controls
 // overlapping, and (on play) that the 3D view keeps a usable size; and saves a screenshot.
 // Usage: npm run dev (in another shell), then node scripts/responsive.mjs [out dir]
@@ -77,10 +77,6 @@ for (const [name, w, h] of SIZES) {
   await page.locator(".band.reveal").waitFor({ timeout: 120000 });
   await page.waitForTimeout(1200);
   await audit(page, name, "reveal");
-  await page.goto(base + "#/shootout/9908");
-  await page.locator(".tower-row").first().waitFor({ timeout: 60000 });
-  await page.waitForTimeout(1200);
-  await audit(page, name, "shoot");
   for (const [route, label] of [["dna/VER", "dna"], ["battles", "battles"], ["how", "how"], ["lab", "lab"]]) {
     await page.goto(base + "#/" + route);
     await page.waitForTimeout(1500);

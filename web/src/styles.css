@@ -406,7 +406,7 @@ body.playing .topbar {
 
 .modes {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   border: var(--rule);
   border-top: 0;
 }
@@ -856,12 +856,6 @@ a.mode.quick:hover p {
   }
 }
 
-/* The shootout's other cars on the track map. */
-.mm-field {
-  stroke: #111111;
-  stroke-width: 1;
-}
-
 .mm-ghost {
   fill: #9a978f;
   stroke: #fff;
@@ -1018,159 +1012,6 @@ a.mode.quick:hover p {
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-}
-
-/* The shootout's live timing tower: position, team, driver, gap to the pole lap at that point.
-   Rows keep their elements and change order, so a click always lands on the row it meant. */
-.tower {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  padding: 14px 14px 10px;
-}
-
-.tower header {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  padding-bottom: 10px;
-  color: var(--ink-3);
-}
-
-.tower ol {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  overflow-y: auto;
-}
-
-.tower-row {
-  display: grid;
-  grid-template-columns: 26px 6px 1fr auto;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-height: 26px;
-  padding: 0 6px;
-  border: 0;
-  background: var(--paper);
-  color: var(--ink);
-  text-align: left;
-}
-
-.tower-row:hover {
-  background: var(--paper-2);
-}
-
-.tower-row .pos {
-  font-weight: 800;
-  color: var(--ink-3);
-  font-size: 0.8rem;
-}
-
-.tower-row .chip {
-  width: 6px;
-  height: 16px;
-}
-
-.tower-row .code {
-  font-weight: 900;
-  font-variation-settings: "wdth" 125;
-  font-size: 0.86rem;
-}
-
-.tower-row .gap {
-  font-size: 0.8rem;
-  font-weight: 700;
-}
-
-.tower-row.done .gap {
-  color: var(--ink-3);
-}
-
-.tower-row.pick {
-  background: var(--yellow);
-  color: var(--on-signal);
-}
-
-.tower-row.pick .pos {
-  color: inherit;
-}
-
-.tower .hint {
-  margin: 8px 0 0;
-  padding-top: 8px;
-  border-top: var(--hair);
-  color: var(--ink-3);
-  font-size: 0.8rem;
-  line-height: 1.4;
-}
-
-.shootout-pick {
-  display: grid;
-  gap: 4px;
-  color: var(--ink-3);
-}
-
-.shootout-pick select {
-  padding: 6px 8px;
-  border: var(--rule);
-  background: var(--paper);
-  font-weight: 650;
-  text-transform: none;
-  letter-spacing: 0;
-}
-
-/* The finish of a shootout: the top three and where to go next, over the 3D view. */
-.shootout-result {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  z-index: 5;
-  transform: translate(-50%, -50%);
-  width: min(420px, calc(100% - 32px));
-  padding: 18px 20px;
-  background: var(--paper);
-  border: var(--rule);
-  border-top: 14px solid transparent;
-  border-image: repeating-linear-gradient(90deg, #111 0 14px, #f4f4f2 14px 28px) 14 0 0 0 / 14px 0 0 0;
-  animation: arrive 0.45s var(--ease-out) both;
-}
-
-.shootout-result > p {
-  margin: 0 0 10px;
-  color: var(--ink-3);
-}
-
-.shootout-result ol {
-  margin: 0 0 14px;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  gap: 6px;
-}
-
-.shootout-result li {
-  display: grid;
-  grid-template-columns: 34px 6px 1fr auto;
-  gap: 10px;
-  align-items: center;
-}
-
-.shootout-result .chip {
-  width: 6px;
-  height: 18px;
-}
-
-.shootout-result .actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
 }
 
 /* The ranking */
@@ -2790,19 +2631,6 @@ figcaption {
   .play-bar .where h1 {
     font-size: 0.95rem;
     white-space: nowrap;
-  }
-  /* The shootout's session picker: just the list, narrow. */
-  .shootout-pick {
-    font-size: 0;
-    gap: 0;
-  }
-  .shootout .seg.cams button {
-    padding: 6px 6px;
-  }
-  .shootout-pick select {
-    max-width: 92px;
-    padding: 4px 6px;
-    font-size: 0.75rem;
   }
   /* No room in one row: the "What's real" note is also on the first lap's rules and How it knows. */
   .play-bar .where p,

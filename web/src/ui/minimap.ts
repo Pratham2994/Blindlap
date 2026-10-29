@@ -19,7 +19,6 @@ export class Minimap {
   private driven: SVGPathElement;
   private next: HTMLElement;
   private ticks: SVGCircleElement[] = [];
-  private fieldDots: SVGCircleElement[] = [];
   private toMap: (x: number, z: number) => [number, number];
 
   /** outline: the centreline in scene coordinates (x, z), starting at the line. `pointAt` maps a
@@ -112,28 +111,6 @@ export class Minimap {
     this.ghost.setAttribute("cx", gx.toFixed(1));
     this.ghost.setAttribute("cy", gy.toFixed(1));
     if (ghostColour) this.ghost.style.fill = ghostColour;
-  }
-
-  /** The shootout: a dot in team colour for every other car (on: false hides one). */
-  field(points: { s: number; colour: string; on: boolean }[]) {
-    const svg = this.root.querySelector("svg")!;
-    while (this.fieldDots.length < points.length) {
-      const c = document.createElementNS(NS, "circle");
-      c.setAttribute("r", "3.6");
-      c.setAttribute("class", "mm-field");
-      svg.insertBefore(c, this.dot);
-      this.fieldDots.push(c);
-    }
-    points.forEach((p, i) => {
-      const c = this.fieldDots[i];
-      c.style.display = p.on ? "" : "none";
-      if (!p.on) return;
-      const at = this.pointAt(p.s);
-      const [x, y] = this.toMap(at.x, at.z);
-      c.setAttribute("cx", x.toFixed(1));
-      c.setAttribute("cy", y.toFixed(1));
-      c.style.fill = p.colour;
-    });
   }
 
   markCorner(i: number, read: boolean) {

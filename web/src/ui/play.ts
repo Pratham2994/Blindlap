@@ -816,7 +816,6 @@ export class PlayView {
         <button type="button" class="btn primary" data-next>Next lap ${icons.next}</button>
         ${rival ? `<button type="button" class="btn" data-duel>Race it against ${rival.code}</button>` : ""}
         <a class="btn" href="#/dna/${truth}">${truth}'s driver DNA</a>
-        <a class="btn" href="#/shootout/${this.session.key}" title="Every driver's best lap of this session, all at once">Watch the whole session</a>
         <button type="button" class="btn" data-challenge>Copy challenge link</button>
         <p class="caps share-note" aria-live="polite"></p>
       </div>`;

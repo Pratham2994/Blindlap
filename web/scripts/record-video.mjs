@@ -70,9 +70,6 @@ if (await replay.count()) {
   await replay.click();
   await film(6);
 }
-await page.goto("http://localhost:5173/#/shootout/9943");
-await page.waitForTimeout(2500);
-await film(7);
 await browser.close();
 
 console.log(`${n} frames; joining`);
