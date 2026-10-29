@@ -76,7 +76,7 @@ export class DnaView {
     this.root.innerHTML = `
       <header class="page-head">
         <h1 class="display">Driver DNA</h1>
-        <p>How every driver attacks a corner: where they brake, how much speed they carry, when they get back on the power, each against the whole field. Much of that is the car: ${lo} to ${hi}% of each habit, measured below. So the map takes the car out, using teammates and the drivers who changed teams, and what is left is the driver's own style. Close together means they drive alike.</p>
+        <p>How every driver attacks a corner: where they brake, how much speed they carry, when they get back on the power, each against the whole field. Much of that is the car: ${lo} to ${hi}% of each habit, measured below. So the map takes the car out: what two teammates share is counted as the car, and drivers who changed teams show how much each car changes a driver. What is left is the driver's own style. Close together means they drive alike.</p>
       </header>
       <div class="dna-bar">
         <div class="seg" role="group" aria-label="Which style">

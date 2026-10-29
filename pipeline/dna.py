@@ -48,7 +48,13 @@ TELL_TEXT = {
     "throttle_ramp": ("squeezes the throttle on more gradually", "snaps the throttle open"),
     "partial_throttle": ("modulates the throttle more", "uses less part-throttle"),
 }
-SHRINK = 150  # rows of prior weight toward zero for every driver and car term
+# Rows of prior weight pulling each term toward zero. The car's pull is weak and the driver's strong,
+# so what two teammates share goes to their car, and a driver term keeps only what the data really
+# ties to the driver: the difference to the teammate, and what stays when they change teams.
+# (With equal pulls each driver kept a third of what they share with the teammate: the teammate was
+# the closest match for 7 of 29 drivers. These settings: 1 of 29, with the car 69-90% of each habit.)
+SHRINK_CAR = 20
+SHRINK_DRIVER = 600
 ITERATIONS = 40
 
 
@@ -86,8 +92,8 @@ def _fit(rows):
     for cls in range(3):
         m = K == cls
         d, c, z = D[m], C[m], Z[m]
-        nd = np.bincount(d, minlength=len(drivers))[:, None] + SHRINK
-        nc = np.bincount(c, minlength=len(cars))[:, None] + SHRINK
+        nd = np.bincount(d, minlength=len(drivers))[:, None] + SHRINK_DRIVER
+        nc = np.bincount(c, minlength=len(cars))[:, None] + SHRINK_CAR
         for _ in range(ITERATIONS):
             res = z - car[c, cls]
             drv[:, cls] = np.stack([np.bincount(d, res[:, f], len(drivers)) for f in range(nf)], 1) / nd

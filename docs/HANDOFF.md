@@ -118,18 +118,25 @@ These are the most important things to get right. They come from many correction
   floodlights and lit windows; camera grade; speed blur and lean into corners at speed.
 
 ### 3.2 Data and models
-- 41 qualifying sessions (23 from 2025, 18 from 2026, up to Austin 2026-10-24), 26 circuits,
-  24 drivers, 1,655 laps in the game, 3,759 laps scored. Practice 3 sessions train only.
+- 86 qualifying sessions (2023 to 2026, up to Austin 2026-10-24), 26 circuits, 29 drivers,
+  3,379 laps in the game, 7,755 laps scored. 63 practice 3 sessions train only. Not usable:
+  Baku 2025 (no lap timing), Zandvoort 2023 (wet, 13 laps).
 - Leave-one-circuit-out results (each circuit's laps guessed by models that never saw it):
 
 | Model | Top-1 | Top-3 | Team | Teammate | In game |
 |---|---|---|---|---|---|
-| Blend (trees + forest + logistic) | 46.6% | 74.1% | 60.8% | 74.9% | yes, default |
-| Gradient-boosted trees | 43.7% | 73.2% | 59.2% | 74.0% | yes |
-| Random forest | 42.2% | 70.7% | 58.4% | 71.7% | blend only |
-| Logistic regression | 35.0% | 64.0% | 50.3% | 71.1% | yes |
-| Cross-season (2025 → 2026) | 25.7% | 55.4% | 40.3% | | How page |
-| Chance | 4.2% | 12.5% | ~9% | 50% | |
+| Blend (trees x2 + forest x1 + logistic x0.5) | 45.4% | 72.6% | 62.3% | 74.0% | yes, default |
+| Gradient-boosted trees | 44.2% | 71.3% | 63.1% | 73.9% | yes |
+| Random forest | 41.4% | 67.8% | 57.7% | 68.3% | blend only |
+| Logistic regression | 31.7% | 59.9% | 51.4% | 71.2% | yes |
+| Cross-season (2023-25 → 2026) | 23.7% | 51.3% | 38.0% | | How page |
+| Chance (29 drivers) | 3.4% | 10.3% | ~9% | 50% | |
+
+With 24 drivers and two seasons (before 2026-10-29) the blend scored 46.6%; the test is harder now
+(29 drivers, chance 3.4% instead of 4.2%). Model inputs per corner: 30 style features, the corner's
+shape (3) and the previous corner (10), `model.corner_rows`. Driver DNA (`dna.py`) splits every
+habit into car and driver: `SHRINK_CAR = 20`, `SHRINK_DRIVER = 600` (what teammates share is the
+car; equal pulls left a third of the car in each driver).
 
 ---
 

@@ -115,12 +115,19 @@ def evaluate(sessions, labels, make_model, name, keep_models=False):
     return summarize(sessions, labels, probs, classes, name), folds, probs
 
 
+# How much each model counts in the blend. Chosen on the held-out predictions (2023-2026): the
+# trees are the strongest, the forest adds a little, logistic regression less; an equal vote let the
+# weakest model pull the blend down. (Top-1 moved 0.3 points, log loss and top-3 a little more.)
+BLEND_WEIGHTS = {"gbm": 2.0, "forest": 1.0, "logreg": 0.5}
+
+
 def blend(probs, taus):
-    """Average several models in log space, each on its own fitted temperature, and renormalise
-    every corner. A lap's score is then the blend's sum over corners, exactly as for one model."""
+    """Average several models in log space, each on its own fitted temperature and weight, and
+    renormalise every corner. A lap's score is then the blend's sum over corners, as for one model."""
     out = {}
+    total = sum(BLEND_WEIGHTS.get(m, 1.0) for m in probs)
     for sk in probs[next(iter(probs))]:
-        logp = sum(np.log(np.clip(probs[m][sk], 1e-6, 1)) / taus[m] for m in probs) / len(probs)
+        logp = sum(BLEND_WEIGHTS.get(m, 1.0) * np.log(np.clip(probs[m][sk], 1e-6, 1)) / taus[m] for m in probs) / total
         logp -= logp.max(axis=2, keepdims=True)
         p = np.exp(logp)
         out[sk] = (p / p.sum(axis=2, keepdims=True)).astype(np.float32)

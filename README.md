@@ -4,7 +4,7 @@
 
 ![Blind Lap: an anonymous lap with the model's live guesses](docs/media/demo.gif)
 
-Blind Lap replays a real 2025 or 2026 qualifying lap with the driver's name removed. The lap runs on
+Blind Lap replays a real qualifying lap from 2023 to 2026 with the driver's name removed. The lap runs on
 a 3D circuit built from the car's recorded position, and you hear an engine synthesised live from its
 RPM, gear and throttle. As the car leaves each corner, a model reads how that corner was driven and
 updates its guess. You guess too. Then the reveal plays the driver's real team radio from that
@@ -89,17 +89,19 @@ throttle). Speed, gear, throttle, brake and timing are the car's own.
 
 ## Results
 
-Leave-one-circuit-out over 41 qualifying sessions (23 from 2025, 18 from 2026), 3,759 laps, 24
-drivers. Read live from `pipeline/model_out/report.json` and shown on the How it knows page.
+Leave-one-circuit-out over 86 qualifying sessions (2023 to 2026), 7,755 laps, 29 drivers; 63
+practice 3 sessions add training laps only. Each corner also gives the models its shape (the field's
+apex and entry speed, whether it brakes there) and the previous corner, both already known when the
+corner is read. Read live from `pipeline/model_out/report.json` and shown on the How it knows page.
 
 | Model | Top-1 driver | Top-3 driver | Right team | Right teammate |
 |---|---|---|---|---|
-| Chance | 4.2% | 12.5% | about 9% | 50% |
-| Blend of the three below | **46.6%** | **74.1%** | **60.8%** | **74.9%** |
-| Gradient-boosted trees | 43.7% | 73.2% | 59.2% | 74.0% |
-| Random forest (in the blend only) | 42.2% | 70.7% | 58.4% | 71.7% |
-| Logistic regression | 35.0% | 64.0% | 50.3% | 71.1% |
-| Cross-season (logistic): trained on 2025 only, tested on 2026 laps | 25.7% | 55.4% | 40.3% | |
+| Chance | 3.4% | 10.3% | about 9% | 50% |
+| Blend of the three below (trees x2, forest x1, logistic x0.5) | **45.4%** | **72.6%** | **62.3%** | **74.0%** |
+| Gradient-boosted trees | 44.2% | 71.3% | 63.1% | 73.9% |
+| Random forest (in the blend only) | 41.4% | 67.8% | 57.7% | 68.3% |
+| Logistic regression | 31.7% | 59.9% | 51.4% | 71.2% |
+| Cross-season (logistic): trained on 2023-2025, tested on 2026 laps | 23.7% | 51.3% | 38.0% | |
 
 - The blend is right about 10 times as often as picking at random, on circuits it never saw.
 - **Style survives new cars.** Trained only on 2025, it still names the driver of a 2026 lap 26% of the
