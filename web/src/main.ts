@@ -161,7 +161,7 @@ async function homeView(): Promise<View> {
     <section class="modes" aria-label="Ways to play">
       <a class="mode quick" href="#/play"><h2 class="display">Quick lap</h2><p>One random lap from ${index.sessions.length} qualifying sessions. Sound on.</p><span class="go">${icons.next}</span></a>
       <a class="mode" href="#/mates"><h2 class="display">Teammates</h2><p>Same car, two drivers. Which one is at the wheel?</p><span class="go">${icons.next}</span></a>
-      <a class="mode" href="#/pair"><h2 class="display">Which is which</h2><p>Two cars on track together, two names. Which car is which driver?</p><span class="go">${icons.next}</span></a>
+      <a class="mode" href="#/pair"><h2 class="display">Which is which</h2><p>Two cars side by side, two names. Watch who brakes first: which car is which driver?</p><span class="go">${icons.next}</span></a>
       <label class="mode pick"><h2 class="display">Pick a circuit</h2>
         <select aria-label="Pick a circuit to play">
           <option value="">Choose a circuit</option>

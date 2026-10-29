@@ -32,7 +32,7 @@ const FEATURE_TEXT: Record<string, (d: number) => string | null> = {
   partial_throttle: (d) => (Math.abs(d) < 4 ? null : `held part-throttle for ${Math.abs(d).toFixed(0)} m ${d > 0 ? "more" : "less"}`),
 };
 
-const FEATURE_SHORT: Record<string, (d: number) => string> = {
+export const FEATURE_SHORT: Record<string, (d: number) => string> = {
   brake_point: (d) => `brakes ${Math.abs(d).toFixed(0)} m ${d > 0 ? "later" : "earlier"}`,
   brake_length: (d) => `${Math.abs(d).toFixed(0)} m ${d > 0 ? "longer" : "shorter"} braking`,
   entry_speed: (d) => `${d > 0 ? "+" : "-"}${Math.abs(d).toFixed(0)} km/h entry`,

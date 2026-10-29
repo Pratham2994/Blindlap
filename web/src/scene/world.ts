@@ -200,6 +200,54 @@ const KERB_SPAN = 25;
 const KERB_REACH = 1.55;
 const KERB_PER_WIDTH = 9; // metres onto the kerb per unit of extra width
 const KERB_HEIGHT = 0.09;
+// Two cars at once (setPair): each runs this far to one side of one shared line, so they never
+// overlap and never swap sides. Cars are about 2 m wide: 2.6 m between their middles.
+const LANE = 1.3;
+
+/** A rear light that shows the real brake channel: a small lamp low on the gearbox, and a soft glow
+ * around it that grows with distance, so the braking point still reads from above. */
+interface BrakeLight {
+  lamp: THREE.Mesh<THREE.BoxGeometry, THREE.MeshBasicMaterial>;
+  glow: THREE.Sprite;
+  on: number; // 0 to 1; on at once, fading out over 0.15 s
+}
+
+let glowMap: THREE.CanvasTexture | null = null;
+
+function makeBrakeLight(car: THREE.Group): BrakeLight {
+  if (!glowMap) {
+    const c = document.createElement("canvas");
+    c.width = c.height = 64;
+    const g = c.getContext("2d")!;
+    const r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    r.addColorStop(0, "rgba(255,255,255,1)");
+    r.addColorStop(0.25, "rgba(255,255,255,0.7)");
+    r.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = r;
+    g.fillRect(0, 0, 64, 64);
+    glowMap = new THREE.CanvasTexture(c);
+  }
+  const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.12, 0.24), new THREE.MeshBasicMaterial({ color: RED.clone().multiplyScalar(0.06), toneMapped: false }));
+  lamp.position.set(-2.62, 0.5, 0);
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowMap, color: RED, transparent: true, opacity: 0, depthWrite: false, toneMapped: false }));
+  glow.position.set(-2.75, 0.55, 0);
+  glow.visible = false;
+  glow.renderOrder = 3;
+  car.add(lamp, glow);
+  return { lamp, glow, on: 0 };
+}
+
+/** Moving average over w points either side, round a closed lap. */
+function smoothLoop(a: Float64Array, w: number): Float64Array {
+  const n = a.length;
+  const out = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    let sum = 0;
+    for (let d = -w; d <= w; d++) sum += a[(i + d + n) % n];
+    out[i] = sum / (2 * w + 1);
+  }
+  return out;
+}
 
 // How much the light ground texture is dimmed in the dark theme and at night.
 const GROUND_DIM = 0.2;
@@ -459,6 +507,12 @@ export class World {
   private reflections: THREE.WebGLRenderTarget | null = null;
   private sun: THREE.DirectionalLight;
   private line: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial> | null = null;
+  // The second car's rubber, when two cars run (setPair).
+  private ghostTrail: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial> | null = null;
+  private brakeLights!: [BrakeLight, BrakeLight];
+  private ghostBraking = false;
+  /** Which car the close cameras follow when two cars run. */
+  follow: "car" | "ghost" = "car";
   private labels: { sprite: THREE.Sprite; n: number | string; s: number; aspect: number; read: boolean; note?: string }[] = [];
   private dark = false;
   private hemi!: THREE.HemisphereLight;
@@ -601,6 +655,7 @@ export class World {
     };
     setTimeout(() => this.startModel(), 2000);
     this.ghost.visible = false;
+    this.brakeLights = [makeBrakeLight(this.car), makeBrakeLight(this.ghost)];
     this.scene.add(this.ghost);
     this.carLight = new THREE.PointLight("#fff2dc", 7, 28, 1.8);
     this.car.add(this.carLight);
@@ -735,6 +790,7 @@ export class World {
     this.trackGroup.clear();
     this.labels = [];
     this.line = null;
+    this.ghostTrail = null;
     const { x, y, z, step } = session.track;
     const n = x.length;
     const cx = (Math.max(...x) + Math.min(...x)) / 2;
@@ -1648,19 +1704,68 @@ export class World {
   }
 
   /** Paint the lap's rubber line: red under braking, paper white at full throttle. */
-  setLap(lap: LapData) {
+  setLap(lap: LapData, keepLabels = false) {
     // How this lap drove each corner against the field: the shape of its line (carPointAt).
     const session = this.session;
     this.lapLine = session ? this.buildLapLine(lineShape(lap, session, (s) => this.turnSign(s))) : null;
-    if (this.line) this.trackGroup.remove(this.line);
+    this.ghostLine = null;
+    this.clearTrails();
+    this.line = this.buildTrail(lap, this.lapLine, 0.3);
+    this.trackGroup.add(this.line);
+    if (!keepLabels) this.labels.forEach((l) => ((l.sprite.material as THREE.SpriteMaterial).opacity = 0.55));
+  }
+
+  /** Two cars at once (Which is which, the duel). Both drive one shared line, the average of their
+   * two laps' lines, the first car LANE m to its left and the second LANE m to its right, held on
+   * the road. Each lays its own rubber, red where it braked, so two braking points sit side by side.
+   * (The second car used to be pushed to whichever side of the first was nearer the middle of the
+   * road, and jumped across every time the line crossed it.) */
+  setPair(a: LapData, b: LapData) {
+    const session = this.session;
+    const f = this.frame;
+    if (!session || !f) return;
+    const shape = (lap: LapData) => this.buildLapLine(lineShape(lap, session, (s) => this.turnSign(s)));
+    const la = shape(a);
+    const lb = shape(b);
+    const n = f.pos.length;
+    const mid = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      // Room for the middle of the pair: each car's outer wheels stay on the white line.
+      const lo = -(f.edges.half[1][i] - 1.05 - LANE);
+      const hi = f.edges.half[0][i] - 1.05 - LANE;
+      const m = (la.offset[i] + lb.offset[i]) / 2;
+      mid[i] = lo > hi ? (lo + hi) / 2 : THREE.MathUtils.clamp(m, lo, hi);
+    }
+    const shared = smoothLoop(smoothLoop(mid, 3), 3);
+    const lane = (sign: number): LapLine => ({ offset: shared.map((m) => m + sign * LANE), lift: new Float64Array(n) });
+    // sideAt points to the car's right: the first car on the left, the second on the right.
+    this.lapLine = lane(-1);
+    this.ghostLine = lane(1);
+    this.clearTrails();
+    this.line = this.buildTrail(a, this.lapLine, 0.4);
+    this.ghostTrail = this.buildTrail(b, this.ghostLine, 0.4);
+    this.trackGroup.add(this.line, this.ghostTrail);
+  }
+
+  private clearTrails() {
+    for (const m of [this.line, this.ghostTrail]) {
+      if (!m) continue;
+      this.trackGroup.remove(m);
+      m.geometry.dispose();
+      m.material.dispose();
+    }
+    this.line = this.ghostTrail = null;
+  }
+
+  /** A lap's rubber along its line, w m either side of it. */
+  private buildTrail(lap: LapData, line: LapLine | null, w: number): THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial> {
     const f = this.frame!;
     const n = f.pos.length;
     const pos: number[] = [];
     const col: number[] = [];
     const sAttr: number[] = [];
     const idx: number[] = [];
-    // 60 cm wide and a little see-through, so it reads as rubber laid on the road, not a carpet.
-    const w = 0.3;
+    // A little see-through, so it reads as rubber laid on the road, not a carpet.
     let j = 0;
     for (let i = 0; i <= n; i++) {
       const k = i % n;
@@ -1671,7 +1776,7 @@ export class World {
       const c = brake ? RED : thr >= 95 ? PAPER : new THREE.Color("#8a8780");
       const p = f.pos[k];
       const sd = f.side[k];
-      const o = this.carOffsetAt(sv); // exactly where the car drives
+      const o = this.carOffsetAt(sv, line); // exactly where the car drives
       pos.push(p.x + sd.x * (o + w), p.y + 0.08, p.z + sd.z * (o + w), p.x + sd.x * (o - w), p.y + 0.08, p.z + sd.z * (o - w));
       col.push(c.r, c.g, c.b, c.r, c.g, c.b);
       sAttr.push(sv, sv);
@@ -1708,23 +1813,14 @@ export class World {
           gl_FragColor = vec4(c, a * 0.82);
         }`,
     });
-    this.line = new THREE.Mesh(geo, mat);
-    this.line.renderOrder = 2;
-    this.trackGroup.add(this.line);
-    this.labels.forEach((l) => ((l.sprite.material as THREE.SpriteMaterial).opacity = 0.55));
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.renderOrder = 2;
+    return mesh;
   }
 
   /** Mark a corner where the model took evidence: keep its rubber, light its label. */
   markEvidence(cornerIndex: number, lo: number, hi: number, note?: string) {
-    if (this.line) {
-      const a = this.line.geometry.getAttribute("aKeep") as THREE.BufferAttribute;
-      const s = this.line.geometry.getAttribute("aS") as THREE.BufferAttribute;
-      for (let i = 0; i < a.count; i++) {
-        const v = s.getX(i);
-        if (v >= lo && v <= hi) a.setX(i, 1);
-      }
-      a.needsUpdate = true;
-    }
+    this.keepRubber(lo, hi, 1);
     // A ring of light spreads from the corner the model just read.
     const at = this.pointAt((lo + hi) / 2);
     const ring = new THREE.Mesh(
@@ -1749,15 +1845,7 @@ export class World {
 
   /** Seeking back: undo markEvidence for a corner the car has not reached again. */
   unmarkEvidence(cornerIndex: number, lo: number, hi: number) {
-    if (this.line) {
-      const a = this.line.geometry.getAttribute("aKeep") as THREE.BufferAttribute;
-      const s = this.line.geometry.getAttribute("aS") as THREE.BufferAttribute;
-      for (let i = 0; i < a.count; i++) {
-        const v = s.getX(i);
-        if (v >= lo && v <= hi) a.setX(i, 0);
-      }
-      a.needsUpdate = true;
-    }
+    this.keepRubber(lo, hi, 0);
     const l = this.labels[cornerIndex];
     if (l && l.read) {
       const m = l.sprite.material as THREE.SpriteMaterial;
@@ -1771,8 +1859,22 @@ export class World {
     }
   }
 
+  /** Keep (1) or let fade (0) the rubber of every car between lo and hi. */
+  private keepRubber(lo: number, hi: number, keep: number) {
+    for (const m of [this.line, this.ghostTrail]) {
+      if (!m) continue;
+      const a = m.geometry.getAttribute("aKeep") as THREE.BufferAttribute;
+      const s = m.geometry.getAttribute("aS") as THREE.BufferAttribute;
+      for (let i = 0; i < a.count; i++) {
+        const v = s.getX(i);
+        if (v >= lo && v <= hi) a.setX(i, keep);
+      }
+      a.needsUpdate = true;
+    }
+  }
+
   revealLine(on: boolean) {
-    if (this.line) this.line.material.uniforms.uReveal.value = on ? 1 : 0;
+    for (const m of [this.line, this.ghostTrail]) if (m) m.material.uniforms.uReveal.value = on ? 1 : 0;
   }
 
   private indexAt(s: number): [number, number, number] {
@@ -1960,24 +2062,18 @@ export class World {
     return k * (side * 0.035 + ridges);
   }
 
-  /** The duel rival's lap, so its car drives its own line. */
-  setGhostLap(lap: LapData | null) {
-    this.ghostLine = lap && this.session && this.frame ? this.buildLapLine(lineShape(lap, this.session, (s) => this.turnSign(s))) : null;
-  }
-
-  /** A second car for the duel replay: the driver the model picked, in soft red. */
-  setGhostS(s: number | null) {
+  /** The second car (setPair gives it its lane and rubber), braking or not. null hides it. */
+  setGhostS(s: number | null, braking = false) {
     this.ghost.visible = s !== null && !!this.frame;
     if (s === null || !this.frame) return;
     const ds = s - this.ghostS;
     if (Math.abs(ds) < 50) for (const w of this.ghostWheels) w.rotation.z -= ds / 0.37;
     this.ghostS = s;
+    this.ghostBraking = braking;
     const line = this.ghostLine ?? this.lapLine;
     const p = this.carPointAt(s, line);
     const t = this.carHeadingAt(s, line);
-    // Offset sideways so two cars on the same line never sit inside each other, toward the middle
-    // of the track so the rival never leaves it at an apex.
-    p.addScaledVector(this.sideAt(s), this.carOffsetAt(s, line) > 0 ? -2.4 : 2.4);
+    if (this.ghostTrail) this.ghostTrail.material.uniforms.uCarS.value = s;
     this.ghost.position.copy(p);
     this.ghost.rotation.y = Math.atan2(-t.z, t.x);
     this.ghost.rotation.z = this.pitchAt(s);
@@ -2090,20 +2186,24 @@ export class World {
       this.draw();
       return;
     }
-    const p = this.carPointAt(this.carS);
-    const t = this.carHeadingAt(this.carS);
+    this.updateBrakeLights(dt, braking);
+    // The car the cameras follow: the first, or the second when it runs and was chosen.
+    const { s: S, line } = this.anchor();
+    const at = (s: number) => this.carPointAt(s, line);
+    const p = at(S);
+    const t = this.carHeadingAt(S, line);
     let want: THREE.Vector3;
     let look: THREE.Vector3;
     if (this.mode === "chase") {
       // Look further ahead the faster the car goes, so slow hairpins keep the car in frame.
-      const ahead = this.carPointAt(this.carS + 8 + speedKmh * 0.05);
+      const ahead = at(S + 8 + speedKmh * 0.05);
       // Low and close, like a TV chase camera: speed reads from the road and barriers rushing past.
       // The distance depends on speed only and changes slowly. (It used to jump with acceleration;
       // that moved the camera up to 11 m against the car, so braking looked like a sudden stop.)
       const back = 9.5 + speedKmh * 0.012;
       // Height is taken from the higher of the car and the road under the camera, so going downhill
       // the camera stays above the road behind instead of sinking into it and looking up at the car.
-      const behindY = this.pointAt(this.carS - back).y;
+      const behindY = this.pointAt(S - back).y;
       want = p.clone().addScaledVector(t, -back).setY(Math.max(p.y, behindY) + 2.8 + speedKmh * 0.0015);
       // Under braking the view tips forward a little, easing in and out.
       this.dip += ((braking ? 1 : 0) - this.dip) * Math.min(dt * 1.5, 1);
@@ -2113,28 +2213,37 @@ export class World {
     } else if (this.mode === "onboard") {
       // Just above the cockpit, looking down the road: the view from the car.
       want = p.clone().addScaledVector(t, -0.4).setY(p.y + 1.5);
-      const ahead = this.carPointAt(this.carS + 45);
+      const ahead = at(S + 45);
       look = ahead.setY(ahead.y + 0.5);
     } else if (this.mode === "side") {
       // Running alongside, a little ahead, so the car crosses the frame side-on. It stays inside the
       // track edge: further out it filmed the barrier and the side of the raised track.
-      const sd = this.sideAt(this.carS);
-      want = p.clone().addScaledVector(sd, 5.8).addScaledVector(t, 2).setY(p.y + 1.9);
-      look = p.clone().addScaledVector(t, 1).setY(p.y + 0.5);
+      const sd = this.sideAt(S);
+      if (this.ghost.visible && this.ghostTrail) {
+        // Two cars: from the followed car's own side, further out, higher and a little ahead,
+        // looking at the middle of the pair, so the other car shows beyond it.
+        const mid = p.clone().lerp(this.follow === "ghost" ? this.car.position : this.ghost.position, 0.5);
+        sd.multiplyScalar(this.follow === "car" ? -1 : 1);
+        want = mid.clone().addScaledVector(sd, 8.5).addScaledVector(t, 5).setY(mid.y + 4.4);
+        look = mid.setY(mid.y + 0.4);
+      } else {
+        want = p.clone().addScaledVector(sd, 5.8).addScaledVector(t, 2).setY(p.y + 1.9);
+        look = p.clone().addScaledVector(t, 1).setY(p.y + 0.5);
+      }
     } else if (this.mode === "tv") {
       // A broadcast camera: high, behind and to the side, zoomed in (the narrow view is set below).
-      const sd = this.sideAt(this.carS);
+      const sd = this.sideAt(S);
       want = p.clone().addScaledVector(t, -48).addScaledVector(sd, 20).setY(p.y + 24);
       look = p.clone().addScaledVector(t, 10).setY(p.y);
     } else if (this.mode === "heli") {
       if (this.ghost.visible) {
         // Duel: frame the midpoint of the two cars, low enough that both read as cars.
-        const mid = p.clone().lerp(this.ghost.position, 0.5);
+        const mid = p.clone().lerp(this.follow === "ghost" ? this.car.position : this.ghost.position, 0.5);
         want = mid.clone().addScaledVector(t, -40).add(new THREE.Vector3(0, 70, 0));
         look = mid.addScaledVector(t, 12);
       } else {
         want = p.clone().addScaledVector(t, -70).add(new THREE.Vector3(0, 125, 0));
-        look = this.carPointAt(this.carS + 40);
+        look = at(S + 40);
       }
     } else {
       if (!REDUCED_MOTION) this.orbitAngle += dt * 0.05;
@@ -2193,15 +2302,15 @@ export class World {
     // (No camera shake: it read as the game glitching, and it ran on while paused.)
     const close = this.mode === "chase" || this.mode === "onboard" || this.mode === "side";
     // Lean and blur only while the car is moving, so a paused view is perfectly still.
-    const moving = Math.abs(this.carS - this.lastCarS) > 0.01;
-    this.lastCarS = this.carS;
+    const moving = Math.abs(S - this.lastCarS) > 0.01;
+    this.lastCarS = S;
     const moveSpeed = moving ? speedKmh : 0;
     this.camera.lookAt(this.camLook);
     // Lean into the corner with the cornering force (v squared times curvature), up to about
     // 4 degrees at 5 g, like a camera bolted to a car.
     if (close && !REDUCED_MOTION && this.frame) {
-      const h0 = this.carHeadingAt(this.carS - 10);
-      const h1 = this.carHeadingAt(this.carS + 10);
+      const h0 = this.carHeadingAt(S - 10, line);
+      const h1 = this.carHeadingAt(S + 10, line);
       const turn = Math.atan2(h0.x * h1.z - h0.z * h1.x, h0.dot(h1)); // radians over 20 m
       const v = moveSpeed / 3.6;
       const g = (v * v * (turn / 20)) / 9.81;
@@ -2222,6 +2331,30 @@ export class World {
       this.camera.updateProjectionMatrix();
     }
     this.draw();
+  }
+
+  /** Where the followed car is, and its line. */
+  private anchor(): { s: number; line: LapLine | null } {
+    return this.follow === "ghost" && this.ghost.visible ? { s: this.ghostS, line: this.ghostLine } : { s: this.carS, line: this.lapLine };
+  }
+
+  /** Both cars' brake lights: on with the brake channel, fading out quickly; the glow grows with the
+   * camera's distance so it still marks the braking point from above. */
+  private updateBrakeLights(dt: number, braking: boolean) {
+    const states: [THREE.Group, boolean][] = [
+      [this.car, braking],
+      [this.ghost, this.ghostBraking && this.ghost.visible],
+    ];
+    states.forEach(([car, on], k) => {
+      const l = this.brakeLights[k];
+      l.on = on ? 1 : Math.max(0, l.on - dt / 0.15);
+      l.lamp.material.color.copy(RED).multiplyScalar(0.06 + 2.9 * l.on);
+      l.glow.visible = l.on > 0.01 && car.visible;
+      if (!l.glow.visible) return;
+      const d = this.camera.position.distanceTo(car.position);
+      l.glow.scale.setScalar(THREE.MathUtils.clamp(d * 0.04, 1.1, 9));
+      l.glow.material.opacity = 0.9 * l.on;
+    });
   }
 
   /** One 4096 shadow map over a whole circuit is about 0.6 m a pixel, too coarse for a car to cast
@@ -2274,9 +2407,9 @@ export class World {
     for (const l of this.labels) {
       const ahead = (((l.s - this.carS) % L) + L) % L;
       const behind = L - ahead;
-      // From above, the corners just read trail behind the car with their captions (not in the duel,
-      // where both cars cross them). On board, only the corners ahead are numbered.
-      const trail = this.mode === "heli" && !this.ghost.visible && behind < 700;
+      // From above, the corners just read trail behind the car with their captions. On board, only
+      // the corners ahead are numbered.
+      const trail = this.mode === "heli" && behind < 700;
       l.sprite.visible =
         this.labelsOn && (overview || ahead < (this.mode === "heli" ? 1200 : 650) || trail) && !this.underHud(l.sprite.position);
       // Captioned labels are wider; anchor them on the corner number, not the middle. Elsewhere only
@@ -2310,7 +2443,8 @@ export class World {
 
   /** Start the on-board camera from where the overview camera is, then glide in. */
   snapCamera() {
-    const p = this.carPointAt(this.carS);
+    const { s, line } = this.anchor();
+    const p = this.carPointAt(s, line);
     this.offset.copy(this.camera.position).sub(p);
     this.lookOffset.copy(this.camLook).sub(p);
   }

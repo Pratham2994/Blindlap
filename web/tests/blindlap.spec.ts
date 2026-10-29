@@ -293,6 +293,17 @@ test("which is which: two cars, two names, the model says which is which", async
   await expect(page.locator(".pair-model [data-k=read]")).not.toHaveText("0 corners", { timeout: 30_000 });
   await page.keyboard.press("2");
   await expect(page.locator(".pair-pick [aria-pressed=true]")).toHaveText("Red car");
+  // The cameras of a normal lap, the two ways to run the laps, and either car to follow.
+  await expect(page.locator("[data-cam]")).toHaveCount(5);
+  await expect(page.locator("[data-clock=level]")).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("l");
+  await expect(page.locator("[data-clock=real]")).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("f");
+  await expect(page.locator("[data-follow=B]")).toHaveAttribute("aria-pressed", "true");
+  // Once both cars leave a corner, the line under them says how they took it differently.
+  await expect(page.locator(".pair-band .evidence .t")).toHaveText(/^T\d/, { timeout: 30_000 });
+  await expect(page.locator(".pair-band .evidence .what")).toContainText(/(plain|red) car|alike/);
+  await page.locator("[data-speed='4']").click();
   const reveal = page.locator(".pair-reveal");
   await expect(reveal).toBeVisible({ timeout: 90_000 });
   await expect(reveal.locator(".verdicts .tag")).toHaveCount(2);
@@ -300,6 +311,9 @@ test("which is which: two cars, two names, the model says which is which", async
   await expect(reveal.locator(".caption li")).toHaveCount(3);
   await expect(reveal.locator(".pair-note")).toContainText(/right way round \d+%/);
   await expect(page.locator(".pair-pick button.truth")).toHaveCount(1);
+  // Each of those corners can be driven again by both cars.
+  await reveal.locator(".replay-btn").first().click();
+  await expect(page.locator(".pair.replaying")).toHaveCount(1);
   expect(errors).toEqual([]);
 });
 

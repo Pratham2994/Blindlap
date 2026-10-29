@@ -16,7 +16,10 @@ session.
   reads the same driver's other laps of the session (43% right from one lap, 66% from six).
 - **Teammates**: same car, two drivers: which one is it? You against the model, chance 50%.
 - **Which is which**: two real laps from one session run together, you know both names: which car
-  is which? The model gets the pair the right way round 95% of the time.
+  is which? The model gets the pair the right way round 95% of the time. Both cars share one line
+  side by side, each lays its own rubber (red where it braked) and shows a brake light. "Level into
+  corners" brings them into every braking zone together, so you see who brakes first; "Real gap"
+  plays both laps exactly as driven. All the cameras of a normal lap, and either car to follow.
 - **Duel**: after the reveal, race the lap against the driver the model picked, with a live gap.
 - **Challenge link**: send a friend one exact lap, without giving the driver away.
 - **Teammate battles**: each season's qualifying head-to-head inside every team, session by session,

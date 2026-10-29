@@ -104,6 +104,17 @@ These are the most important things to get right. They come from many correction
 - **Which is which** (`#/pair`, `ui/pair.ts`): two laps of different drivers, close in lap time, run
   together (plain car and red car, the world's main and ghost car); the model's log-odds of the
   right assignment, on a temperature fitted for this question (`confidence.pair`: 95% right).
+  `World.setPair` puts both cars on one shared line (the mean of their two lap lines), 1.3 m to its
+  left and right, held on the road, each with its own rubber trail; the duel uses it too. (Before,
+  the second car was pushed 2.4 m to whichever side was nearer the middle of the road and jumped
+  across each time the line crossed it.) `LevelClock` (Level into corners, the default): each
+  corner's real-time stretch runs from 90 m before the first of the two braking points to 30 m after
+  the later return to full throttle; between stretches the red car's clock runs up to 10% fast or
+  slow, so both cars reach each braking zone together (measured: 1 to 2.5 m apart when the first
+  brakes). Real gap plays both laps as driven; switching eases over 1.2 s. Corner replays are always
+  level. `World.follow` picks the car the close cameras follow. Both cars have a brake light from
+  the real brake channel (the normal lap too). The line under the cars compares the two laps at each
+  corner from `raw` features, scaled by `field.scale`, plus the time gained through it.
 - **Driver DNA team moves** (`dna._moves`, `dna._predict_moves`): every team change (9 now) refitted
   without any of the driver's laps from that season on; new car's term + driver's term against "as
   before" and "like the teammate". `dna.json` `moves`, plus `styleZ`/`traitsZ`/`rawScale` for "any

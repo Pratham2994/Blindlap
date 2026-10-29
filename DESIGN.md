@@ -108,7 +108,7 @@ This replaced a first world (matte black tyre rubber, moulded lettering, five co
 - Paper ground, ink type, one red block. No gradients, no shadows, no glass, no rounded corners.
 - 3px ink rules divide the page into panels. 1px paper-3 hairlines divide rows inside a panel.
 - Archivo variable: width 125 and weight 900 for anything that is a name or a number, width 100 for sentences.
-- The 3D scene is light too: paper ground with a printed grid and the circuit name, red and white barriers and kerbs, an ink car that takes the team colour at the reveal.
+- The 3D scene is light too: paper ground with a printed grid and the circuit name, red and white barriers and kerbs, an ink car that takes the team colour at the reveal. The car has a small red rear light that glows while the real brake channel is on (red is braking here, as on the meter); its glow grows with distance so the braking point reads from above.
 
 ## Colors
 
@@ -210,7 +210,7 @@ An info button in the play bar opens a paper card with a 3px rule over the lower
 A two-column grid (one on phones) of team cards: a 10px top rule in the team colour, the team in ink-3 caps, the two codes set wide and heavy with the tally between them, an ink split bar for the first driver's share, the median gap sentence, and one 14px bordered square per session (filled ink when the first driver was ahead) that opens a blind lap there. Mid-season pairings follow smaller, under a hairline. Under each pairing, a "How they drive differently" disclosure (a 18px bordered +/− box): seven trait rows whose red bar grows from an ink centre line toward the driver who did more of it (first driver to the left, as in the score), the sessions it held in, then the clearest corners as linked lines under hairlines.
 
 ### Which is which
-The play layout with two cars: the plain car (ink swatch) and the red car (red swatch). The side column asks "Which car is …?" as a headline, two big bordered pick buttons (yellow when chosen, a green ring on the right one after), the model's read as an ink/red split bar with its call note, and the last corner read. The band shows both cars' speed, gear and pedals and the gap. The reveal puts the two drivers side by side, each flooding in its team colour.
+The play layout and bar of a normal lap (five cameras, drag to look around, What's real, sound, the seekable lap bar) with two cars: the plain car (ink swatch) on the left of one shared line and the red car (red swatch) on the right, each laying its own rubber. The side column asks "Which car is …?" as a headline, two big bordered pick buttons (yellow when chosen, a green ring on the right one after), then "The two laps" (a two-option strip: Level into corners / Real gap, with a one-line note) and "Camera on" (Plain / Red), then the model's read as an ink/red split bar with its call note. The band shows both cars' speed, gear and pedals, the lap bar (ink fill for the plain car, a 4px red mark for the red one, the real gap in its head) and the evidence line: the corner both cars just left and how they took it differently, in words. The reveal puts the two drivers side by side, each flooding in its team colour; each of the three corners that told them apart has a Replay button that drives both cars through it again, level, at half speed.
 
 ### Duel bar
 Car swatches in team colours with ink borders, codes, a huge gap numeral (green when ahead), where the gap was measured, and "Back to result".

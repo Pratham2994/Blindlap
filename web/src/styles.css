@@ -2052,11 +2052,59 @@ a.mode.quick:hover p {
   margin-bottom: 4px;
 }
 
-/* Under the stage: each car's speed, gear and pedals, and the gap between them. */
+/* Under the stage: each car's speed, gear and pedals, the lap bar with both cars and the real gap,
+   then the line saying how they took the last corner. */
 .pair-band {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.4fr);
+  align-items: end;
+  gap: 12px 18px;
+}
+
+.pair-band .evidence {
+  grid-column: 1 / -1;
+}
+
+.pair-lap .tm-lap-head {
+  gap: 10px;
+}
+
+.pair-lap .tm-jump {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+/* The red car's place on the lap bar, over the plain car's ink fill. */
+.pair-rival {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 4px;
+  margin-left: -2px;
+  left: 0;
+  background: var(--red);
+  pointer-events: none;
+}
+
+.pair-view .caps {
+  margin: 0 0 6px;
+  color: var(--ink-3);
+}
+
+.pair-view .seg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 8px;
+}
+
+.pair-view .seg button {
+  white-space: nowrap;
+}
+
+.pair-view-note {
+  margin: 0 0 12px;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--ink-3);
 }
 
 .pair-tm {
@@ -2113,14 +2161,13 @@ a.mode.quick:hover p {
 }
 
 .pair-gap {
-  display: grid;
-  justify-items: end;
-  gap: 2px;
   color: var(--ink-3);
+  white-space: nowrap;
 }
 
 .pair-gap b {
-  font-size: 1.4rem;
+  margin-left: 4px;
+  font-size: 0.85rem;
   color: var(--ink);
 }
 
@@ -2171,9 +2218,8 @@ a.mode.quick:hover p {
   .pair-band {
     grid-template-columns: 1fr 1fr;
   }
-  .pair-gap {
+  .pair-lap {
     grid-column: 1 / -1;
-    justify-items: start;
   }
   .band.pair-reveal {
     grid-template-columns: 1fr 1fr;
@@ -3731,4 +3777,12 @@ figcaption {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+.pair-view .seg button {
+  justify-content: center;
+}
+
+.pair-view .seg button[aria-pressed="true"] .sw.plain {
+  border-color: var(--paper);
 }

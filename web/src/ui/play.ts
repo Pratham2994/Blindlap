@@ -107,7 +107,7 @@ export function inkOn(hex: string): string {
 /** What is measured and what is drawn: shown on the first lap's rules card and behind the
  * "What's real" button. */
 const REAL_NOTE =
-  "<b>Real, from the car:</b> speed, gear, throttle, brake and timing, about four times a second. " +
+  "<b>Real, from the car:</b> speed, gear, throttle, brake (the red rear light) and timing, about four times a second. " +
   "<b>Drawn:</b> where across the road the car is (the position data puts every car on the same line to within a metre, so it cannot show one; each lap's line is shaped from how it really took each corner), " +
   "and the engine sound, made live from the real speed, gear and throttle. " +
   "<b>The guess:</b> three models read each corner as the car leaves it. None of them ever saw this circuit.";
@@ -683,7 +683,9 @@ export class PlayView {
       if (smp.s >= this.replay.to || this.t >= this.player.duration) this.endReplay();
       return;
     }
-    this.world.update(dt, this.phase === "lap" ? this.player.at(this.t).speed : 0);
+    // Paused: the car stands still, its brake light as it was.
+    const held = this.phase === "lap" ? this.player.at(this.t) : null;
+    this.world.update(dt, held?.speed ?? 0, held?.brake ?? false);
   }
 
   private readCorner(i: number) {
@@ -961,7 +963,7 @@ export class PlayView {
     this.root.dataset.phase = "duel";
     this.setPaused(false);
     this.world.mode = "heli";
-    this.world.setGhostLap(rival);
+    this.world.setPair(this.lap, rival);
     this.world.setCarColours(this.driverOf(this.lap.code).colour, this.driverOf(rival.code).colour);
     this.world.snapCamera();
     this.engine.setActive(true);
@@ -987,7 +989,7 @@ export class PlayView {
     const ratio = this.ratios[a.gear];
     this.engine.update(ratio > 0 && a.speed > 40 ? a.speed * ratio : a.rpm, a.throttle, a.speed, a.gear);
     this.world.setCarS(a.s);
-    this.world.setGhostS(b.s);
+    this.world.setGhostS(b.s, b.brake);
     this.minimap.update(a.s, b.s, this.driverOf(d.code).colour, this.driverOf(this.lap.code).colour);
     // Gap at the first car's position: how long ago the rival passed the same point.
     const gap = Math.min(this.t, this.player.duration) - d.player.timeAt(a.s);
@@ -1001,7 +1003,7 @@ export class PlayView {
       const c = this.session.corners.find((x) => a.s < x.hi);
       whereEl.textContent = `${this.lap.code} ${gap < 0 ? "ahead" : "behind"}${c ? ` · into T${c.n}` : " · to the line"}`;
     }
-    this.world.update(dt, a.speed);
+    this.world.update(dt, a.speed, a.brake);
     if (this.t >= end) this.endDuel();
   }
 
@@ -1010,7 +1012,9 @@ export class PlayView {
     this.phase = "reveal";
     this.root.dataset.phase = "reveal";
     this.world.setGhostS(null);
-    this.world.setGhostLap(null);
+    // Back to the one lap's line and rubber, shown whole as after the flag.
+    this.world.setLap(this.lap, true);
+    this.world.revealLine(true);
     this.world.setCarS(0);
     this.minimap.update(0, null);
     this.world.mode = "orbit";
