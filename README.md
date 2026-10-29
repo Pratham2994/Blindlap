@@ -13,9 +13,6 @@ session.
 - **Play**: one anonymous lap, the model's live line-up, your pick, the reveal.
 - **Teammates**: same car, two drivers: which one is it? You against the model, chance 50%.
 - **Duel**: after the reveal, race the lap against the driver the model picked, with a live gap.
-- **Shootout**: every driver's best lap of a session run at once on the same track, with a live
-  timing tower and each car's gap to the pole lap at that point. Follow any driver: the camera,
-  engine and telemetry are theirs.
 - **Challenge link**: send a friend one exact lap, without giving the driver away.
 - **Teammate battles**: each season's qualifying head-to-head inside every team, session by session,
   with the median gap between their best laps in the same part of qualifying.
@@ -28,7 +25,7 @@ session.
 | ![Chase camera mid-lap](docs/media/lap.png) | ![Overhead camera with evidence captions](docs/media/above.png) |
 | ![Reveal with ruled evidence caption and team radio](docs/media/reveal.png) | ![Driver DNA](docs/media/dna.png) |
 
-A 50-second recording (a lap at Spa, the reveal, a corner replay and the Shootout) is in
+A 45-second recording (a lap at Spa, the reveal and a corner replay) is in
 [docs/media/demo.mp4](docs/media/demo.mp4), filmed frame by frame by `web/scripts/record-video.mjs`; 30 seconds of
 the synthesised engine on a Singapore lap is in [docs/media/engine.mp3](docs/media/engine.mp3). The full technical
 write-up, file by file, is in [docs/OVERVIEW.md](docs/OVERVIEW.md).

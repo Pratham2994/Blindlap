@@ -96,12 +96,6 @@ These are the most important things to get right. They come from many correction
   `battles.json`, run by `run_all.sh` after `results.py`): head-to-head per team and season from
   OpenF1's session results (final position; gap in the furthest segment both reached). Each square
   links to a blind lap at that session.
-- **Shootout** (`#/shootout/<session>`, `ui/shootout.ts`): every driver's best lap of a session at
-  once. Live tower ordered by distance, gap to the pole lap at the same point, follow a driver
-  (click a row, or arrow up and down) for the camera, engine and telemetry; flag card at the end
-  with "Guess a blind lap here". The followed car is the modelled car; the rest are the built car
-  merged into one mesh each (`tokenCar`), on their own lap lines (`setField`, `setFieldS`), in
-  three lanes where they would overlap. Linked from the top bar, a home tile and the reveal.
 - Light and dark themes; laid out and checked for 11 screen sizes from 360 px phones to 27".
 
 ### 3.1 The 3D scene
@@ -163,6 +157,11 @@ Mechanisms to know before changing anything:
   screen only *requests* it; `flushStage()` moves it after the page is shown (`main.ts mount`).
   Getting this wrong loses the 3D view or leaves a black box (it happened three times).
 - **No model runs in the browser:** every lap ships each model's held-out per-corner scores.
+- **Home broadcast loads small and early:** `index.html` picks the daytime circuit and starts
+  fetching `home/<key>.json` (the track and its fastest lap only, about 15 KB, from
+  `pipeline/home.py`) and its surroundings before the script arrives; `data.ts` takes over those
+  fetches (`window.__data`). The car model is fetched after the first circuit (`startModel`). On a
+  9 Mbit/s connection the view is ready in about 0.7 s instead of 1.3 s.
 - **Distances are centreline metres;** only drawing the car, cameras and rubber line uses the
   racing line (`carPointAt`).
 - **Surroundings build in steps across frames** (`applySurroundings`, async), so nothing freezes;
@@ -195,7 +194,7 @@ Mechanisms to know before changing anything:
   computed and shifted by the lap's real apexes. Presentation, not data.
 - Anonymity until the reveal: plain car, neutral helmet, no team colour.
 - Poster design (owner picked "C, bold poster"): paper, ink, one red; `DESIGN.md` records it.
-- Removed on request: Daily five, links that repeated the top bar, camera shake (looked glitchy),
+- Removed on request: Daily five, the Shootout, links that repeated the top bar, camera shake (looked glitchy),
   a browser page cross-fade (froze the old page while the new one built; see OVERVIEW).
 
 ---
@@ -233,7 +232,7 @@ From `web/` with the dev server running (`npm run dev`, port 5173):
 - `npx tsc --noEmit` and `npm run build`.
 - `npx playwright test`: 15 end-to-end tests (~5 min; they run at the lowest quality, since
   headless Chromium is a software renderer).
-- `node scripts/sweep.mjs`: 47 steps through every flow, the Shootout included; script errors,
+- `node scripts/sweep.mjs`: 45 steps through every flow, Battles included; script errors,
   missing/blank 3D view, layout off screen, lap bar out of step.
 - `node scripts/track-check.mjs`: every session; ground under the road, nothing within 12.5 m,
   no tree above the ground. It waits for the scene's own surroundings build (it used to race it).
@@ -283,9 +282,10 @@ sessions, 11 screen sizes, data checks, build).
    forced and looked at on this PC, not measured on a slow machine.
 2. Watch the first weekly data run (6.2); it now also builds `battles.json`.
 3. The impeccable finish review has not been run on the latest design; `DESIGN.md` does not yet
-   describe the hint ladder, the Shootout or Teammate battles.
+   describe the hint ladder or Teammate battles.
 4. Ideas for later, not built: track evolution (how lap times drop from Q1 to Q3 in each session).
 5. Known limits: the racing line is computed, not measured (now shaped per lap from its real
    corners); street circuits show only the stands OpenStreetMap or the dressing provides; captions
-   are machine transcripts; in the Shootout, cars bunch up at the start because every lap starts
-   at the line at the same moment.
+   are machine transcripts.
+6. Removed on request (2026-10-29): the Shootout (every driver's best lap at once). It is in the
+   history (commit b93ee77) if it is ever wanted back.
