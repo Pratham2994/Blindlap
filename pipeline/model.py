@@ -198,10 +198,10 @@ def year(sess) -> int:
 
 
 def cross_season(sessions, labels, tau):
-    """Train on every 2025 session, guess every 2026 lap: does a driver's style survive new cars and
-    new rules? Only drivers who raced both seasons can be scored; candidates are the drivers of each
-    session the model knows."""
-    train = [s for s in sessions if year(s) == 2025]
+    """Train on every session before 2026, guess every 2026 lap: does a driver's style survive new
+    cars and new rules? Only drivers who raced before can be scored; candidates are the drivers of
+    each session the model knows."""
+    train = [s for s in sessions if year(s) < 2026]
     test = [s for s in sessions if year(s) == 2026 and is_quali(s)]
     if not train or not test:
         return None
@@ -240,7 +240,7 @@ def cross_season(sessions, labels, tau):
         return None
     out = {"train": len(train), "test": len(test), "laps": n, "drivers": len(drivers),
            "top1": hits1 / n, "top3": hits3 / n, "team": team_hits / n, "chance": chance / n}
-    print(f"   cross: 2025 -> 2026 laps={n} top1={out['top1']:.3f} top3={out['top3']:.3f} team={out['team']:.3f}")
+    print(f"   cross: before 2026 -> 2026 laps={n} top1={out['top1']:.3f} top3={out['top3']:.3f} team={out['team']:.3f}")
     return out
 
 

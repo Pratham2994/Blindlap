@@ -3,6 +3,11 @@ import type { Index, ModelReport, Report } from "../data";
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 
+/** "2025 or 2026", or "2023 to 2026" for more than two seasons. */
+export function seasonsText(seasons: number[]): string {
+  return seasons.length > 2 ? `${Math.min(...seasons)} to ${Math.max(...seasons)}` : seasons.join(" or ");
+}
+
 export function howView(index: Index, report: Report): HTMLElement {
   // Headline numbers follow the model the game guesses with (the most accurate one).
   const byId = report as unknown as Record<string, ModelReport>;
@@ -14,7 +19,7 @@ export function howView(index: Index, report: Report): HTMLElement {
   root.innerHTML = `
   <article class="prose">
     <h1 class="display">How it<br>knows</h1>
-    <p>Every lap in Blind Lap is a real push lap from ${index.seasons.join(" or ")} qualifying. The name, number and livery are gone. What is left is ${index.features.length} numbers per corner that describe how the car was driven through it, and the model has to find the driver in those.</p>
+    <p>Every lap in Blind Lap is a real push lap from ${seasonsText(index.seasons)} qualifying. The name, number and livery are gone. What is left is ${index.features.length} numbers per corner that describe how the car was driven through it, and the model has to find the driver in those.</p>
 
     <figure>
       ${[
@@ -44,7 +49,7 @@ export function howView(index: Index, report: Report): HTMLElement {
     ${
       report.crossSeason
         ? `<h2>New cars, same drivers</h2>
-    <p>2026 brought new cars and new rules. A model trained only on ${report.crossSeason.train} sessions of 2025 (the same circuits, the old cars) was asked to name the driver of ${report.crossSeason.laps} push laps from ${report.crossSeason.test} sessions of 2026, ${report.crossSeason.drivers} drivers who raced both years. It named the right driver on <strong>${pct(report.crossSeason.top1)}</strong> of laps and had them in its top three on <strong>${pct(report.crossSeason.top3)}</strong> (chance ${pct(report.crossSeason.chance)}). ${
+    <p>2026 brought new cars and new rules. A model trained only on the ${report.crossSeason.train} sessions before it (the same circuits, the old cars) was asked to name the driver of ${report.crossSeason.laps} push laps from ${report.crossSeason.test} sessions of 2026, ${report.crossSeason.drivers} drivers who had raced before. It named the right driver on <strong>${pct(report.crossSeason.top1)}</strong> of laps and had them in its top three on <strong>${pct(report.crossSeason.top3)}</strong> (chance ${pct(report.crossSeason.chance)}). ${
             report.crossSeason.top1 > 2 * report.crossSeason.chance
               ? "Part of a driver's style survives a change of car."
               : "Style learnt in one car carries over to the next only weakly."

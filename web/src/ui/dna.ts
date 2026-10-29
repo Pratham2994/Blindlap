@@ -264,7 +264,7 @@ export class DnaView {
       <h2 class="display">${d.code}</h2>
       <p class="caps team">${d.name} · ${d.team}</p>
       ${this.careers.drivers[code] ? `<p class="career num">${careerLine(this.careers.drivers[code])}</p>` : ""}
-      <p class="caps tells-h">${this.mode === "own" ? "Own style · tick: as driven" : "As driven · tick: car taken out"}</p>
+      <p class="dna-key"><span><i class="bar"></i>${this.mode === "own" ? "How they drive, with their car taken out" : "How they drive, car included"}</span><span><i class="mark"></i>${this.mode === "own" ? "The same, car included" : "The same, car taken out"}</span></p>
       ${axes}
       ${d.tells?.length ? `<p class="caps tells-h">What gives ${d.code} away, car taken out</p><ul class="tells">${d.tells.map((t) => `<li>${t.charAt(0).toUpperCase() + t.slice(1)}</li>`).join("")}</ul>` : ""}
       ${seasons}

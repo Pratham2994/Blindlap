@@ -138,7 +138,7 @@ async function homeView(): Promise<View> {
     <section class="hero">
       <div class="hero-block">
         <h1 class="display">Who's<br>driving?</h1>
-        <p class="lede">A real ${index.seasons.join(" or ")} F1 qualifying lap with the name taken off. Three models read every corner and guess the driver. So do you.</p>
+        <p class="lede">A real F1 qualifying lap from ${index.seasons.length > 2 ? `${Math.min(...index.seasons)} to ${Math.max(...index.seasons)}` : index.seasons.join(" or ")} with the name taken off. Three models read every corner and guess the driver. So do you.</p>
         <a class="btn on-red" href="#/play">${icons.play} Start a lap</a>
       </div>
       <figure class="hero-stage frame">

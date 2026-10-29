@@ -159,9 +159,9 @@ test("driver DNA takes the car out, shows seasons and cars, and switches drivers
   expect(await page.locator(".car-card").count()).toBeGreaterThan(10);
   // As driven, then back; the panel says which it shows.
   await page.getByRole("button", { name: "As driven" }).click();
-  await expect(panel).toContainText("As driven · tick: car taken out");
+  await expect(panel.locator(".dna-key")).toContainText("How they drive, car included");
   await page.getByRole("button", { name: "Own style" }).click();
-  await expect(panel).toContainText("Own style · tick: as driven");
+  await expect(panel.locator(".dna-key")).toContainText("How they drive, with their car taken out");
   await panel.locator("select").selectOption("LEC");
   await expect(panel.locator("h2")).toHaveText("LEC");
 });
