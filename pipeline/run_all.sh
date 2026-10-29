@@ -11,6 +11,7 @@ PY=.venv/Scripts/python.exe
 $PY build.py --new 2>&1 | grep -v -e RuntimeWarning -e nanmedian
 $PY model.py
 $PY export.py
+$PY home.py
 $PY results.py
 $PY battles.py
 # Team radio speech start (needs ffmpeg) and captions (needs faster-whisper); both keep what they

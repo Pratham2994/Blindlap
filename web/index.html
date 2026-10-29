@@ -56,16 +56,41 @@
         if (!home) document.querySelector("#view .shell").remove();
         // The small data this page needs, asked for while the script is still downloading.
         var page = location.hash.replace(/^#\/?/, "").split("/")[0];
+        var preload = function (f) {
+          var l = document.createElement("link");
+          l.rel = "preload";
+          l.as = "fetch";
+          l.crossOrigin = "anonymous";
+          l.href = "./data/" + f;
+          document.head.appendChild(l);
+        };
         ["index.json"]
-          .concat(home ? ["report.json", "env/index.json"] : page === "play" || page === "mates" ? ["env/index.json"] : page === "how" ? ["report.json"] : page === "dna" ? ["dna.json", "careers.json"] : page === "battles" ? ["battles.json"] : [])
-          .forEach(function (f) {
-            var l = document.createElement("link");
-            l.rel = "preload";
-            l.as = "fetch";
-            l.crossOrigin = "anonymous";
-            l.href = "./data/" + f;
-            document.head.appendChild(l);
-          });
+          .concat(home ? ["report.json"] : page === "play" || page === "mates" ? ["env/index.json"] : page === "how" ? ["report.json"] : page === "dna" ? ["dna.json", "careers.json"] : page === "battles" ? ["battles.json"] : [])
+          .forEach(preload);
+        // The home broadcast: pick its circuit (a daytime one) here and start fetching its track and
+        // surroundings now, instead of after the script has loaded. main.ts takes the pick.
+        if (home) {
+          // Handed to main.ts's loader (data.ts), so the list is not fetched a second time.
+          window.__data = {
+            "env/index.json": fetch("./data/env/index.json").then(function (r) {
+              if (!r.ok) throw new Error("env index " + r.status);
+              return r.json();
+            }),
+          };
+          window.__home = window.__data["env/index.json"]
+            .then(function (env) {
+              var keys = Object.keys(env).filter(function (k) {
+                return env[k].light === "day";
+              });
+              var key = keys[Math.floor(Math.random() * keys.length)];
+              preload("home/" + key + ".json");
+              preload("env/" + env[key].env + ".json");
+              return Number(key);
+            })
+            .catch(function () {
+              return null;
+            });
+        }
       </script>
     </main>
     <script type="module" src="/src/main.ts"></script>

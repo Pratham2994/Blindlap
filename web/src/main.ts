@@ -2,7 +2,7 @@ import "./styles.css";
 import * as THREE from "three";
 import { EngineSynth } from "./audio/engine";
 import type { Index, ModelReport, Report } from "./data";
-import { loadBattles, loadCareers, loadDna, loadEnvIndex, loadIndex, loadReport, loadSession } from "./data";
+import { loadBattles, loadCareers, loadDna, loadEnvIndex, loadHomeSession, loadIndex, loadReport, prefetchSurroundings } from "./data";
 import { LapPlayer } from "./lap";
 import { World } from "./scene/world";
 import type { CameraMode } from "./scene/world";
@@ -92,13 +92,20 @@ async function homeView(): Promise<View> {
   // Beside the headline: a broadcast of a random circuit's fastest lap, cutting between cameras.
   // Daytime sessions only, so the first thing a visitor sees is never a dark night scene.
   const startBroadcast = async () => {
+    // The page's HTML may already have picked the circuit and started fetching it (index.html).
+    if (homeSession === null) {
+      const early = await ((window as Window & { __home?: Promise<number | null> }).__home ?? null);
+      if (early && index.sessions.some((s) => s.key === early)) homeSession = early;
+    }
     if (homeSession === null) {
       const env = await loadEnvIndex();
       const day = index.sessions.filter((s) => env[String(s.key)]?.light === "day");
       const pool = day.length ? day : index.sessions;
       homeSession = pool[Math.floor(Math.random() * pool.length)].key;
     }
-    const session = await loadSession(homeSession);
+    // The small home copy of the session, with its surroundings fetched at the same time, so the
+    // stands and buildings arrive with the track instead of after it.
+    const [session] = await Promise.all([loadHomeSession(homeSession), prefetchSurroundings(homeSession)]);
     if (current?.root !== root) return; // the visitor already left the home page
     // Back on the home page with the same circuit: the scene is already built.
     if (world.sessionShown !== session.key) world.setSession(session);

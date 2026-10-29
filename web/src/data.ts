@@ -161,7 +161,12 @@ export interface Careers {
 const base = `${import.meta.env.BASE_URL}data/`;
 const cache = new Map<string, Promise<unknown>>();
 
+// Files the page's HTML already started fetching (index.html), handed over to this cache.
+const early: Partial<Record<string, Promise<unknown>>> = (window as Window & { __data?: Record<string, Promise<unknown>> }).__data ?? {};
+
 function get<T>(path: string): Promise<T> {
+  const handed = early[path];
+  if (!cache.has(path) && handed) cache.set(path, handed);
   if (!cache.has(path)) {
     cache.set(
       path,
@@ -176,6 +181,9 @@ function get<T>(path: string): Promise<T> {
 
 export const loadIndex = () => get<Index>("index.json");
 export const loadSession = (key: number) => get<Session>(`sessions/${key}.json`);
+/** The home broadcast's copy of a session: the track and its fastest lap only (pipeline/home.py),
+ * about 15 KB instead of 240. */
+export const loadHomeSession = (key: number) => get<Session>(`home/${key}.json`);
 export const loadReport = () => get<Report>("report.json");
 export const loadDna = () => get<Dna>("dna.json");
 /** Where speech starts in each team radio clip (they often open with seconds of silence). */

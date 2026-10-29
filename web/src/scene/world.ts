@@ -453,6 +453,7 @@ export class World {
   private pulses: { mesh: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>; age: number }[] = [];
   private ghost: THREE.Group;
   private carLight: THREE.PointLight;
+  private startModel: () => void = () => {};
   // The sky and ground the car's paint reflects, made from the current palette (refreshReflections).
   private pmrem: THREE.PMREMGenerator | null = null;
   private reflections: THREE.WebGLRenderTarget | null = null;
@@ -578,8 +579,11 @@ export class World {
     this.car.rotation.order = this.ghost.rotation.order = "YZX";
     this.carWheels = built.wheels;
     this.ghostWheels = builtGhost.wheels;
-    // Swap in the modelled car when it arrives; keep the built one if it never does.
-    loadF1Model()
+    // Swap in the modelled car when it arrives; keep the built one if it never does. It is fetched
+    // once the first circuit is in (or after 2 s), so its 300 KB never slow the track down.
+    this.startModel = () => {
+      this.startModel = () => {};
+      loadF1Model()
       .then((source) => {
         const a = fitF1Model(source, new THREE.Color(INK));
         const b = fitF1Model(source, new THREE.Color(RED));
@@ -594,6 +598,8 @@ export class World {
         this.applyReflections();
       })
       .catch((e) => console.warn("Car model not loaded; keeping the built car.", e));
+    };
+    setTimeout(() => this.startModel(), 2000);
     this.ghost.visible = false;
     this.scene.add(this.ghost);
     this.carLight = new THREE.PointLight("#fff2dc", 7, 28, 1.8);
@@ -717,6 +723,9 @@ export class World {
 
   setSession(session: Session) {
     this.session = session;
+    // The circuit's own data has been fetched; the modelled car may load now (next task, so the
+    // track is built first).
+    setTimeout(() => this.startModel(), 0);
     this.lapLine = null; // the next setLap fills it; the track itself uses the plain line
     this.ghostLine = null;
     this.snap = true;
