@@ -16,8 +16,12 @@ session.
 - **Challenge link**: send a friend one exact lap, without giving the driver away.
 - **Teammate battles**: each season's qualifying head-to-head inside every team, session by session,
   with the median gap between their best laps in the same part of qualifying.
-- **Driver DNA**: every driver's corner style projected into 3D, with the habits that give them away.
-- **Telemetry lab**: any session, any two drivers, speed traces and braking overlaid corner by corner.
+- **Driver DNA**: every driver's corner style with the car taken out. Each corner measurement is split
+  into a car part (team and season) and a driver part, fitted over every lap; teammates and drivers
+  who changed teams separate the two. A 3D map of own styles (and as driven), each driver season by
+  season, every car's fingerprint, and how much of each habit is the car.
+- **Telemetry lab**: any session, any two drivers: speed traces and braking overlaid, the gap along the
+  lap, and where the time goes, corner by corner and on the straights.
 - **How it knows**: the method and the evaluation, read from the same report the model produced.
 
 | | |
