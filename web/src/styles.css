@@ -1900,10 +1900,15 @@ a.mode.quick:hover p {
   margin-bottom: 18px;
 }
 
+/* Two columns that each stack their cards: a one-pair team beside a three-pair one leaves no hole. */
 .battle-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--gutter);
+  columns: 2;
+  column-gap: var(--gutter);
+}
+
+.battle-grid > .team {
+  break-inside: avoid;
+  margin-bottom: var(--gutter);
 }
 
 .battles .team {
@@ -2018,7 +2023,7 @@ a.mode.quick:hover p {
 
 @media (max-width: 860px) {
   .battle-grid {
-    grid-template-columns: minmax(0, 1fr);
+    columns: 1;
   }
 }
 
