@@ -53,6 +53,7 @@ const GradeShader = {
     }`,
 };
 import type { LapData, Session } from "../data";
+import { LapPlayer } from "../lap";
 import { contactShadow, fitF1Model, loadF1Model, makeF1Car } from "./car";
 import { asphaltTexture, boardTexture, GROUND_PX, labelTexture, posterGround } from "./textures";
 import type { GroundAreas } from "./textures";
@@ -200,9 +201,10 @@ const KERB_SPAN = 25;
 const KERB_REACH = 1.55;
 const KERB_PER_WIDTH = 9; // metres onto the kerb per unit of extra width
 const KERB_HEIGHT = 0.09;
-// Two cars at once (setPair): each runs this far to one side of one shared line, so they never
-// overlap and never swap sides. Cars are about 2 m wide: 2.6 m between their middles.
-const LANE = 1.3;
+// Two cars at once (setPair): both on one line, the second a see-through ghost. Their rubber runs
+// side by side under them, each TRAIL_SHIFT m off the line, like two tyre marks.
+const TRAIL_SHIFT = 0.24;
+const GHOST_OPACITY = 0.45;
 
 /** A rear light that shows the real brake channel: a small lamp low on the gearbox, and a soft glow
  * around it that grows with distance, so the braking point still reads from above. */
@@ -647,6 +649,7 @@ export class World {
         this.ghost.add(b.group);
         this.carWheels = a.wheels;
         this.ghostWheels = b.wheels;
+        this.ghostLook();
         if (this.liveryHidden) this.hideLivery();
         else this.setCarColours(...this.carColours);
         this.applyReflections();
@@ -656,6 +659,7 @@ export class World {
     setTimeout(() => this.startModel(), 2000);
     this.ghost.visible = false;
     this.brakeLights = [makeBrakeLight(this.car), makeBrakeLight(this.ghost)];
+    this.ghostLook();
     this.scene.add(this.ghost);
     this.carLight = new THREE.PointLight("#fff2dc", 7, 28, 1.8);
     this.car.add(this.carLight);
@@ -1715,11 +1719,12 @@ export class World {
     if (!keepLabels) this.labels.forEach((l) => ((l.sprite.material as THREE.SpriteMaterial).opacity = 0.55));
   }
 
-  /** Two cars at once (Which is which, the duel). Both drive one shared line, the average of their
-   * two laps' lines, the first car LANE m to its left and the second LANE m to its right, held on
-   * the road. Each lays its own rubber, red where it braked, so two braking points sit side by side.
-   * (The second car used to be pushed to whichever side of the first was nearer the middle of the
-   * road, and jumped across every time the line crossed it.) */
+  /** Two cars at once (Which is which, the duel), as a racing game's ghost: both drive one racing
+   * line, the average of their two laps' lines, and the second car is see-through, so where they
+   * overlap both still show. Each lays its own rubber, red where it braked, a thin mark either side
+   * of the line, so the two braking points sit side by side. (The second car used to be pushed to
+   * whichever side of the first was nearer the middle of the road, and jumped across every time the
+   * line crossed it.) */
   setPair(a: LapData, b: LapData) {
     const session = this.session;
     const f = this.frame;
@@ -1727,24 +1732,33 @@ export class World {
     const shape = (lap: LapData) => this.buildLapLine(lineShape(lap, session, (s) => this.turnSign(s)));
     const la = shape(a);
     const lb = shape(b);
-    const n = f.pos.length;
-    const mid = new Float64Array(n);
-    for (let i = 0; i < n; i++) {
-      // Room for the middle of the pair: each car's outer wheels stay on the white line.
-      const lo = -(f.edges.half[1][i] - 1.05 - LANE);
-      const hi = f.edges.half[0][i] - 1.05 - LANE;
-      const m = (la.offset[i] + lb.offset[i]) / 2;
-      mid[i] = lo > hi ? (lo + hi) / 2 : THREE.MathUtils.clamp(m, lo, hi);
-    }
-    const shared = smoothLoop(smoothLoop(mid, 3), 3);
-    const lane = (sign: number): LapLine => ({ offset: shared.map((m) => m + sign * LANE), lift: new Float64Array(n) });
-    // sideAt points to the car's right: the first car on the left, the second on the right.
-    this.lapLine = lane(-1);
-    this.ghostLine = lane(1);
+    const offset = smoothLoop(la.offset.map((o, i) => (o + lb.offset[i]) / 2), 2);
+    const lift = la.lift.map((l, i) => (l + lb.lift[i]) / 2);
+    this.lapLine = this.ghostLine = { offset, lift };
     this.clearTrails();
-    this.line = this.buildTrail(a, this.lapLine, 0.4);
-    this.ghostTrail = this.buildTrail(b, this.ghostLine, 0.4);
+    this.line = this.buildTrail(a, this.lapLine, 0.2, -TRAIL_SHIFT);
+    this.ghostTrail = this.buildTrail(b, this.ghostLine, 0.2, TRAIL_SHIFT);
     this.trackGroup.add(this.line, this.ghostTrail);
+  }
+
+  /** The second car as a ghost: every material its own copy (the modelled car shares them with the
+   * first car), see-through, and not hiding what is behind it. The brake light stays solid. */
+  private ghostLook() {
+    const lights = new Set<THREE.Object3D>(this.brakeLights?.[1] ? [this.brakeLights[1].lamp, this.brakeLights[1].glow] : []);
+    this.ghost.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh || lights.has(mesh)) return;
+      const one = (m: THREE.Material) => {
+        const c = m.userData.ghost ? m : m.clone();
+        c.userData.ghost = true;
+        c.transparent = true;
+        c.opacity = GHOST_OPACITY;
+        c.depthWrite = false;
+        return c;
+      };
+      mesh.material = Array.isArray(mesh.material) ? mesh.material.map(one) : one(mesh.material);
+      mesh.castShadow = false;
+    });
   }
 
   private clearTrails() {
@@ -1758,8 +1772,12 @@ export class World {
   }
 
   /** A lap's rubber along its line, w m either side of it. */
-  private buildTrail(lap: LapData, line: LapLine | null, w: number): THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial> {
+  private buildTrail(lap: LapData, line: LapLine | null, w: number, shift = 0): THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial> {
     const f = this.frame!;
+    // Coloured by where the car is drawn (the lap player's distance) and the brake as shown, so the
+    // rubber turns red exactly where the brake light comes on.
+    const player = new LapPlayer(lap);
+    const d = player.dist;
     const n = f.pos.length;
     const pos: number[] = [];
     const col: number[] = [];
@@ -1770,13 +1788,13 @@ export class World {
     for (let i = 0; i <= n; i++) {
       const k = i % n;
       const sv = i === n ? f.length : f.s[k];
-      while (j < lap.s.length - 2 && lap.s[j + 1] < sv) j++;
-      const brake = lap.brk[j] > 0;
+      while (j < d.length - 2 && d[j + 1] < sv) j++;
+      const brake = player.brake[j] > 0;
       const thr = lap.thr[j];
       const c = brake ? RED : thr >= 95 ? PAPER : new THREE.Color("#8a8780");
       const p = f.pos[k];
       const sd = f.side[k];
-      const o = this.carOffsetAt(sv, line); // exactly where the car drives
+      const o = this.carOffsetAt(sv, line) + shift; // where the car drives
       pos.push(p.x + sd.x * (o + w), p.y + 0.08, p.z + sd.z * (o + w), p.x + sd.x * (o - w), p.y + 0.08, p.z + sd.z * (o - w));
       col.push(c.r, c.g, c.b, c.r, c.g, c.b);
       sAttr.push(sv, sv);
@@ -2220,11 +2238,10 @@ export class World {
       // track edge: further out it filmed the barrier and the side of the raised track.
       const sd = this.sideAt(S);
       if (this.ghost.visible && this.ghostTrail) {
-        // Two cars: from the followed car's own side, further out, higher and a little ahead,
-        // looking at the middle of the pair, so the other car shows beyond it.
+        // Two cars: a little further out and higher, looking at the middle of the pair, so a car
+        // ahead or behind stays in the picture.
         const mid = p.clone().lerp(this.follow === "ghost" ? this.car.position : this.ghost.position, 0.5);
-        sd.multiplyScalar(this.follow === "car" ? -1 : 1);
-        want = mid.clone().addScaledVector(sd, 8.5).addScaledVector(t, 5).setY(mid.y + 4.4);
+        want = mid.clone().addScaledVector(sd, 7).addScaledVector(t, 3).setY(mid.y + 2.8);
         look = mid.setY(mid.y + 0.4);
       } else {
         want = p.clone().addScaledVector(sd, 5.8).addScaledVector(t, 2).setY(p.y + 1.9);

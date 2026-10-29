@@ -14,6 +14,24 @@ export interface Sample {
 // Half-width, in samples, of the window that smooths the position correction (~4 s at 3.7 Hz).
 // Applied twice (a triangular filter), so the correction bends gently and never jerks the car.
 const DRIFT_WINDOW = 14;
+// The brake channel drops to off for one to three samples in the middle of a braking about once
+// every two laps; on screen the brake light blinked and the red rubber had a grey gap. Gaps shorter
+// than this (seconds) between two "on" samples are shown as braking.
+const BRAKE_GAP = 0.6;
+
+/** The brake channel as shown: on (1) or off (0), with short drop-outs inside a braking filled. */
+export function heldBrake(lap: { t: number[]; brk: number[] }): Uint8Array {
+  const { t, brk } = lap;
+  const out = Uint8Array.from(brk, (b) => (b > 0 ? 1 : 0));
+  for (let k = 0; k < out.length - 1; k++) {
+    if (!out[k] || out[k + 1]) continue;
+    let j = k + 1;
+    while (j < out.length && !out[j]) j++;
+    if (j < out.length && t[j] - t[k] <= BRAKE_GAP) out.fill(1, k + 1, j);
+    k = j - 1;
+  }
+  return out;
+}
 
 function smooth(a: ArrayLike<number>, w: number): Float64Array {
   const n = a.length;
@@ -42,12 +60,14 @@ function smooth(a: ArrayLike<number>, w: number): Float64Array {
 export class LapPlayer {
   private i = 0;
   readonly duration: number;
-  private dist: Float64Array; // smoothed distance at each sample time
+  readonly dist: Float64Array; // smoothed distance at each sample time: where the car is drawn
+  readonly brake: Uint8Array; // heldBrake
   private integrated: Float64Array; // distance from the speed channel alone
   private correction: Float64Array; // smoothed drift correction from the position samples
 
   constructor(readonly lap: LapData) {
     this.duration = lap.lapTime;
+    this.brake = heldBrake(lap);
     const { t, s, v } = lap;
     const n = t.length;
     const integrated = new Float64Array(n);
@@ -88,7 +108,7 @@ export class LapPlayer {
       s,
       speed: lerp(L.v),
       throttle: lerp(L.thr),
-      brake: (u < 0.5 ? L.brk[i] : L.brk[i + 1]) > 0,
+      brake: (u < 0.5 ? this.brake[i] : this.brake[i + 1]) > 0,
       gear: u < 0.5 ? L.gear[i] : L.gear[i + 1],
       rpm: lerp(L.rpm),
       drs: (u < 0.5 ? L.drs[i] : L.drs[i + 1]) >= 10,

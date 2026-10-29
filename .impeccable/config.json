@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font",
+        "value": "cascadia code",
+        "createdAt": "2026-10-29T16:55:03.401Z",
+        "reason": "Agent: monospace fallback stack (ui-monospace, Cascadia Code, Consolas) for inline code on the How page only; not a brand font"
+      }
+    ]
+  }
+}

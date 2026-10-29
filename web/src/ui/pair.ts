@@ -2,7 +2,7 @@
 // one question: which car is which? The model reads both laps corner by corner. With two laps to
 // compare it is right far more often than when it picks one driver from the whole field.
 //
-// The two cars share one line, the plain car on the left and the red car on the right, and each
+// The two cars share one racing line, the red car as a see-through ghost, as in a racing game; each
 // lays its own rubber (red where it braked) and shows a brake light. By default the red car's lap
 // is nudged on the straights so both cars reach every braking zone together ("Level"): who brakes
 // first, who carries more speed and who is back on the power first then shows in the picture.
@@ -26,13 +26,12 @@ type Clock = "level" | "real";
 const SCORE_KEY = "blindlap.score.v2.pair";
 const SPEED_KEY = "blindlap.speed.v1";
 const CLOCK_KEY = "blindlap.pair.clock.v1";
-const RED = "#e10600";
 // The cameras of a normal lap, in the order C cycles through them. The close ones follow the car
 // picked under "Camera on".
 const CAMERAS: [CameraMode, string, string][] = [
   ["chase", "Chase", "Behind the car the camera is on"],
   ["onboard", "Onboard", "From that car's cockpit"],
-  ["side", "Side", "Alongside that car, the other one beyond it"],
+  ["side", "Side", "Alongside the two cars"],
   ["tv", "TV", "A broadcast camera, high and zoomed in"],
   ["heli", "Above", "From above: both cars in view"],
 ];
@@ -64,8 +63,8 @@ const PAIR_TEXT: Record<string, { min: number; text: (v: string) => string }> = 
 };
 
 const REAL_NOTE =
-  "<b>Real, from the cars:</b> each car's speed, gear, throttle, brake and timing, about four times a second. The rear light and the red rubber show the real brake channel. " +
-  "<b>Drawn:</b> where across the road each car is. The position data puts every car on the same line, so both share one: the plain car on the left, the red car on the right. " +
+  "<b>Real, from the cars:</b> each car's speed, gear, throttle, brake and timing, about four times a second. The rear light and the red rubber show the real brake channel (a drop-out shorter than 0.6 s in the middle of a braking is shown as braking). " +
+  "<b>Drawn:</b> where across the road the cars are. The position data puts every car on the same line, so both drive one racing line, and the red car is a see-through ghost, as in a racing game. Each car's rubber runs as a thin mark on its own side of the line. " +
   "<b>Level into corners:</b> the red car's lap runs up to 10% faster or slower on the straights, so both cars reach every braking zone together. Through each corner both run in real time. " +
   "<b>Real gap</b> plays both laps exactly as driven. " +
   "<b>The guess:</b> the model reads every corner of both laps. It never saw this circuit.";
@@ -116,23 +115,23 @@ class LevelClock {
   readonly spots: { p: number; e: number }[] = [];
 
   constructor(a: LapPlayer, b: LapPlayer, corners: CornerZone[]) {
-    const dA = a.lap.t.map((t) => a.at(t).s);
-    const dB = b.lap.t.map((t) => b.at(t).s);
+    const dA = a.dist;
+    const dB = b.dist;
     let prevE = -Infinity;
     let prevApex = -Infinity;
     let tEnd = 0;
     let o = 0;
     for (const c of corners) {
       const from = Math.max(c.s - 450, prevApex + 10);
-      const brake = (lap: LapData, d: number[]) => {
-        for (let k = 0; k < d.length && d[k] <= c.s; k++) if (d[k] >= from && lap.brk[k] > 0) return d[k];
+      const brake = (pl: LapPlayer, d: Float64Array) => {
+        for (let k = 0; k < d.length && d[k] <= c.s; k++) if (d[k] >= from && pl.brake[k] > 0) return d[k];
         return c.s;
       };
-      const power = (lap: LapData, d: number[]) => {
+      const power = (lap: LapData, d: Float64Array) => {
         for (let k = 0; k < d.length; k++) if (d[k] >= c.s && lap.thr[k] >= 95) return Math.min(d[k], c.s + 300);
         return c.hi;
       };
-      const p = Math.min(brake(a.lap, dA), brake(b.lap, dB)) - LEAD;
+      const p = Math.min(brake(a, dA), brake(b, dB)) - LEAD;
       const e = Math.max(power(a.lap, dA), power(b.lap, dB), c.s) + EXIT;
       prevApex = c.s;
       if (p - prevE < MIN_GAP) {
@@ -389,7 +388,7 @@ export class PairView {
     stage.className = "stage-frame";
     stage.innerHTML = `<div class="stage-slot"></div>
       <div class="countdown"><div class="lights" role="img" aria-label="Start lights">${"<i></i>".repeat(5)}</div>
-        <p class="caps reminder">Plain car on the left, red car on the right. Which one is ${t.code}? Watch where each one brakes.</p></div>
+        <p class="caps reminder">The red car is a ghost on the same line. Which one is ${t.code}? Watch where each one brakes.</p></div>
       <p class="paused-note caps" aria-live="polite">Paused · Space to resume</p>
       <aside class="real-note" aria-label="What is real"><p>${REAL_NOTE}</p><p class="keys caps">Keys · Space pause · C camera · F other car · L level or real · ← → 5 seconds · 1 2 your pick · Esc menu · drag the view to look around</p><button type="button" class="btn" data-real-close>Got it</button></aside>`;
     stage.querySelector("[data-real-close]")!.addEventListener("click", () => {
@@ -449,7 +448,7 @@ export class PairView {
       </section>
       <section class="pair-model" aria-live="polite">
         <header class="caps"><span>The model's read</span><span class="num" data-k="read">0 corners</span></header>
-        <div class="pair-split" role="img" aria-label="How sure the model is"><i class="a" style="width:50%"></i><i class="b" style="width:50%"></i></div>
+        <div class="pair-split" role="img" aria-label="The model has not read a corner yet"><i></i></div>
         <p class="pair-split-key num"><span>Plain is ${t.code}</span><span>Red is ${t.code}</span></p>
         <p class="call" data-level="none">The model reads every corner as each car leaves it.</p>
       </section>`;
@@ -472,7 +471,7 @@ export class PairView {
       .map(
         (c) => `
         <div class="pair-tm" data-car="${c}">
-          <p class="caps"><i class="sw ${c === "A" ? "plain" : "red"}"></i>${CAR_NAME[c]} · ${c === "A" ? "left" : "right"}</p>
+          <p class="caps"><i class="sw ${c === "A" ? "plain" : "red"}"></i>${CAR_NAME[c]}${c === "B" ? " · ghost" : ""}</p>
           <b class="num" data-k="speed">0</b><span class="caps unit">km/h</span>
           <span class="caps">Gear <b class="num" data-k="gear">N</b></span>
           <span class="meters caps"><span>Thr</span><i class="meter thr"><em data-k="thr"></em></i><span>Brk</span><i class="meter brk"><em data-k="brk"></em></i></span>
@@ -616,7 +615,7 @@ export class PairView {
     const b = (B.smp = B.player.at(B.t));
     this.world.setCarS(a.s);
     this.world.setGhostS(b.s, b.brake);
-    this.minimap.update(a.s, b.s, RED, "var(--ink)");
+    this.minimap.update(a.s, b.s, "var(--red)", "var(--ink)");
     this.readout("A", a, A.t);
     this.readout("B", b, B.t);
     const L = this.session.length;
@@ -661,11 +660,11 @@ export class PairView {
     const p = this.plainIsTarget();
     const seen = this.cars.A.guesser.seen + this.cars.B.guesser.seen;
     this.side.querySelector("[data-k=read]")!.textContent = `${seen} corners`;
-    const split = this.side.querySelectorAll<HTMLElement>(".pair-split i");
-    split[0].style.width = `${p * 100}%`;
-    split[1].style.width = `${(1 - p) * 100}%`;
     const sure = Math.max(p, 1 - p);
     const lead = p >= 0.5 ? "plain" : "red";
+    const split = this.side.querySelector<HTMLElement>(".pair-split")!;
+    split.querySelector("i")!.style.transform = `scaleX(${(1 - p).toFixed(3)})`;
+    split.setAttribute("aria-label", seen ? `${shown(sure)}% that the ${lead} car is ${this.target}` : "The model has not read a corner yet");
     const call = this.side.querySelector<HTMLElement>(".call")!;
     if (seen < 4) {
       call.textContent = seen ? "Still reading the first corners…" : "The model reads every corner as each car leaves it.";

@@ -1912,6 +1912,7 @@ a.mode.quick:hover p {
 }
 
 .pair-side {
+  overflow-x: hidden;
   overflow-y: auto;
 }
 
@@ -1992,24 +1993,23 @@ a.mode.quick:hover p {
   margin-bottom: 10px;
 }
 
+/* Ink for "the plain car is the named driver", red for the other way round: one red bar over an
+   ink field, scaled from the right edge. */
 .pair-split {
-  display: flex;
+  position: relative;
   height: 14px;
   border: 2px solid var(--ink);
+  background: var(--ink);
+  overflow: hidden;
 }
 
 .pair-split i {
-  display: block;
-  height: 100%;
-  transition: width 0.4s var(--ease-out);
-}
-
-.pair-split .a {
-  background: var(--ink);
-}
-
-.pair-split .b {
+  position: absolute;
+  inset: 0;
   background: var(--red);
+  transform-origin: right center;
+  transform: scaleX(0.5);
+  transition: transform 0.4s var(--ease-out);
 }
 
 .pair-split-key {
@@ -2097,7 +2097,10 @@ a.mode.quick:hover p {
 }
 
 .pair-view .seg button {
-  white-space: nowrap;
+  min-width: 0;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.2;
 }
 
 .pair-view-note {
@@ -2646,7 +2649,6 @@ a.mode.quick:hover p {
   top: 0;
   bottom: 0;
   background: var(--red);
-  transition: left 0.5s var(--ease-out), width 0.5s var(--ease-out);
 }
 
 /* The key above the traits: what the bar is and what the grey mark is. */
