@@ -11,6 +11,7 @@ export class Lineup {
   private rows = new Map<string, HTMLButtonElement>();
   private hint: HTMLParagraphElement;
   private counter: HTMLSpanElement;
+  private callEl: HTMLParagraphElement;
   private row = ROW_MAX;
   private seen = 0;
   private last: Guess[] = [];
@@ -22,8 +23,9 @@ export class Lineup {
     this.root = document.createElement("section");
     this.root.className = "lineup";
     this.root.setAttribute("aria-label", "The model's guess. Pick a driver to make yours.");
-    this.root.innerHTML = `<header><span class="caps">Model's grid</span><span class="caps num" data-k="count">0 corners read</span></header>`;
+    this.root.innerHTML = `<header><span class="caps">Model's grid</span><span class="caps num" data-k="count">0 corners read</span></header><p class="call" aria-live="polite"></p>`;
     this.counter = this.root.querySelector("[data-k=count]")!;
+    this.callEl = this.root.querySelector(".call")!;
     this.list = document.createElement("ol");
     this.root.appendChild(this.list);
     this.hint = document.createElement("p");
@@ -87,6 +89,13 @@ export class Lineup {
       r.querySelector(".pct")!.textContent = corners > 0 ? `${Math.round(g.p * 100)}%` : "–";
     });
     this.counter.textContent = `${corners} corner${corners === 1 ? "" : "s"} read`;
+  }
+
+  /** The model's call in words, above the grid: how sure it is and how often a call that sure was
+   * right. level: "none" (still reading), "low", "mid", "high". */
+  setCall(html: string, level: string) {
+    this.callEl.innerHTML = html;
+    this.callEl.dataset.level = level;
   }
 
   /** A hint named the team: mark its drivers so the choice narrows. */

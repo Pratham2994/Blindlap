@@ -6,6 +6,7 @@ import { careerLine } from "../data";
 import type { World } from "../scene/world";
 import { isDark } from "../theme";
 import { dockStage } from "./stage";
+import { traitLabel } from "./traits";
 
 const SCALE = 60;
 
@@ -102,15 +103,30 @@ export class DnaView {
           )
           .join("")}
       </section>
+      ${movesSection(dna)}
+      <section class="dna-what-if" aria-label="Any driver in any car">
+        <h2 class="caps">Any driver, any car</h2>
+        <p>The same sum for a move that never happened: the car's part plus the driver's own part. A guess from the model, not a measurement.</p>
+        <div class="what-if-pick">
+          <label class="caps">Driver <select data-k="wi-driver">${[...dna.drivers]
+            .sort((a, b) => a.code.localeCompare(b.code))
+            .map((d) => `<option value="${d.code}">${d.code} · ${d.name}</option>`)
+            .join("")}</select></label>
+          <label class="caps">Car <select data-k="wi-car">${carsByYear(dna)
+            .map((c, i) => `<option value="${i}">${c.team} ${c.year}</option>`)
+            .join("")}</select></label>
+        </div>
+        <div class="what-if-out" aria-live="polite"></div>
+      </section>
       <section class="dna-cars" aria-label="Car fingerprints">
         <h2 class="caps">Car fingerprints</h2>
         <p>What each car makes its drivers do, whoever drives it: the car's part of every habit, scaled so the most extreme car reaches the edge.</p>
-        <div class="car-grid">${[...dna.cars]
-          .sort((a, b) => b.year - a.year || a.team.localeCompare(b.team))
+        <div class="car-grid">${carsByYear(dna)
           .map((c) => carCard(c))
           .join("")}</div>
       </section>`;
     this.panel = this.root.querySelector(".dna-panel")!;
+    this.bindWhatIf(focus);
     this.root.querySelector(".dna-bar .seg")!.addEventListener("click", (e) => {
       const b = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-mode]");
       if (b) this.setMode(b.dataset.mode as "own" | "raw");
@@ -152,6 +168,39 @@ export class DnaView {
     this.setMode("own");
     this.select(focus && byCode.has(focus) ? focus : dna.drivers[0].code);
     dockStage(this.root.querySelector(".stage-slot"));
+  }
+
+  /** "Any driver, any car": starts on the focused driver (or the first) in the newest car they did
+   * not drive, so the first view is a real what-if. */
+  private bindWhatIf(focus: string | null) {
+    const dSel = this.root.querySelector<HTMLSelectElement>("[data-k=wi-driver]")!;
+    const cSel = this.root.querySelector<HTMLSelectElement>("[data-k=wi-car]")!;
+    const out = this.root.querySelector<HTMLElement>(".what-if-out")!;
+    const cars = carsByYear(this.dna);
+    const first = this.dna.drivers.find((d) => d.code === focus)?.code ?? "VER";
+    dSel.value = this.dna.drivers.some((d) => d.code === first) ? first : this.dna.drivers[0].code;
+    const other = cars.findIndex((c) => !c.drivers.includes(dSel.value) && c.year === cars[0].year && c.team === "Ferrari");
+    cSel.value = String(other >= 0 ? other : cars.findIndex((c) => !c.drivers.includes(dSel.value)));
+    const render = () => {
+      const d = this.dna.drivers.find((x) => x.code === dSel.value)!;
+      const car = cars[Number(cSel.value)];
+      const rows = Object.keys(d.style)
+        .map((k) => {
+          const v = ((car.traitsZ[k] ?? 0) + (d.styleZ[k] ?? 0)) / (this.dna.rawScale[k] || 1);
+          const x = Math.max(-1, Math.min(1, v));
+          const own = Math.max(-1, Math.min(1, d.styleRaw[k] ?? 0));
+          return `<div class="axis"><span>${traitLabel(k)}</span><span class="track"><i style="left:${x < 0 ? 50 + x * 50 : 50}%;width:${Math.max(Math.abs(x) * 50, 1)}%"></i><b class="tick" style="left:${50 + own * 50}%"></b></span></div>`;
+        })
+        .join("");
+      const real = car.drivers.includes(d.code);
+      out.innerHTML = `
+        <p class="dna-key"><span><i class="bar"></i>${d.code} in the ${car.team} ${car.year}, as the model guesses</span><span><i class="mark"></i>${d.code} as really driven, all their cars</span></p>
+        ${rows}
+        <p class="near">${real ? `${d.code} really drove this car: the guess uses those laps too, so it is not a test. The team moves above are the honest test.` : `${d.code} never drove the ${car.team} ${car.year}${car.drivers.length ? ` (${car.drivers.join(", ")} did)` : ""}.`}</p>`;
+    };
+    dSel.addEventListener("change", render);
+    cSel.addEventListener("change", render);
+    render();
   }
 
   private neighbours(d: DnaDriver): string[] {
@@ -236,7 +285,7 @@ export class DnaView {
         const left = clamped < 0 ? 50 + clamped * 50 : 50;
         const width = Math.abs(clamped) * 50;
         const tick = 50 + Math.max(-1, Math.min(1, other[k] ?? 0)) * 50;
-        return `<div class="axis"><span>${k}</span><span class="track"><i style="left:${left}%;width:${Math.max(width, 1)}%"></i><b class="tick" style="left:${tick}%"></b></span></div>`;
+        return `<div class="axis"><span>${traitLabel(k)}</span><span class="track"><i style="left:${left}%;width:${Math.max(width, 1)}%"></i><b class="tick" style="left:${tick}%"></b></span></div>`;
       })
       .join("");
     // Season by season, the car taken out: the same seven traits as cells, ink to the right.
@@ -329,6 +378,52 @@ export class DnaView {
   dispose() {
     for (const [t, type, fn] of this.handlers) t.removeEventListener(type, fn);
   }
+}
+
+function carsByYear(dna: Dna): DnaCar[] {
+  return [...dna.cars].sort((a, b) => b.year - a.year || a.team.localeCompare(b.team));
+}
+
+/** Team moves, each predicted before it happened and checked against what the driver did. */
+function movesSection(dna: Dna): string {
+  const ms = dna.moves ?? [];
+  if (!ms.length) return "";
+  const beatBefore = ms.filter((m) => m.error.model < m.error.before).length;
+  const beatMate = ms.filter((m) => m.error.model < m.error.mate).length;
+  const avg = (k: "model" | "before" | "mate") => (ms.reduce((a, m) => a + m.error[k], 0) / ms.length).toFixed(2);
+  const colour = (team: string, year: number) => dna.cars.find((c) => c.team === team && c.year === year)?.colour ?? "#888888";
+  const cards = ms
+    .map((m) => {
+      const worst = Math.max(m.error.model, m.error.before, m.error.mate);
+      const err = (label: string, v: number, best: boolean) =>
+        `<div class="err-row${best ? " best" : ""}"><span>${label}</span><span class="err"><i style="width:${(v / worst) * 100}%"></i></span><span class="num">${v.toFixed(2)}</span></div>`;
+      const best = Math.min(m.error.model, m.error.before, m.error.mate);
+      const rows = Object.keys(m.actual)
+        .map((k) => {
+          const x = Math.max(-1, Math.min(1, m.actual[k]));
+          const p = Math.max(-1, Math.min(1, m.predicted[k]));
+          return `<div class="axis"><span>${traitLabel(k)}</span><span class="track"><i style="left:${x < 0 ? 50 + x * 50 : 50}%;width:${Math.max(Math.abs(x) * 50, 1)}%"></i><b class="tick pred" style="left:${50 + p * 50}%"></b></span></div>`;
+        })
+        .join("");
+      return `
+        <article class="move-card" style="--team:${colour(m.team, m.year)}">
+          <h3><b>${m.driver}</b> <span class="caps">${m.fromTeam} ${m.fromYear} → ${m.team} ${m.year}</span></h3>
+          ${rows}
+          <p class="caps err-h">Miss · shorter is better</p>
+          ${err("The model", m.error.model, m.error.model === best)}
+          ${err("Drives as before", m.error.before, m.error.before === best)}
+          ${err(`Drives like ${m.mates.join(", ") || "the teammate"}`, m.error.mate, m.error.mate === best)}
+        </article>`;
+    })
+    .join("");
+  return `
+    <section class="dna-moves" aria-label="Team moves, predicted before they happened">
+      <h2 class="caps">Team moves, predicted before they happened</h2>
+      <p>When a driver changes team, the model can guess how they will drive the new car before they drive it: the new car's part, learned from the teammate, plus the driver's own part, learned from their old cars. Here every move is guessed with none of the driver's laps from that season on, then checked against how they really drove. Two simple guesses for comparison: they drive as they did before, or the car decides and they drive like their new teammate.</p>
+      <p class="moves-sum">The model was closer than "drives as before" in <b class="num">${beatBefore} of ${ms.length}</b> moves and closer than "drives like the new teammate" in <b class="num">${beatMate} of ${ms.length}</b>. Average miss: model <b class="num">${avg("model")}</b>, as before <b class="num">${avg("before")}</b>, like the teammate <b class="num">${avg("mate")}</b>.</p>
+      <p class="dna-key"><span><i class="bar"></i>How they really drove the new car</span><span><i class="mark pred"></i>The model's guess, made before</span></p>
+      <div class="move-grid">${cards}</div>
+    </section>`;
 }
 
 /** A car's fingerprint: the seven traits as bars from the field's centre line. */

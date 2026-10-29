@@ -58,8 +58,14 @@ SHRINK_DRIVER = 600
 ITERATIONS = 40
 
 
+# Team names that are one team under a new name: a driver who stays is not changing team.
+LINEAGE = {"AlphaTauri": "Racing Bulls", "RB": "Racing Bulls", "Alfa Romeo": "Audi", "Kick Sauber": "Audi"}
+# A move is tested only when the driver did enough sessions in the new car to know how they drove it.
+MIN_MOVE_SESSIONS = 10
+
+
 def _rows(sessions, labels):
-    """Every (lap, corner) as (driver, car, season, corner class, 10 z-scores)."""
+    """Every (lap, corner) as (driver, car, season, corner class, 10 z-scores, session)."""
     out = []
     names = {}
     for s in sessions:
@@ -72,7 +78,7 @@ def _rows(sessions, labels):
             car = f"{d['team_name']}|{year}"
             names[code] = (d["full_name"].title(), d["team_name"], "#" + (d.get("team_colour") or "888888"), year)
             for c, cls in enumerate(s["classes"]):
-                out.append((code, car, year, cls, s["z"][i, c]))
+                out.append((code, car, year, cls, s["z"][i, c], s["session"]["session_key"]))
     return out, names
 
 
@@ -139,6 +145,74 @@ def _neighbours(M, codes):
     return {c: [codes[j] for j in np.argsort(-sim[i]) if j != i][:3] for i, c in enumerate(codes)}
 
 
+def _line(car):
+    team = car.split("|")[0]
+    return LINEAGE.get(team, team)
+
+
+def _moves(sessions_in):
+    """Every time a driver joined a team they had not driven for before, after at least a season
+    elsewhere, and drove for it at least MIN_MOVE_SESSIONS sessions: (driver, first new car,
+    previous car). A rename is not a move; neither is a one-off stand-in."""
+    by_driver = defaultdict(dict)
+    for (code, car), n in sessions_in.items():
+        by_driver[code][car] = n
+    out = []
+    for code, cars in by_driver.items():
+        lines = defaultdict(list)
+        for car in cars:
+            lines[_line(car)].append(car)
+        for line, in_line in lines.items():
+            y = min(int(c.split("|")[1]) for c in in_line)
+            earlier = [c for c in cars if int(c.split("|")[1]) < y]
+            if not earlier or sum(cars[c] for c in in_line) < MIN_MOVE_SESSIONS:
+                continue
+            new = max((c for c in in_line if int(c.split("|")[1]) == y), key=lambda c: cars[c])
+            last = max(int(c.split("|")[1]) for c in earlier)
+            prev = max((c for c in earlier if int(c.split("|")[1]) == last), key=lambda c: cars[c])
+            if cars[new] >= MIN_MOVE_SESSIONS:
+                out.append((code, new, prev))
+    return sorted(out, key=lambda m: (m[1].split("|")[1], m[0]))
+
+
+def _predict_moves(rows, moves):
+    """Each move predicted from the data before it: the model is refitted without any of the
+    driver's laps in the new team, then style in the new car = new car's term (from the teammate)
+    + the driver's own term (from the old cars). Two simple guesses for comparison: the driver
+    drives as they did in the old car, or the new car decides and they drive like the teammate."""
+    out = []
+    for code, new, prev in moves:
+        y_new = int(new.split("|")[1])
+        later = [r[0] == code and r[2] >= y_new for r in rows]
+        held = [r for r, x in zip(rows, later) if x]
+        keep = [r for r, x in zip(rows, later) if not x]
+        drivers, cars, drv, car, *_ = _fit(keep)
+        if code not in drivers or new not in cars:
+            continue
+        pred = car[cars.index(new)] + drv[drivers.index(code)]
+
+        def mean_style(sel):
+            v = np.zeros((3, len(FEATURES)))
+            for cls in range(3):
+                z = [r[4] for r in sel if r[3] == cls]
+                if z:
+                    v[cls] = np.mean(z, axis=0)
+            return v
+
+        actual = mean_style([r for r in held if r[1] == new])
+        before = mean_style([r for r in rows if r[0] == code and r[1] == prev])
+        mates = sorted({r[0] for r in rows if r[1] == new and r[0] != code})
+        mate = mean_style([r for r in rows if r[1] == new and r[0] != code])
+        err = lambda v: float(np.sqrt(np.mean((v - actual) ** 2)))  # noqa: E731
+        out.append({
+            "driver": code, "car": new, "from": prev, "mates": mates,
+            "pred": pred, "actual": actual, "before": before, "mate": mate,
+            "error": {"model": err(pred), "before": err(before), "mate": err(mate)},
+        })
+        print(f"dna move {code} {prev} -> {new}: error model {err(pred):.3f}, as before {err(before):.3f}, like the teammate {err(mate):.3f}")
+    return out
+
+
 def build_dna(sessions, labels):
     rows, names = _rows(sessions, labels)
     drivers, cars, drv, car, D, C, K, Z = _fit(rows)
@@ -188,6 +262,20 @@ def build_dna(sessions, labels):
             team = next(r[1].split("|")[0] for r, keep in zip(rows, m) if keep)
             seasons[code][str(int(y))] = {"team": team, "corners": int(m.sum()), "traits": {t: round(x / scale[t], 3) for t, x in _traits(v).items()}}
 
+    # Moves: each team change predicted from the data before it (see _predict_moves).
+    sessions_in = defaultdict(set)
+    for r in rows:
+        sessions_in[(r[0], r[1])].add(r[5])
+    moves = _predict_moves(rows, _moves({k: len(v) for k, v in sessions_in.items()}))
+    as_driven = lambda v: {t: round(x / raw_scale[t], 3) for t, x in _traits(v).items()}  # noqa: E731
+    move_out = [{
+        "driver": m["driver"], "team": m["car"].split("|")[0], "year": int(m["car"].split("|")[1]),
+        "fromTeam": m["from"].split("|")[0], "fromYear": int(m["from"].split("|")[1]), "mates": m["mates"],
+        "predicted": as_driven(m["pred"]), "actual": as_driven(m["actual"]),
+        "before": as_driven(m["before"]), "mate": as_driven(m["mate"]),
+        "error": {k: round(v, 3) for k, v in m["error"].items()},
+    } for m in moves]
+
     teammate_raw = sum(1 for c in drivers if near_raw[c] and names[near_raw[c][0]][1] == names[c][1])
     teammate_own = sum(1 for c in drivers if near_own[c] and names[near_own[c][0]][1] == names[c][1])
     team_of = {c: names[c][1] for c in drivers}
@@ -201,6 +289,10 @@ def build_dna(sessions, labels):
         "teammateNearest": {"asDriven": teammate_raw, "ownStyle": teammate_own, "drivers": len(drivers)},
         "carShare": share,
         "loadings": [],
+        "moves": move_out,
+        # For "any driver in any car": as driven = car term + driver term, both in z (not scaled),
+        # shown on the as-driven scale.
+        "rawScale": {t: round(float(raw_scale[t]), 4) for t in TRAITS},
         "drivers": [
             {
                 "code": c,
@@ -215,6 +307,7 @@ def build_dna(sessions, labels):
                 "tells": _tells(drv[k]),
                 "style": {t: round(own_traits[c][t] / scale[t], 3) for t in TRAITS},
                 "styleRaw": {t: round(raw_traits[c][t] / raw_scale[t], 3) for t in TRAITS},
+                "styleZ": {t: round(own_traits[c][t], 4) for t in TRAITS},
                 "corners": int((D == k).sum()),
                 "seasons": seasons[c],
             }
@@ -226,6 +319,7 @@ def build_dna(sessions, labels):
                 "year": int(car_key.split("|")[1]),
                 "colour": car_colour.get(car_key, "#888888"),
                 "traits": {t: round(car_traits[car_key][t] / car_scale[t], 3) for t in TRAITS},
+                "traitsZ": {t: round(car_traits[car_key][t], 4) for t in TRAITS},
                 "drivers": sorted({r[0] for r in rows if r[1] == car_key}),
             }
             for car_key in cars

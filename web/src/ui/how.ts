@@ -73,6 +73,8 @@ export function howView(index: Index, report: Report): HTMLElement {
     </figure>
     <p><strong>Logistic regression</strong> adds up weight × feature for every driver: easy to read, but it can only draw straight lines between drivers. <strong>Gradient-boosted trees</strong> build decision trees one after another, each fixing the mistakes of the ones before, so they find combinations like "late braker <em>and</em> early throttle"; they are the best single model. The <strong>blend</strong> averages the trees, logistic regression and a random forest (hundreds of trees voting), each on its own scale. They make different mistakes, so together they are right more often than any one of them. A tuned version of the trees, a neural network and models that read a whole lap at once were tested the same way and did no better. None of them runs in your browser: every lap in the game is known in advance, so each model's held-out guess for every corner was computed once and ships with the data. The sentences under the lap ("braked 11 m later than the field") come from the raw measurements, not from a model, so they read the same whichever model guesses.</p>
 
+    ${sureSection(index)}
+
     <h2>Accuracy by session</h2>
     <figure class="two-col">
       ${sessions
@@ -100,11 +102,12 @@ export function howView(index: Index, report: Report): HTMLElement {
 
     <h2>What is real, and what is drawn</h2>
     <p><strong>Real, from the car:</strong> speed, gear, throttle, brake and the time at every point of the lap, so where the car brakes, how slow it goes at each apex, when it is back on the power and the lap time are all as driven. The models read only these.</p>
-    <p><strong>Drawn:</strong> where across the road the car drives. OpenF1 snaps every car's position to one line, so the data has no line per driver. Each circuit gets a minimum-curvature racing line, and each lap reshapes it from how that lap really took every corner: a later braking point turns in later, the real slowest point moves the apex, an earlier full throttle straightens the exit, and more apex speed than the field swings a fuller arc that may run onto the inside kerb (then the car rides up on it). It is a picture of the real numbers, not a measurement of the line.</p>
+    <p><strong>Drawn:</strong> where across the road the car drives. OpenF1 snaps every car's position to one line, so the data has no line per driver: on a flying lap every car sits within about a metre of the same path, and laps of one driver differ from each other as much as laps of different drivers. Each circuit gets a minimum-curvature racing line, and each lap reshapes it from how that lap really took every corner: a later braking point turns in later, the real slowest point moves the apex, an earlier full throttle straightens the exit, and more apex speed than the field swings a fuller arc that may run onto the inside kerb (then the car rides up on it). It is a picture of the real numbers, not a measurement of the line.</p>
     <p><strong>The surroundings</strong> come from OpenStreetMap: real buildings, stands, water and trees, with extra stands and boards only where the map has little.</p>
 
     <h2>What it cannot see</h2>
     <p>At 300 km/h a car covers about 22 m between telemetry samples, so a single braking point is only known to about ±11 m. The model works because the error averages out over many corners and many laps. It also cannot fully separate the driver from the car: a faster car carries more apex speed whoever drives it. Teammates in the same car are the honest test, and the matrix above shows where it passes and fails.</p>
+    <p>Race laps were tried for Driver DNA and left out. Race driving is not the same style as a flat-out lap: drivers save fuel and tyres and drive around traffic. Style from race laps matched qualifying style about half as well as two sets of qualifying laps match each other, and adding them made the DNA less steady and team moves harder to predict.</p>
     <p>The engine you hear is synthesised in your browser from each lap's gear, speed and throttle: the pitch is the firing frequency of a V6 at that RPM. No engine recordings are used. Team radio clips are the real ones from that session.</p>
 
     <h2>Data</h2>
@@ -113,6 +116,38 @@ export function howView(index: Index, report: Report): HTMLElement {
 
   drawConfusion(root.querySelector("canvas")!, lr.classes, lr.confusion);
   return root;
+}
+
+/** How far to trust a call: how often a pick that sure was right, how the read sharpens with more
+ * laps of the same driver, and the two-car question. All from held-out laps. */
+function sureSection(index: Index): string {
+  const m = index.models[0];
+  const c = m.confidence;
+  if (!c) return "";
+  const pct = (v: number) => `${Math.round(v * 100)}%`;
+  const bins = c.bins
+    .filter((b) => b.right != null)
+    .map(
+      (b) =>
+        `<div class="chart-row num"><span>${pct(b.lo)}–${b.hi >= 1 ? "100%" : pct(b.hi)} sure</span><span class="track"><i style="width:${(b.right ?? 0) * 100}%"></i><span class="chance" style="left:${((b.lo + Math.min(b.hi, 1)) / 2) * 100}%"></span></span><span>${pct(b.right ?? 0)}</span></div>`,
+    )
+    .join("");
+  const laps = c.laps
+    .map((l) => `<div class="chart-row num"><span>${l.n} lap${l.n > 1 ? "s" : ""}</span><span class="track"><i style="width:${l.top1 * 100}%"></i></span><span>${pct(l.top1)}</span></div>`)
+    .join("");
+  return `
+    <h2>How sure is it?</h2>
+    <p>A guess is only useful if you know how far to trust it. The game says how sure the model is in words ("Not sure", "Leaning", "Fairly sure", "Very sure") and how often a call that sure was right. Those numbers come from the same held-out laps as everything above.</p>
+    <figure>
+      ${bins}
+      <figcaption>${m.name}: how often its first guess was right, by how sure it was. The red tick is the middle of each band: a bar that reaches its tick means the percentages are honest. When it is unsure it says so, and it is wrong about as often as it says.</figcaption>
+    </figure>
+    <p>One lap is little to go on. Reading more laps of the same driver in the same session, the model is right more often. Laps of one driver are not independent, so each number of laps gets its own fitted temperature, which keeps the percentages honest instead of growing too sure. In the game, the "More laps" hint and the reveal show this on the lap you just watched.</p>
+    <figure>
+      ${laps}
+      <figcaption>First guess right, reading the first one to ${c.laps.length} push laps of a driver in a session.</figcaption>
+    </figure>
+    <p>In <strong>Which is which</strong> two cars run together and you know both names: the model only has to say which car is which. With two laps to compare it gets it the right way round <strong>${pct(c.pair.right)}</strong> of the time (${c.pair.cases.toLocaleString("en-GB")} pairs of held-out laps, each lap against the four laps closest to it in time).</p>`;
 }
 
 function perDriver(classes: string[], m: number[][]) {

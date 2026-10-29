@@ -19,6 +19,14 @@ export interface ModelInfo {
   name: string;
   tau: number;
   top1: number;
+  /** From the held-out laps: how often a top pick this sure was right (bins), and reading n laps
+   * of one driver together, the temperature that keeps the percentages honest (laps). */
+  confidence?: {
+    bins: { lo: number; hi: number; laps: number; right: number | null }[];
+    laps: { n: number; tau: number; top1: number; cases: number }[];
+    /** Which is which: two laps of different drivers, the right way round. */
+    pair: { tau: number; right: number; cases: number };
+  };
 }
 
 export interface Index {
@@ -86,6 +94,9 @@ export interface Session {
   drivers: Record<string, DriverInfo>;
   model: FoldModel;
   laps: LapData[];
+  /** Every push lap of each driver, in the order driven: per model, the lap's summed log P(driver)
+   * in tenths, in the order of model.classes. */
+  lapScores?: Record<string, { lap: number; time: number; s: Record<string, number[]> }[]>;
 }
 
 export interface CrossSeason {
@@ -136,6 +147,7 @@ export interface DnaDriver {
   neighboursRaw: string[];
   style: Record<string, number>;
   styleRaw: Record<string, number>;
+  styleZ: Record<string, number>;
   tells: string[];
   corners: number;
   seasons: Record<string, { team: string; corners: number; traits: Record<string, number> }>;
@@ -146,6 +158,7 @@ export interface DnaCar {
   year: number;
   colour: string;
   traits: Record<string, number>;
+  traitsZ: Record<string, number>;
   drivers: string[];
 }
 
@@ -156,6 +169,24 @@ export interface Dna {
   carShare: Record<string, number>;
   drivers: DnaDriver[];
   cars: DnaCar[];
+  /** Team moves, each predicted from the data before it (all on the as-driven scale). error: how
+   * far each guess was from what happened (root mean square over the 30 corner measures, z). */
+  moves: DnaMove[];
+  rawScale: Record<string, number>;
+}
+
+export interface DnaMove {
+  driver: string;
+  team: string;
+  year: number;
+  fromTeam: string;
+  fromYear: number;
+  mates: string[];
+  predicted: Record<string, number>;
+  actual: Record<string, number>;
+  before: Record<string, number>;
+  mate: Record<string, number>;
+  error: { model: number; before: number; mate: number };
 }
 
 export interface Career {
@@ -240,9 +271,17 @@ export interface BattlePair {
   score: [number, number];
   medianGap: number | null;
   rounds: { key: number; circuit: string; date: string; pos: (number | null)[]; seg: string | null; gap: number | null; winner: string }[];
+  /** How the two drive differently in the same car. A trait's diff is first minus second (z);
+   * more is the sessions in which the first had more of it. */
+  style: {
+    traits: Record<string, { diff: number; more: number; sessions: number }>;
+    corners: { key: number; circuit: string; corner: string; feature: string; text: string; laps: [number, number]; strength: number }[];
+    clearCorners: number;
+  };
 }
 export interface Battles {
   seasons: Record<string, { team: string; colour: string; pairs: BattlePair[] }[]>;
+  traitScale: Record<string, number>;
 }
 export const loadBattles = () => get<Battles>("battles.json");
 export const loadCareers = () => get<Careers>("careers.json").catch((): Careers => ({ source: "", drivers: {} }));

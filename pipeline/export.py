@@ -9,12 +9,15 @@ import numpy as np
 from features import CORNER_CLASSES, FEATURES
 
 from dna import build_dna
-from model import acronym, load_sessions
+from model import acronym, is_quali, lap_scores, load_sessions, softmax
 from track import ts
 
 ROOT = Path(__file__).parent
 OUT = ROOT.parent / "web" / "public" / "data"
 LAPS_PER_DRIVER = 2
+# How sure the model's top pick was, in bands; and how many laps of one driver it may read together.
+CONFIDENCE_BINS = [0.0, 0.3, 0.6, 0.9, 1.01]
+MAX_LAPS = 6
 
 
 def r(a, nd=1):
@@ -69,6 +72,18 @@ def export_session(sess, classes, held, labels):
             "radio": pick_radio(radio.get(lap.driver, []), lap.t0 + lap.lap_time),
         })
 
+    # Every push lap of each driver (up to MAX_LAPS, in the order driven) as one score per model:
+    # the sum over corners of log P(driver | corner), in tenths. The game shows how the model's read
+    # sharpens when it sees more laps of the same driver; these laps need no telemetry.
+    lap_scores_out = {}
+    for n, idx in by_driver.items():
+        idx = sorted(idx, key=lambda i: sess["laps"][i].t0)[:MAX_LAPS]
+        lap_scores_out[acronym(sess, n)] = [
+            {"lap": sess["laps"][i].lap_number, "time": round(sess["laps"][i].lap_time, 3),
+             "s": {m: np.round(np.log(np.clip(held[m][i], 1e-4, 1)).sum(axis=0) * 10).astype(int).tolist() for m in held}}
+            for i in idx
+        ]
+
     cl = sess["centreline"]
     step = 4
     xyz = cl["xyz"][::step]
@@ -97,10 +112,80 @@ def export_session(sess, classes, held, labels):
         "drivers": drivers,
         "model": {"classes": classes},
         "laps": laps,
+        "lapScores": lap_scores_out,
     }
     (OUT / "sessions").mkdir(parents=True, exist_ok=True)
     (OUT / "sessions" / f"{sk}.json").write_text(json.dumps(out, separators=(",", ":"), allow_nan=False))
     return out
+
+
+def confidence(sessions, held, labels, model):
+    """How far the game can trust a model's call, from the held-out laps:
+    - bins: for top picks this sure (0-30%, 30-60%, 60-90%, 90%+), how often the pick was right;
+    - laps: the model reading a driver's first n laps of a session together (n = 1..MAX_LAPS), the
+      temperature that keeps its percentages honest (laps of one driver are not independent, so the
+      one-lap temperature would make it far too sure) and how often it is then right."""
+    classes = held["classes"]
+    bins = [[0, 0] for _ in CONFIDENCE_BINS[:-1]]
+    per_driver = []  # (truth index in present, [lap score rows over present])
+    pairs = []  # log-odds of the right assignment, two laps of different drivers
+    for s in sessions:
+        sk = s["session"]["session_key"]
+        if not is_quali(s) or sk not in held["probs"][model]:
+            continue
+        pr = held["probs"][model][sk]
+        n_laps, n_c, k = pr.shape
+        scores = lap_scores(pr.reshape(-1, k), np.repeat(np.arange(n_laps), n_c), n_laps)
+        present = sorted({acronym(s, l.driver) for l in s["laps"]} & labels)
+        idx = [classes.index(c) for c in present]
+        by = defaultdict(list)
+        for i, lap in enumerate(s["laps"]):
+            truth = acronym(s, lap.driver)
+            if truth not in labels:
+                continue
+            a = scores[i, idx]
+            by[truth].append(a)
+            p = softmax(a[None], held["tau"][model])[0]
+            b = next(j for j in range(len(bins)) if p.max() < CONFIDENCE_BINS[j + 1])
+            bins[b][0] += 1
+            bins[b][1] += present[int(np.argmax(p))] == truth
+        per_driver += [(present.index(t), rows) for t, rows in by.items()]
+        # Which is which: each lap against the four laps of other drivers closest to it in time (as
+        # the game picks them). Log-odds of the right way round over the wrong one.
+        times = [lap.lap_time for lap in s["laps"]]
+        codes = [acronym(s, lap.driver) for lap in s["laps"]]
+        for i in range(len(s["laps"])):
+            if codes[i] not in labels:
+                continue
+            others = sorted((j for j in range(len(s["laps"])) if codes[j] != codes[i] and codes[j] in labels),
+                            key=lambda j: abs(times[j] - times[i]))[:4]
+            x = classes.index(codes[i])
+            for j in others:
+                y = classes.index(codes[j])
+                pairs.append(scores[i, x] + scores[j, y] - scores[i, y] - scores[j, x])
+    laps = []
+    for n in range(1, MAX_LAPS + 1):
+        cases = [(t, np.sum(rows[:n], axis=0)) for t, rows in per_driver if len(rows) >= n]
+        # Sessions have different fields: pad the missing drivers with a score no one can win with.
+        width = max(len(a) for _, a in cases)
+        A = np.stack([np.pad(a, (0, width - len(a)), constant_values=-1e6) for _, a in cases])
+        T = np.array([t for t, _ in cases])
+        top1 = float(np.mean(np.argmax(A, axis=1) == T))
+
+        def nll(tau):
+            p = softmax(A, tau)
+            return -float(np.mean(np.log(np.clip(p[np.arange(len(T)), T], 1e-9, 1))))
+
+        tau = min(np.geomspace(0.5, 80, 80), key=nll)
+        laps.append({"n": n, "tau": round(float(tau), 3), "top1": round(top1, 4), "cases": len(cases)})
+    d = np.array(pairs)
+    pair_tau = min(np.geomspace(0.5, 200, 120), key=lambda tau: float(np.mean(np.logaddexp(0, -d / tau))))
+    return {
+        "bins": [{"lo": lo, "hi": min(hi, 1.0), "laps": b[0], "right": round(b[1] / b[0], 4) if b[0] else None}
+                 for (lo, hi), b in zip(zip(CONFIDENCE_BINS, CONFIDENCE_BINS[1:]), bins)],
+        "laps": laps,
+        "pair": {"tau": round(float(pair_tau), 3), "right": round(float(np.mean(d > 0)), 4), "cases": len(d)},
+    }
 
 
 def main():
@@ -123,7 +208,8 @@ def main():
         "seasons": sorted({e["year"] for e in index}), "session": "Qualifying", "features": FEATURES,
         "cornerClasses": CORNER_CLASSES, "classes": held["classes"],
         # Best first: the game guesses with the first model and offers the others for comparison.
-        "models": [{"id": m, "name": n, "tau": held["tau"][m], "top1": report[m]["top1"]} for m, n in
+        "models": [{"id": m, "name": n, "tau": held["tau"][m], "top1": report[m]["top1"],
+                    "confidence": confidence(sessions, held, labels, m)} for m, n in
                    sorted(MODELS.items(), key=lambda kv: -report[kv[0]]["top1"])],
         "sessions": index,
     }, separators=(",", ":")))

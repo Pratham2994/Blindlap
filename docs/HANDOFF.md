@@ -77,7 +77,7 @@ These are the most important things to get right. They come from many correction
 ## 3. What exists now
 
 - **Home:** "Who's driving?", a live 3D broadcast of a random daytime circuit (cuts between
-  cameras), How to play in four steps, three ways to play (Quick lap, Teammates, Pick a circuit),
+  cameras), How to play in four steps, four ways to play (Quick lap, Teammates, Which is which, Pick a circuit),
   the honest accuracy. Top bar: Home, Play, Driver DNA, Telemetry lab, How it knows, theme toggle.
 - **First lap ever:** a rules card with a Start button; after that the lights start at once.
 - **Play:** start lights, the lap in 3D; five cameras (Chase, Onboard, Side, TV, Above; C cycles;
@@ -92,6 +92,24 @@ These are the most important things to get right. They come from many correction
   final position, career totals, how each model ranked the driver, the three corners that gave them
   away, team radio with auto captions; duel replay against the model's pick; challenge link.
 - **Teammates mode**, **Driver DNA** (style map), **Telemetry lab**, **How it knows**.
+- **How sure the model is** (`refreshGrid` in `play.ts`, `Guesser.call` in `model.ts`): a line above
+  the grid ("Not sure · GAS, PIA or ALB", "Fairly sure · VER") with how often calls that sure were
+  right; on the reveal, the model's verdict carries its percentage. Bands and rates come from
+  `export.confidence` (index.json `models[].confidence.bins`).
+- **More laps** (`Guesser.withLaps`): every session file carries `lapScores`, each push lap's summed
+  log P per model (no telemetry), up to 6 per driver. The hint "More laps" (−2) gives the model's top
+  three from all of them; the reveal compares this lap alone with all laps and can feed them one by
+  one. Each number of laps has its own fitted temperature (`confidence.laps`), so the percentages
+  stay honest (one-lap temperature would be far too sure).
+- **Which is which** (`#/pair`, `ui/pair.ts`): two laps of different drivers, close in lap time, run
+  together (plain car and red car, the world's main and ghost car); the model's log-odds of the
+  right assignment, on a temperature fitted for this question (`confidence.pair`: 95% right).
+- **Driver DNA team moves** (`dna._moves`, `dna._predict_moves`): every team change (9 now) refitted
+  without any of the driver's laps from that season on; new car's term + driver's term against "as
+  before" and "like the teammate". `dna.json` `moves`, plus `styleZ`/`traitsZ`/`rawScale` for "any
+  driver, any car" on the page.
+- **Battles style** (`battles.pair_style`): per pairing, the seven traits' mean gap and in how many
+  sessions it held, and the clearest single corners (gap at least 3x its lap-to-lap scatter).
 - **Teammate battles** (`#/battles/<year>`, `ui/battles.ts`, data from `pipeline/battles.py` into
   `battles.json`, run by `run_all.sh` after `results.py`): head-to-head per team and season from
   OpenF1's session results (final position; gap in the furthest segment both reached). Each square
@@ -198,7 +216,14 @@ Mechanisms to know before changing anything:
 - Leave-one-circuit-out: the same circuit appears in two seasons; anything weaker leaks.
 - The three models shown were the owner's choice after `compare_models.py` tested ten.
 - OpenF1 positions are snapped to one line, so there is no real per-driver line; the racing line is
-  computed and shifted by the lap's real apexes. Presentation, not data.
+  computed and shifted by the lap's real apexes. Presentation, not data. Tested again on 2026-10-29
+  over six circuits: on push laps every sample sits within ~0.3 m (median) of the fastest lap's
+  path, and the spread between drivers is smaller than between one driver's own laps (ratio ~0.3,
+  no driver signal at any corner).
+- Race laps are not used. Tested on 8 races of 2025 (clean laps only: green flag, slicks, no pit
+  laps, at least 1 s behind the car ahead): race style matched qualifying style 0.14 against 0.27 for
+  two sets of qualifying weekends, and adding them made Driver DNA less steady (0.770 → 0.746
+  between halves) and team moves worse (0.165 → 0.174). So no backfill (~90 races, ~18 GB).
 - Anonymity until the reveal: plain car, neutral helmet, no team colour.
 - Poster design (owner picked "C, bold poster"): paper, ink, one red; `DESIGN.md` records it.
 - Removed on request: Daily five, the Shootout, links that repeated the top bar, camera shake (looked glitchy),
@@ -217,7 +242,8 @@ lap screen appeared 0.48 s after clicking. Note: the debug handles (`window.worl
 the development server, not on the live site.
 
 ### 6.2 Weekly data updates: built, not yet run on GitHub
-`.github/workflows/data.yml` runs every Monday 06:00 UTC (and by hand from the Actions tab):
+Nothing to do by hand: GitHub runs it on its own schedule, on GitHub's machines, whether or not
+this PC is on. `.github/workflows/data.yml` runs every Monday 06:00 UTC (and by hand from the Actions tab):
 restore the cache, download new qualifying and practice 3 sessions for the current year, run
 `run_all.sh` (build only new sessions, retrain, export, results, radio, captions, careers, align,
 surroundings, checks), build the site, commit the data under the owner's name, push, and start the
@@ -237,7 +263,7 @@ files per session, `raw/osm/`, `raw/f1db/` (about 300 MB). Pack and unpack with
 
 From `web/` with the dev server running (`npm run dev`, port 5173):
 - `npx tsc --noEmit` and `npm run build`.
-- `npx playwright test`: 15 end-to-end tests (~5 min; they run at the lowest quality, since
+- `npx playwright test`: 17 end-to-end tests (~5 min; they run at the lowest quality, since
   headless Chromium is a software renderer).
 - `node scripts/sweep.mjs`: 45 steps through every flow, Battles included; script errors,
   missing/blank 3D view, layout off screen, lap bar out of step.
@@ -290,7 +316,9 @@ sessions, 11 screen sizes, data checks, build).
 2. Watch the first weekly data run (6.2); it now also builds `battles.json`.
 3. The impeccable finish review has not been run on the latest design; `DESIGN.md` does not yet
    describe the hint ladder or Teammate battles.
-4. Ideas for later, not built: track evolution (how lap times drop from Q1 to Q3 in each session).
+4. Ideas for later, not built: track evolution (how lap times drop from Q1 to Q3 in each session);
+   rookie watch (who a rookie drives like over their first weekends; the owner said not now); a
+   separate race-style DNA (race laps do not fit the qualifying one, see section 5).
 5. Known limits: the racing line is computed, not measured (now shaped per lap from its real
    corners); street circuits show only the stands OpenStreetMap or the dressing provides; captions
    are machine transcripts.

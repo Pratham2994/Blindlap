@@ -10,16 +10,27 @@ RPM, gear and throttle. As the car leaves each corner, a model reads how that co
 updates its guess. You guess too. Then the reveal plays the driver's real team radio from that
 session.
 
-- **Play**: one anonymous lap, the model's live line-up, your pick, the reveal.
+- **Play**: one anonymous lap, the model's live line-up, your pick, the reveal. The model says how
+  sure it is ("Not sure: GAS, PIA or ALB" to "Very sure: VER") and how often a call that sure was
+  right on circuits it never saw. A "More laps" hint and the reveal show its read sharpening as it
+  reads the same driver's other laps of the session (43% right from one lap, 66% from six).
 - **Teammates**: same car, two drivers: which one is it? You against the model, chance 50%.
+- **Which is which**: two real laps from one session run together, you know both names: which car
+  is which? The model gets the pair the right way round 95% of the time.
 - **Duel**: after the reveal, race the lap against the driver the model picked, with a live gap.
 - **Challenge link**: send a friend one exact lap, without giving the driver away.
 - **Teammate battles**: each season's qualifying head-to-head inside every team, session by session,
-  with the median gap between their best laps in the same part of qualifying.
+  with the median gap between their best laps in the same part of qualifying, and how the two drive
+  differently in the same car: seven traits with how many sessions each held in, and the clearest
+  single corners ("LEC lifts 17% less than SAI at Lusail Turn 16").
 - **Driver DNA**: every driver's corner style with the car taken out. Each corner measurement is split
   into a car part (team and season) and a driver part, fitted over every lap; teammates and drivers
   who changed teams separate the two. A 3D map of own styles (and as driven), each driver season by
-  season, every car's fingerprint, and how much of each habit is the car.
+  season, every car's fingerprint, and how much of each habit is the car. **Team moves, predicted
+  before they happened**: each move (Hamilton to Ferrari, Sainz to Williams and seven more) guessed
+  with none of the driver's laps from that season on, as new car + own style, then checked. It beats
+  "drives as before" in 7 of 9 and "drives like the new teammate" in 9 of 9. Plus any driver in any
+  car, as a labelled guess.
 - **Telemetry lab**: any session, any two drivers: speed traces and braking overlaid, the gap along the
   lap, and where the time goes, corner by corner and on the straights.
 - **How it knows**: the method and the evaluation, read from the same report the model produced.

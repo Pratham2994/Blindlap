@@ -85,8 +85,20 @@ is only an interim view.
 - **Share card:** the reveal as an image (code, verdict, the three corners) to post.
 - **Rival pick:** choose two drivers from different teams and guess which one it is.
 
-## Suggested order
+## Done since (2026-10-29)
 
-1. 2023 and 2024 data (a few hours, mostly waiting).
-2. The car + driver model, with the two DNA maps and car fingerprints.
-3. Where the time goes, in the lab.
+- 2023 and 2024 data; the car + driver DNA with two maps, seasons and car fingerprints; where the
+  time goes in the lab.
+- The model says how sure it is, with how often calls that sure were right; "More laps" (the read
+  sharpening over a driver's other laps); **Which is which** (two cars, two names; 95% right).
+- Team moves predicted before they happened, and any driver in any car, on the DNA page.
+- How teammates drive differently, trait by trait and corner by corner, on Battles.
+
+## Tested and dropped
+
+- **A real racing line from the position data:** every car sits within about a metre of the same
+  path, and one driver's laps differ as much as different drivers'. No signal; the line stays drawn.
+- **Race laps for Driver DNA:** a different style (fuel, tyres, traffic). Mixed in, they made the DNA
+  less steady and team moves harder to predict. A separate race-style DNA could still be built.
+- **A pace model** (lap and sector times): not built. It would raise accuracy a lot but measure who
+  is fast, not how they drive, and the "Result" hint already gives that away for points.

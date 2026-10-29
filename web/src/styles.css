@@ -406,9 +406,22 @@ body.playing .topbar {
 
 .modes {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   border: var(--rule);
   border-top: 0;
+}
+
+/* Mid-size windows: two by two. */
+@media (min-width: 861px) and (max-width: 1180px) {
+  .modes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .modes .mode:nth-child(3) {
+    border-left: 0;
+  }
+  .modes .mode:nth-child(n + 3) {
+    border-top: var(--rule);
+  }
 }
 
 .mode {
@@ -1035,6 +1048,39 @@ a.mode.quick:hover p {
   margin: 0 14px 10px;
 }
 
+/* The model's call in words: how sure, and how often a call that sure was right. */
+.lineup .call {
+  margin: 0 14px 10px;
+  padding: 6px 8px;
+  border-left: 4px solid var(--ink-3);
+  background: var(--paper-2);
+  font-size: 0.82rem;
+  line-height: 1.35;
+  min-height: 2.9em;
+}
+
+.lineup .call small {
+  display: block;
+  color: var(--ink-3);
+  font-size: 0.72rem;
+}
+
+.lineup .call[data-level="none"] {
+  color: var(--ink-3);
+}
+
+.lineup .call[data-level="low"] {
+  border-left-color: var(--ink-3);
+}
+
+.lineup .call[data-level="mid"] {
+  border-left-color: var(--ink);
+}
+
+.lineup .call[data-level="high"] {
+  border-left-color: var(--red);
+}
+
 .lineup .model-switch {
   margin: 0 0 10px;
 }
@@ -1175,13 +1221,14 @@ a.mode.quick:hover p {
   color: var(--ink-3);
 }
 
+/* Six hints in two rows of three, small to big, read left to right. */
 .hint-buttons {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
 }
 
 .hint-buttons button {
-  flex: 1 1 auto;
   display: flex;
   justify-content: center;
   align-items: baseline;
@@ -1646,6 +1693,31 @@ a.mode.quick:hover p {
   font-size: 1rem;
 }
 
+.band .facts .call-line {
+  margin: -4px 0 12px;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+/* The same driver's other laps, read together. */
+.band .more-laps {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: var(--hair);
+}
+
+.band .more-laps p {
+  margin: 0 0 8px;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.band .more-laps .caps {
+  color: var(--ink-3);
+  font-size: 0.7rem;
+}
+
 .model-table {
   width: 100%;
   border-collapse: collapse;
@@ -1816,6 +1888,301 @@ a.mode.quick:hover p {
   gap: 8px;
   padding: 14px var(--gutter);
   border-top: var(--rule);
+}
+
+/* ---------- Which is which: two cars, two names ---------- */
+
+/* The two cars' swatches: the plain car is ink (as drawn while hidden), the other red. */
+.pair .sw {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 8px;
+  vertical-align: -2px;
+  border: 2px solid var(--ink);
+}
+
+.pair .sw.plain {
+  background: var(--ink);
+}
+
+.pair .sw.red {
+  background: var(--red);
+  border-color: var(--red);
+}
+
+.pair-side {
+  overflow-y: auto;
+}
+
+.pair-side > section {
+  padding: 16px;
+  border-bottom: var(--rule);
+}
+
+.pair-q .caps {
+  margin: 0;
+  color: var(--ink-3);
+}
+
+.pair-q h2 {
+  margin: 4px 0 8px;
+  font-size: clamp(1.4rem, 2vw, 2rem);
+}
+
+.pair-names,
+.pair-hint {
+  margin: 0 0 12px;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.pair-hint {
+  margin: 10px 0 0;
+  color: var(--ink-3);
+  font-size: 0.78rem;
+}
+
+.pair-pick {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.pair-pick button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 8px;
+  border: var(--rule);
+  background: var(--paper);
+  font-weight: 850;
+  font-variation-settings: "wdth" 115;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.74rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pair-pick button:hover:not(:disabled) {
+  background: var(--paper-2);
+}
+
+.pair-pick button[aria-pressed="true"] {
+  background: var(--yellow);
+  border-color: var(--yellow);
+  color: var(--on-signal);
+}
+
+.pair-pick button:disabled {
+  cursor: default;
+}
+
+.pair-pick button.truth {
+  outline: 4px solid var(--green);
+  outline-offset: 2px;
+}
+
+.pair-model header {
+  display: flex;
+  justify-content: space-between;
+  color: var(--ink-3);
+  margin-bottom: 10px;
+}
+
+.pair-split {
+  display: flex;
+  height: 14px;
+  border: 2px solid var(--ink);
+}
+
+.pair-split i {
+  display: block;
+  height: 100%;
+  transition: width 0.4s var(--ease-out);
+}
+
+.pair-split .a {
+  background: var(--ink);
+}
+
+.pair-split .b {
+  background: var(--red);
+}
+
+.pair-split-key {
+  display: flex;
+  justify-content: space-between;
+  margin: 4px 0 10px;
+  font-size: 0.72rem;
+  color: var(--ink-3);
+}
+
+.pair-model .call {
+  margin: 0;
+  padding: 6px 8px;
+  border-left: 4px solid var(--ink-3);
+  background: var(--paper-2);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.pair-model .call[data-level="none"] {
+  color: var(--ink-3);
+}
+
+.pair-model .call[data-level="mid"] {
+  border-left-color: var(--ink);
+}
+
+.pair-model .call[data-level="high"] {
+  border-left-color: var(--red);
+}
+
+.pair-ev p {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.pair-ev .caps {
+  color: var(--ink-3);
+  margin-bottom: 4px;
+}
+
+/* Under the stage: each car's speed, gear and pedals, and the gap between them. */
+.pair-band {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+}
+
+.pair-tm {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  grid-template-areas:
+    "name name name"
+    "speed unit gear"
+    "meters meters clock";
+  align-items: baseline;
+  gap: 2px 8px;
+  min-width: 0;
+}
+
+.pair-tm > p {
+  grid-area: name;
+  margin: 0 0 2px;
+  color: var(--ink-3);
+}
+
+.pair-tm [data-k="speed"] {
+  grid-area: speed;
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+  font-weight: 900;
+  line-height: 1;
+}
+
+.pair-tm .unit {
+  grid-area: unit;
+  color: var(--ink-3);
+}
+
+.pair-tm > span:nth-of-type(2) {
+  grid-area: gear;
+  color: var(--ink-3);
+  justify-self: end;
+}
+
+.pair-tm .meters {
+  grid-area: meters;
+  display: grid;
+  grid-template-columns: auto 1fr auto 1fr;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-3);
+  font-size: 0.66rem;
+}
+
+.pair-tm .clock {
+  grid-area: clock;
+  justify-self: end;
+  color: var(--ink-2);
+  font-size: 0.84rem;
+}
+
+.pair-gap {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  color: var(--ink-3);
+}
+
+.pair-gap b {
+  font-size: 1.4rem;
+  color: var(--ink);
+}
+
+/* The reveal: who each car was, side by side, then the corners that told them apart. */
+.band.pair-reveal {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr);
+  grid-template-areas:
+    "verdicts verdicts verdicts"
+    "a b why"
+    "actions actions actions";
+}
+
+.pair-reveal .verdicts {
+  grid-area: verdicts;
+  padding: 12px var(--gutter);
+  border-bottom: var(--rule);
+}
+
+.pair-reveal .pair-who:nth-of-type(2) {
+  grid-area: a;
+}
+
+.pair-reveal .pair-who:nth-of-type(3) {
+  grid-area: b;
+}
+
+.pair-who .caps {
+  margin: 0;
+}
+
+.pair-who .sw {
+  border-color: var(--on-team);
+}
+
+.pair-reveal .why .caps {
+  margin: 0 0 8px;
+  color: var(--ink-3);
+}
+
+.pair-note {
+  margin: 12px 0 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+
+@media (max-width: 860px) {
+  .pair-band {
+    grid-template-columns: 1fr 1fr;
+  }
+  .pair-gap {
+    grid-column: 1 / -1;
+    justify-items: start;
+  }
+  .band.pair-reveal {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "verdicts verdicts"
+      "a b"
+      "why why"
+      "actions actions";
+  }
 }
 
 .share-note {
@@ -2021,9 +2388,149 @@ a.mode.quick:hover p {
   font-size: 1.1rem;
 }
 
+/* How two teammates drive differently: a disclosure under each pairing. */
+.battles .pair-style {
+  border-top: var(--hair);
+  padding-top: 8px;
+}
+
+.battles .pair-style summary {
+  cursor: pointer;
+  font-weight: 750;
+  font-size: 0.86rem;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.battles .pair-style summary::-webkit-details-marker {
+  display: none;
+}
+
+.battles .pair-style summary::before {
+  content: "+";
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--ink);
+  font-weight: 900;
+  line-height: 1;
+}
+
+.battles .pair-style[open] summary::before {
+  content: "−";
+}
+
+.battles .pair-style summary:hover {
+  color: var(--red);
+}
+
+.battles .diff-note {
+  margin: 8px 0 10px;
+  color: var(--ink-2);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.battles .diff-key {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: var(--ink-3);
+  margin: 0 76px 2px 120px;
+}
+
+.battles .diff-row {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) 68px;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 0;
+  font-size: 0.8rem;
+}
+
+.battles .diff-row .k span {
+  cursor: help;
+  border-bottom: 1px dotted var(--ink-3);
+}
+
+.battles .diff-row .track {
+  position: relative;
+  height: 10px;
+  background: var(--paper-2);
+}
+
+.battles .diff-row .track::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--ink);
+}
+
+.battles .diff-row .track i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--red);
+}
+
+.battles .diff-row .held {
+  text-align: right;
+  color: var(--ink-2);
+  font-size: 0.74rem;
+}
+
+.battles .diff-h {
+  margin: 12px 0 4px;
+  color: var(--ink-3);
+}
+
+.battles .diff-corners {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.battles .diff-corners li {
+  display: grid;
+  gap: 1px;
+  padding: 6px 0;
+  border-top: var(--hair);
+  font-size: 0.82rem;
+}
+
+.battles .diff-corners a {
+  font-weight: 750;
+  color: var(--ink);
+}
+
+.battles .diff-corners a:hover {
+  color: var(--red);
+}
+
+.battles .diff-corners small {
+  color: var(--ink-3);
+  font-size: 0.72rem;
+}
+
 @media (max-width: 860px) {
   .battle-grid {
     columns: 1;
+  }
+}
+
+@media (max-width: 520px) {
+  .battles .diff-row {
+    grid-template-columns: 92px minmax(0, 1fr) 60px;
+  }
+  .battles .diff-key {
+    margin: 0 68px 2px 100px;
   }
 }
 
@@ -2207,6 +2714,8 @@ a.mode.quick:hover p {
 }
 
 .dna-share,
+.dna-moves,
+.dna-what-if,
 .dna-cars {
   margin-top: var(--gutter);
   border-top: var(--rule);
@@ -2214,6 +2723,8 @@ a.mode.quick:hover p {
 }
 
 .dna-share > p,
+.dna-moves > p,
+.dna-what-if > p,
 .dna-cars > p {
   max-width: 70ch;
   color: var(--ink-2);
@@ -2239,6 +2750,136 @@ a.mode.quick:hover p {
   display: block;
   height: 100%;
   background: var(--ink);
+}
+
+/* Team moves: what happened (bar) against the guess made before (ink tick), then how far off
+   each of the three guesses was. */
+.dna-moves .moves-sum {
+  color: var(--ink);
+}
+
+.dna .axis span span,
+.dna-moves .axis span span {
+  cursor: help;
+}
+
+/* The guess as a ring, so it never reads as the ink centre line. */
+.axis .track .tick.pred,
+.dna-key .mark.pred {
+  width: 12px;
+  height: 12px;
+  top: -1px;
+  bottom: auto;
+  margin-left: -6px;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  box-sizing: border-box;
+}
+
+.dna-key .mark.pred {
+  margin-left: 1px;
+}
+
+.move-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.move-card {
+  border: var(--rule);
+  border-top: 8px solid var(--team);
+  padding: 10px 12px 12px;
+}
+
+.move-card h3 {
+  margin: 0 0 6px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+
+.move-card h3 b {
+  font-weight: 900;
+  font-variation-settings: "wdth" 125;
+  font-size: 1.4rem;
+}
+
+.move-card h3 .caps {
+  color: var(--ink-3);
+  font-size: 0.72rem;
+}
+
+.move-card .axis {
+  grid-template-columns: 100px 1fr;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 0.74rem;
+}
+
+.move-card .err-h {
+  margin: 10px 0 4px;
+  color: var(--ink-3);
+  font-size: 0.68rem;
+}
+
+.err-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 80px 36px;
+  gap: 8px;
+  align-items: center;
+  padding: 2px 0;
+  font-size: 0.74rem;
+  color: var(--ink-2);
+}
+
+.err-row span:first-child {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.err {
+  height: 8px;
+  background: var(--paper-2);
+}
+
+.err i {
+  display: block;
+  height: 100%;
+  background: var(--ink-3);
+}
+
+.err-row.best {
+  color: var(--ink);
+  font-weight: 750;
+}
+
+.err-row.best .err i {
+  background: var(--ink);
+}
+
+.what-if-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin: 6px 0 4px;
+}
+
+.what-if-pick label {
+  display: grid;
+  gap: 4px;
+  color: var(--ink-3);
+}
+
+.what-if-pick select {
+  min-width: 220px;
+}
+
+.what-if-out {
+  max-width: 520px;
 }
 
 .car-grid {

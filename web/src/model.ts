@@ -130,10 +130,49 @@ export class Guesser {
 
   guesses(): Guess[] {
     const tau = this.index.models.find((m) => m.id === this.model)?.tau ?? 2;
-    const a = Array.from(this.logp, (v) => v / tau);
-    const m = Math.max(...a);
-    const e = a.map((v) => Math.exp(v - m));
-    const sum = e.reduce((acc, v) => acc + v, 0);
-    return this.codes.map((code, i) => ({ code, p: e[i] / sum })).sort((x, y) => y.p - x.p);
+    return softmax(this.codes, Array.from(this.logp), tau);
   }
+
+  /** Each candidate's summed log-probability so far (for "which car is which"). */
+  scores(): Record<string, number> {
+    const out: Record<string, number> = {};
+    this.codes.forEach((c, i) => (out[c] = this.logp[i]));
+    return out;
+  }
+
+  /** The model reading n laps of one driver together: this lap first, then their other laps of the
+   * session in the order driven, on the temperature fitted for n laps (so the percentages stay
+   * honest). n is capped by the laps there are; returns the laps used too. */
+  withLaps(code: string, lapNumber: number, n: number): { guesses: Guess[]; laps: number } {
+    const all = this.session.lapScores?.[code] ?? [];
+    const own = all.find((l) => l.lap === lapNumber);
+    const rest = all.filter((l) => l !== own);
+    const used = (own ? [own, ...rest] : rest).slice(0, Math.max(1, n));
+    const fits = this.index.models.find((m) => m.id === this.model)?.confidence?.laps ?? [];
+    const tau = fits.find((f) => f.n === used.length)?.tau ?? fits[fits.length - 1]?.tau ?? 2;
+    const sum = this.cls.map((k) => used.reduce((a, l) => a + (l.s[this.model]?.[k] ?? 0) / 10, 0));
+    return { guesses: softmax(this.codes, sum, tau), laps: used.length };
+  }
+
+  /** How many laps of this driver the model could read. */
+  lapsOf(code: string): number {
+    return this.session.lapScores?.[code]?.length ?? 1;
+  }
+
+  /** How far to trust a top pick this sure: a word for it and how often picks like it were right on
+   * circuits the model never saw. */
+  call(p: number): { word: string; right: number | null } {
+    const bins = this.index.models.find((m) => m.id === this.model)?.confidence?.bins ?? [];
+    const bin = bins.find((b) => p >= b.lo && p < b.hi) ?? bins[bins.length - 1];
+    const word = p >= 0.9 ? "Very sure" : p >= 0.6 ? "Fairly sure" : p >= 0.3 ? "Leaning" : "Not sure";
+    return { word, right: bin?.right ?? null };
+  }
+}
+
+function softmax(codes: string[], logp: number[], tau: number): Guess[] {
+  const a = logp.map((v) => v / tau);
+  const m = Math.max(...a);
+  const e = a.map((v) => Math.exp(v - m));
+  const sum = e.reduce((acc, v) => acc + v, 0);
+  return codes.map((code, i) => ({ code, p: e[i] / sum })).sort((x, y) => y.p - x.p);
 }

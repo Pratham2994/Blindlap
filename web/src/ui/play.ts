@@ -33,6 +33,7 @@ const HINTS: { id: string; label: string; cost: number; title: string }[] = [
   { id: "result", label: "Result", cost: 1, title: "Roughly where they qualified in this session" },
   { id: "career", label: "Career", cost: 1, title: "How long they have raced in F1" },
   { id: "style", label: "Style", cost: 1, title: "One habit from their driving DNA" },
+  { id: "laps", label: "More laps", cost: 2, title: "The model reads their other laps of this session too, and gives its top three" },
   { id: "team", label: "Team", cost: 2, title: "Who they drive for: narrows it to two" },
   { id: "number", label: "Number", cost: 3, title: "Their car number: nearly the answer" },
 ];
@@ -94,7 +95,7 @@ function readSpeed(): number {
 }
 
 /** Ink or paper, whichever reads on a team colour. */
-function inkOn(hex: string): string {
+export function inkOn(hex: string): string {
   const n = parseInt(hex.replace("#", ""), 16);
   const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => {
     const c = v / 255;
@@ -107,7 +108,7 @@ function inkOn(hex: string): string {
  * "What's real" button. */
 const REAL_NOTE =
   "<b>Real, from the car:</b> speed, gear, throttle, brake and timing, about four times a second. " +
-  "<b>Drawn:</b> where across the road the car is (the data has no line, so each lap's line is shaped from how it really took each corner), " +
+  "<b>Drawn:</b> where across the road the car is (the position data puts every car on the same line to within a metre, so it cannot show one; each lap's line is shaped from how it really took each corner), " +
   "and the engine sound, made live from the real speed, gear and throttle. " +
   "<b>The guess:</b> three models read each corner as the car leaves it. None of them ever saw this circuit.";
 
@@ -423,7 +424,7 @@ export class PlayView {
     const side = document.createElement("aside");
     side.className = "side";
     this.lineup = new Lineup(this.guesser.codes, s.drivers);
-    this.lineup.update(this.guesser.guesses(), 0);
+    this.refreshGrid();
     // Three models read the same corners; the ranking follows whichever one you pick.
     const switcher = document.createElement("div");
     switcher.className = "seg model-switch";
@@ -437,7 +438,7 @@ export class PlayView {
       if (!b || this.phase === "loading" || this.phase === "lights") return;
       PlayView.model = b.dataset.model!;
       this.guesser.useModel(PlayView.model, this.lap);
-      this.lineup.update(this.guesser.guesses(), this.guesser.seen);
+      this.refreshGrid();
       switcher.querySelectorAll("[data-model]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
       b.blur();
     });
@@ -516,6 +517,13 @@ export class PlayView {
       const hint = HINTS.find((h) => h.id === b.dataset.hint)!;
       b.disabled = true;
       b.blur();
+      // A driver with no other laps here: say so, and take nothing.
+      if (hint.id === "laps" && this.guesser.lapsOf(this.lap.code) < 2) {
+        const li = document.createElement("li");
+        li.innerHTML = `<b class="caps">${hint.label}</b> This driver set no other push lap in this session. No points taken.`;
+        list.appendChild(li);
+        return;
+      }
       this.hints++;
       this.hintCost += hint.cost;
       const n = this.rightPoints();
@@ -558,6 +566,11 @@ export class PlayView {
       const dna = await loadDna().catch(() => null);
       const tell = dna?.drivers.find((x) => x.code === code)?.tells?.[0];
       return tell ? `This driver ${tell}.` : "No style data for this driver yet.";
+    }
+    if (id === "laps") {
+      const { guesses, laps } = this.guesser.withLaps(code, this.lap.lapNumber, 6);
+      const three = guesses.slice(0, 3).map((g) => `<b>${g.code}</b> ${Math.round(g.p * 100)}%`);
+      return `The model read ${laps} laps by this driver from this session. Its top three: ${three.join(", ")}. The grid still shows this lap alone.`;
     }
     if (id === "team") {
       this.lineup.highlight(Object.values(this.session.drivers).filter((x) => x.team === d.team).map((x) => x.code));
@@ -680,8 +693,28 @@ export class PlayView {
     this.world.markEvidence(i, c.lo, c.hi, ev.short);
     this.telemetry.markCorner(i);
     this.minimap.markCorner(i, true);
-    this.lineup.update(this.guesser.guesses(), this.guesser.seen);
+    this.refreshGrid();
     this.showEvidence(ev, true);
+  }
+
+  /** Re-sort the model's grid and say how sure it is, in words, with how often a call that sure
+   * was right on circuits it never saw. Quiet for the first corners: three corners say little. */
+  private refreshGrid() {
+    const guesses = this.guesser.guesses();
+    this.lineup.update(guesses, this.guesser.seen);
+    if (this.guesser.seen < 3) {
+      this.lineup.setCall(this.guesser.seen ? "Still reading the first corners…" : "The models read each corner as the car leaves it.", "none");
+      return;
+    }
+    const top = guesses[0];
+    const c = this.guesser.call(top.p);
+    const right = c.right != null ? `<small>Calls this sure were right ${Math.round(c.right * 100)}% of the time</small>` : "";
+    if (top.p < 0.3) {
+      const three = guesses.slice(0, 3).map((g) => g.code);
+      this.lineup.setCall(`<b>${c.word}</b> · ${three.slice(0, 2).join(", ")} or ${three[2]}${right}`, "low");
+    } else {
+      this.lineup.setCall(`<b>${c.word}</b> · ${top.code}${right}`, top.p >= 0.6 ? "high" : "mid");
+    }
   }
 
   private showEvidence(ev: Evidence | null, flash = false) {
@@ -716,7 +749,7 @@ export class PlayView {
       this.guesser.rewind(n, this.lap);
       this.evidence = this.evidence.filter((e) => e.corner < n);
       this.nextCorner = n;
-      this.lineup.update(this.guesser.guesses(), this.guesser.seen);
+      this.refreshGrid();
       this.showEvidence(this.evidence[this.evidence.length - 1] ?? null);
     }
     // While paused the loop does not move the car, so place it here.
@@ -772,8 +805,28 @@ export class PlayView {
     const scoreEl = this.root.querySelector(".play-bar .score");
     if (scoreEl) scoreEl.innerHTML = `You <b>${this.score.you}</b> <span>·</span> Model <b>${this.score.model}</b>`;
 
-    const verdict = (who: string, o: string, pts: number, code: string | null, hints = 0) =>
-      `<span class="tag ${o === "right" ? "win" : o === "teammate" ? "half" : "miss"}">${who}: ${code ?? "no guess"} · ${o}${o === "right" && hints ? ` with ${hints} hint${hints > 1 ? "s" : ""}` : ""} · +${pts}</span>`;
+    const verdict = (who: string, o: string, pts: number, code: string | null, hints = 0, note = "") =>
+      `<span class="tag ${o === "right" ? "win" : o === "teammate" ? "half" : "miss"}">${who}: ${code ?? "no guess"} · ${o}${o === "right" && hints ? ` with ${hints} hint${hints > 1 ? "s" : ""}` : ""}${note} · +${pts}</span>`;
+    // How sure the model was of its pick, and how often picks that sure are right: a wrong call it
+    // was unsure of is honest, a wrong call it was sure of is a real miss.
+    const sure = guesses[0].p;
+    const call = this.guesser.call(sure);
+    const callLine = `${SHORT_MODEL[this.guesser.model] ?? "The model"} picked <b>${modelPick}</b>, ${call.word.toLowerCase()} at <b>${Math.round(sure * 100)}%</b>${call.right != null ? `. Picks that sure were right <b>${Math.round(call.right * 100)}%</b> of the time on circuits it never saw` : ""}.`;
+    // The same driver's other laps of the session, read together: more laps, a sharper read.
+    const lapsThere = this.guesser.lapsOf(truth);
+    const rankWith = (n: number) => {
+      const r = this.guesser.withLaps(truth, this.lap.lapNumber, n);
+      const k = r.guesses.findIndex((g) => g.code === truth);
+      return { rank: k + 1, p: r.guesses[k]?.p ?? 0, laps: r.laps, guesses: r.guesses };
+    };
+    const all = lapsThere > 1 ? rankWith(lapsThere) : null;
+    const lapsBlock = all
+      ? `<div class="more-laps">
+          <p class="caps">More laps, sharper read</p>
+          <p class="num" data-k="laps-line">This lap alone: <b>P${rank}</b> · ${Math.round((guesses[rank - 1]?.p ?? 0) * 100)}%. With all ${all.laps} of ${truth}'s laps here: <b>P${all.rank}</b> · ${Math.round(all.p * 100)}%.</p>
+          <button type="button" class="btn" data-laps title="Feed the model ${truth}'s other laps one by one and watch the grid">Watch the model read them</button>
+        </div>`
+      : "";
 
     // The corners that pointed hardest at the real driver.
     const best = [...this.evidence].sort((a, b) => (b.deltas[truth] ?? 0) - (a.deltas[truth] ?? 0)).slice(0, 3);
@@ -789,7 +842,7 @@ export class PlayView {
     this.band.style.setProperty("--on-team", inkOn(driver.colour));
     this.band.innerHTML = `
       <div class="who-block">
-        <div class="verdicts">${verdict("You", youOutcome, you, this.lineup.pick, this.hints)}${verdict(SHORT_MODEL[this.guesser.model] ?? "Model", modelOutcome, model, modelPick)}</div>
+        <div class="verdicts">${verdict("You", youOutcome, you, this.lineup.pick, this.hints)}${verdict(SHORT_MODEL[this.guesser.model] ?? "Model", modelOutcome, model, modelPick, 0, ` · ${Math.round(sure * 100)}% sure`)}</div>
         <h2 class="display" style="--longest:${Math.max(...[first, ...rest].map((w) => w.length))}"><span>${first}</span> ${rest.join(" ")}</h2>
         <p class="caps team">${driver.team} · lap ${this.lap.lapNumber} · ${formatLapTime(this.lap.lapTime)}</p>
         <p class="context num">${context}</p>
@@ -797,7 +850,9 @@ export class PlayView {
       </div>
       <div class="facts">
         <p class="stat caps num">Ranked <b>P${rank}</b> of ${guesses.length} · confidence <b>${Math.round((guesses.find((g) => g.code === truth)?.p ?? 0) * 100)}%</b></p>
+        <p class="call-line">${callLine}</p>
         ${this.modelTable(truth)}
+        ${lapsBlock}
       </div>
       <div class="why">
         <ol class="caption replays">${best
@@ -831,6 +886,26 @@ export class PlayView {
     const card = this.band;
     card.querySelector("[data-next]")!.addEventListener("click", () => void this.newRound());
     if (rival) card.querySelector("[data-duel]")!.addEventListener("click", () => this.startDuel(rival));
+    // One lap more every 0.9 s: the grid re-sorts as the evidence adds up.
+    card.querySelector<HTMLButtonElement>("[data-laps]")?.addEventListener("click", (e) => {
+      const b = e.currentTarget as HTMLButtonElement;
+      const line = card.querySelector("[data-k=laps-line]")!;
+      b.disabled = true;
+      let n = 1;
+      const step = () => {
+        if (this.disposed || this.phase !== "reveal") return;
+        const r = rankWith(n);
+        this.lineup.update(r.guesses, -1);
+        this.lineup.setCall(`<b>${r.laps} lap${r.laps > 1 ? "s" : ""} read</b> · ${truth} P${r.rank} · ${Math.round(r.p * 100)}%`, r.rank === 1 ? "high" : "mid");
+        line.innerHTML = `${r.laps} lap${r.laps > 1 ? "s" : ""}: ${truth} <b>P${r.rank}</b> · ${Math.round(r.p * 100)}%${r.laps === lapsThere ? ". Every lap of the same driver adds evidence; the percentages stay honest because the model is tuned for how many laps it reads." : ""}`;
+        if (n++ < lapsThere) setTimeout(step, 900);
+        else {
+          b.disabled = false;
+          b.textContent = "Watch again";
+        }
+      };
+      step();
+    });
     card.querySelectorAll<HTMLButtonElement>("[data-corner]").forEach((b) =>
       b.addEventListener("click", () => {
         this.replayCorner(Number(b.dataset.corner));

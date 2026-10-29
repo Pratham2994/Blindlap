@@ -197,20 +197,26 @@ An ink tag with the corner ("T7"), the sentence, and "points to" codes. The tag 
 ### Reveal band (signature)
 The who-block floods with the team colour from the left (clip-path, 0.7s): verdict tags, the name as a headline, team, lap and time, career line. Facts: the model's rank and confidence, then a table of how each of the three models ranked the driver (green "Right" where it was first). Why: the three corners that pointed hardest at the driver, the team radio strip (ink play square, waveform) and the auto caption line. Each of the three corners has a small bordered "Replay" button (ink on hover) that drives that corner again from the chase camera at half speed. Actions: Next lap (red), Race it against X, X's driver DNA, Watch the whole session, Copy challenge link. (No Menu button here: the top bar has it.)
 
+### The model's call
+Above the grid, a paper-2 note with a 4px left rule: the call in bold ("Not sure", "Leaning", "Fairly sure", "Very sure") and the driver (three codes when it is not sure), then in small ink-3 how often calls that sure were right. The rule is ink-3 when unsure, ink when leaning, red when sure. On the reveal the model's verdict tag carries its percentage, and a plain line under the rank says the same in words.
+
 ### Hint ladder
-Under the model's grid: "Hints · small to big" and what a right guess is still worth. Five bordered buttons in one row, from a nudge to nearly the answer (Result, Career, Style, Team, Number), each with its cost in small ink-3 figures and a red bar along its bottom edge that grows with how much it gives away. A taken hint turns yellow and its text joins a list with a yellow left rule. In a column narrower than 330px the costs go into the tooltip; the bars stay.
+Under the model's grid: "Hints · small to big" and what a right guess is still worth. Six bordered buttons in two rows of three, from a nudge to nearly the answer (Result, Career, Style, More laps, Team, Number), each with its cost in small ink-3 figures and a red bar along its bottom edge that grows with how much it gives away. A taken hint turns yellow and its text joins a list with a yellow left rule. In a column narrower than 330px the costs go into the tooltip; the bars stay.
 
 ### What's real
 An info button in the play bar opens a paper card with a 3px rule over the lower left of the stage: a note on a paper-2 panel with a red left rule (what is the car's data, what is drawn), the keyboard keys in ink-3 caps, and "Got it". The same note sits on the first lap's rules card and on the home page under How to play.
 
 ### Teammate battles
-A two-column grid (one on phones) of team cards: a 10px top rule in the team colour, the team in ink-3 caps, the two codes set wide and heavy with the tally between them, an ink split bar for the first driver's share, the median gap sentence, and one 14px bordered square per session (filled ink when the first driver was ahead) that opens a blind lap there. Mid-season pairings follow smaller, under a hairline.
+A two-column grid (one on phones) of team cards: a 10px top rule in the team colour, the team in ink-3 caps, the two codes set wide and heavy with the tally between them, an ink split bar for the first driver's share, the median gap sentence, and one 14px bordered square per session (filled ink when the first driver was ahead) that opens a blind lap there. Mid-season pairings follow smaller, under a hairline. Under each pairing, a "How they drive differently" disclosure (a 18px bordered +/− box): seven trait rows whose red bar grows from an ink centre line toward the driver who did more of it (first driver to the left, as in the score), the sessions it held in, then the clearest corners as linked lines under hairlines.
+
+### Which is which
+The play layout with two cars: the plain car (ink swatch) and the red car (red swatch). The side column asks "Which car is …?" as a headline, two big bordered pick buttons (yellow when chosen, a green ring on the right one after), the model's read as an ink/red split bar with its call note, and the last corner read. The band shows both cars' speed, gear and pedals and the gap. The reveal puts the two drivers side by side, each flooding in its team colour.
 
 ### Duel bar
 Car swatches in team colours with ink borders, codes, a huge gap numeral (green when ahead), where the gap was measured, and "Back to result".
 
 ### DNA
-A framed 3D field of paper roundels with an ink rim (heavier when selected), the code in ink and a team chip, on range rings. The panel lists seven axes as bars from a centre line, the tells, closest matches and a jump select.
+A framed 3D field of paper roundels with an ink rim (heavier when selected), the code in ink and a team chip, on range rings. The panel lists seven axes as bars from a centre line, the tells, closest matches and a jump select. Team moves: cards with an 8px team-colour top rule, the code set heavy and the move in ink-3 caps, seven axes where the red bar is what happened and a paper ring with an ink rim is the guess made before, then three short "miss" bars (the best one ink and bold). Any driver, any car: two selects and the same axes, with the driver as really driven as a grey tick.
 
 ### Lab
 Three bordered selects, an SVG chart on white in a 3px frame: driver A solid ink, driver B dashed red, braking as ink and red marks under the trace.

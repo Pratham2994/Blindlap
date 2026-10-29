@@ -36,6 +36,17 @@ test("a full round: model reads every corner, you guess, reveal, duel", async ({
   await expect(page.locator("[data-k=count]")).toHaveText(`${corners} corners read`);
   await expect(reveal.locator(".verdicts .tag")).toHaveCount(2);
   await expect(reveal).toContainText(/Ranked\s*P\d+ of \d+/i);
+  // The model says how sure it was, and how often a call that sure was right.
+  await expect(reveal.locator(".verdicts .tag").nth(1)).toContainText(/\d+% sure/);
+  await expect(reveal.locator(".call-line")).toHaveText(/picked [A-Z]{3}, .* at \d+%\. Picks that sure were right \d+% /);
+  await expect(page.locator(".lineup .call")).not.toBeEmpty();
+  // More laps of the same driver, read one by one, when the driver set more than one.
+  const more = reveal.locator("[data-laps]");
+  if (await more.count()) {
+    await more.click();
+    await expect(reveal.locator("[data-k=laps-line]")).toContainText(/laps?: [A-Z]{3} P\d+ · \d+%/, { timeout: 15_000 });
+    await expect(more).toHaveText("Watch again", { timeout: 15_000 });
+  }
   await expect(page.locator(".lineup .row.truth")).toHaveCount(1);
   await expect(reveal.locator(".caption li")).toHaveCount(3);
   // The team line is plain text: no other page's card styles leak onto it.
@@ -128,6 +139,11 @@ test("a first visit explains the game, then hints cost points", async ({ page })
   // The number gives nearly everything away: a right guess is still worth 1, never less.
   await page.getByRole("button", { name: /^Number/ }).click();
   await expect(page.locator("[data-k=worth]")).toHaveText("right = 1 pt");
+  // More laps: the model's top three from all the driver's laps here (or a note, at no cost).
+  await page.getByRole("button", { name: /^More laps/ }).click();
+  await expect(page.locator(".hint-list li").nth(3)).toHaveText(/read \d+ laps by this driver.*top three: [A-Z]{3} \d+%|no other push lap/);
+  // The grid says how sure the model is once it has read a few corners.
+  await expect(page.locator(".lineup .call")).toHaveText(/^(Still reading|Not sure|Leaning|Fairly sure|Very sure)/);
   // The next visit goes straight to the lights.
   await page.reload();
   await expect(page.locator(".evidence .t")).toHaveText(/^T\d+/, { timeout: 30_000 });
@@ -164,6 +180,15 @@ test("driver DNA takes the car out, shows seasons and cars, and switches drivers
   await expect(panel.locator(".dna-key")).toContainText("How they drive, with their car taken out");
   await panel.locator("select").selectOption("LEC");
   await expect(panel.locator("h2")).toHaveText("LEC");
+  // Team moves, each predicted before it happened, against two simple guesses.
+  expect(await page.locator(".move-card").count()).toBeGreaterThan(4);
+  await expect(page.locator(".moves-sum")).toHaveText(/closer than "drives as before" in \d+ of \d+ moves and closer than "drives like the new teammate" in \d+ of \d+/);
+  await expect(page.locator(".move-card").first().locator(".err-row")).toHaveCount(3);
+  // Any driver in any car: seven guessed traits, and whether it really happened.
+  const whatIf = page.locator(".dna-what-if");
+  await whatIf.locator("[data-k=wi-driver]").selectOption("NOR");
+  await expect(whatIf.locator(".axis")).toHaveCount(7);
+  await expect(whatIf.locator(".near")).toHaveText(/^NOR (never drove|really drove)/);
 });
 
 test("how it works shows metrics against chance and draws the confusion matrix", async ({ page }) => {
@@ -250,6 +275,32 @@ test("teammate battles show each team's qualifying head-to-head and switch seaso
   await page.getByRole("button", { name: "2025" }).click();
   await expect(page).toHaveURL(/#\/battles\/2025$/);
   await expect(page.getByRole("button", { name: "2025" })).toHaveAttribute("aria-pressed", "true");
+  // How two teammates drive differently: seven traits, and single corners linked to their session.
+  const style = teams.first().locator(".pair-style").first();
+  await style.locator("summary").click();
+  await expect(style.locator(".diff-row")).toHaveCount(7);
+  await expect(style.locator(".diff-row .held").first()).toHaveText(/^[A-Z]{3} \d+\/\d+$/);
+  await expect(style.locator(".diff-corners a").first()).toHaveAttribute("href", /^#\/play\/\d+$/);
+});
+
+test("which is which: two cars, two names, the model says which is which", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.goto("/#/pair");
+  await expect(page.locator(".pair-q h2")).toHaveText(/\?$/, { timeout: 30_000 });
+  await expect(page.locator(".pair-pick button")).toHaveCount(2);
+  // Once the cars are moving the model reads corners from both laps.
+  await expect(page.locator(".pair-model [data-k=read]")).not.toHaveText("0 corners", { timeout: 30_000 });
+  await page.keyboard.press("2");
+  await expect(page.locator(".pair-pick [aria-pressed=true]")).toHaveText("Red car");
+  const reveal = page.locator(".pair-reveal");
+  await expect(reveal).toBeVisible({ timeout: 90_000 });
+  await expect(reveal.locator(".verdicts .tag")).toHaveCount(2);
+  await expect(reveal.locator(".pair-who h2")).toHaveCount(2);
+  await expect(reveal.locator(".caption li")).toHaveCount(3);
+  await expect(reveal.locator(".pair-note")).toContainText(/right way round \d+%/);
+  await expect(page.locator(".pair-pick button.truth")).toHaveCount(1);
+  expect(errors).toEqual([]);
 });
 
 test("a phone gets a notice instead of the app, and loads none of its data", async ({ browser }) => {

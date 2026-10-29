@@ -6,17 +6,106 @@ qualified higher wins the round; the gap is the difference of their best laps in
 segment both of them set a time in (Q3 if both reached it, else Q2, else Q1), so it compares like
 with like. Drivers who swapped teams mid-season get one pairing per teammate.
 
+Each pairing also gets how the two drive differently in the same car, from the corner features of
+build/<session>.pkl: per trait, how far apart they are and in how many sessions the first had more
+of it; and the clearest single corners, in metres and km/h.
+
 Reads web/public/data/index.json, raw/<session>/drivers.json and raw/<session>/session_result.json
-(run results.py first). Writes web/public/data/battles.json.
+(run results.py first) and build/*.pkl. Writes web/public/data/battles.json.
 """
 import json
 from collections import defaultdict
 from pathlib import Path
 from statistics import median
 
+import numpy as np
+
+from dna import TRAITS
+from features import FEATURES
+from model import is_quali, load_sessions
+
 ROOT = Path(__file__).parent
 RAW = ROOT / "raw"
 WEB = ROOT.parent / "web" / "public" / "data"
+F = {f: k for k, f in enumerate(FEATURES)}
+# Corner differences worth naming, in their own units: (feature, unit, text if the first has more,
+# text if less). A single corner is named only when the gap is clear of the lap-to-lap scatter.
+EXAMPLES = [
+    ("brake_point", "m", "brakes {x} later", "brakes {x} earlier"),
+    ("apex_speed", "km/h", "carries {x} more through the apex", "carries {x} less through the apex"),
+    ("throttle_point", "m", "is back on full throttle {x} later", "is back on full throttle {x} sooner"),
+    ("min_throttle", "%", "lifts {x} less", "lifts {x} more"),
+]
+NOISE = {"brake_point": 6.0, "apex_speed": 2.0, "throttle_point": 8.0, "min_throttle": 3.0}
+MIN_T = 3.0
+
+
+def style_by_session():
+    """session key -> code -> (per-corner median raw features, per-corner median z, laps, zones, circuit)."""
+    out = {}
+    for s in load_sessions():
+        if not is_quali(s):
+            continue
+        by = defaultdict(list)
+        for i, lap in enumerate(s["laps"]):
+            by[s["drivers"][lap.driver]["name_acronym"]].append(i)
+        out[s["session"]["session_key"]] = {
+            code: (s["raw"][idx], np.median(s["z"][idx], axis=0)) for code, idx in by.items()
+        } | {"_zones": s["zones"], "_braked": s["braked"], "_circuit": s["session"]["circuit_short_name"]}
+    return out
+
+
+def pair_style(a, b, rounds, by_session):
+    """How a and b differ in the same car, over the sessions both have laps in."""
+    per_trait = defaultdict(list)
+    examples = []
+    for r in rounds:
+        s = by_session.get(r["key"])
+        if not s or a not in s or b not in s:
+            continue
+        (ra, za), (rb, zb) = s[a], s[b]
+        for name, (f, sign) in TRAITS.items():
+            per_trait[name].append(float(sign * np.mean(za[:, F[f]] - zb[:, F[f]])))
+        if len(ra) < 2 or len(rb) < 2:
+            continue
+        for f, unit, more, less in EXAMPLES:
+            k = F[f]
+            for c, zone in enumerate(s["_zones"]):
+                if f == "brake_point" and not s["_braked"][c]:
+                    continue
+                xa, xb = ra[:, c, k], rb[:, c, k]
+                xa, xb = xa[~np.isnan(xa)], xb[~np.isnan(xb)]
+                if len(xa) < 2 or len(xb) < 2:
+                    continue
+                if f == "min_throttle" and min(np.median(xa), np.median(xb)) > 97:
+                    continue  # flat out for both: nothing to name
+                d = float(np.median(xa) - np.median(xb))
+                spread = max(np.sqrt(xa.var(ddof=1) / len(xa) + xb.var(ddof=1) / len(xb)), NOISE[f] / 2)
+                if abs(d) / spread < MIN_T:
+                    continue
+                x = f"{abs(d):.0f} {unit}" if unit != "%" else f"{abs(d):.0f}%"
+                examples.append({
+                    "key": r["key"], "circuit": s["_circuit"], "corner": str(zone.number), "feature": f,
+                    "text": (more if d > 0 else less).format(x=x), "laps": [len(xa), len(xb)],
+                    "strength": round(abs(d) / spread, 1),
+                })
+    # The clearest corners, at most one per session and feature, two per circuit and two per feature.
+    examples.sort(key=lambda e: -e["strength"])
+    picked, seen, per_circuit, per_feature = [], set(), defaultdict(int), defaultdict(int)
+    for e in examples:
+        if (e["key"], e["feature"]) in seen or per_circuit[e["circuit"]] >= 2 or per_feature[e["feature"]] >= 2:
+            continue
+        seen.add((e["key"], e["feature"]))
+        per_circuit[e["circuit"]] += 1
+        per_feature[e["feature"]] += 1
+        picked.append(e)
+        if len(picked) == 6:
+            break
+    traits = {
+        name: {"diff": round(float(np.mean(v)), 3), "more": int(sum(x > 0 for x in v)), "sessions": len(v)}
+        for name, v in per_trait.items()
+    }
+    return {"traits": traits, "corners": picked, "clearCorners": len(examples)}
 
 
 def position(r) -> int | None:
@@ -74,6 +163,7 @@ def main():
                     })
 
     out = {"seasons": {}}
+    by_session = style_by_session()
     for (year, team), matchups in sorted(pairs.items()):
         entries = []
         for (a, b), rounds in matchups.items():
@@ -83,12 +173,23 @@ def main():
                 "score": [sum(r["winner"] == a for r in rounds), sum(r["winner"] == b for r in rounds)],
                 "medianGap": round(median(gaps), 3) if gaps else None,
                 "rounds": rounds,
+                "style": pair_style(a, b, rounds, by_session),
             })
         # The pairing that raced together most often first (the team's main line-up).
         entries.sort(key=lambda e: -len(e["rounds"]))
         out["seasons"].setdefault(str(year), []).append({"team": team, "colour": teams[(year, team)], "pairs": entries})
     for year in out["seasons"]:
         out["seasons"][year].sort(key=lambda t: t["team"])
+    # The largest gap of each trait over the pairings with a few sessions together (one-off pairings
+    # are noisy), so the page can draw them on one scale.
+    diffs = defaultdict(list)
+    for ts in out["seasons"].values():
+        for t in ts:
+            for p in t["pairs"]:
+                for name, v in p["style"]["traits"].items():
+                    if v["sessions"] >= 5:
+                        diffs[name].append(abs(v["diff"]))
+    out["traitScale"] = {name: round(max(v), 3) for name, v in diffs.items()}
     (WEB / "battles.json").write_text(json.dumps(out, separators=(",", ":")), encoding="utf-8")
     n = sum(len(p["rounds"]) for ts in out["seasons"].values() for t in ts for p in t["pairs"])
     print(f"battles: {sum(len(v) for v in out['seasons'].values())} team seasons, {n} head-to-head rounds")
