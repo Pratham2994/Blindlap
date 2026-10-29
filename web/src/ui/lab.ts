@@ -1,12 +1,17 @@
 // Telemetry lab: any session, any two drivers, their fastest laps overlaid corner by corner.
 import type { Index, LapData, Session } from "../data";
 import { loadSession } from "../data";
-import { formatLapTime } from "../lap";
+import { formatLapTime, LapPlayer } from "../lap";
 
 const NS = "http://www.w3.org/2000/svg";
 const W = 1000;
 const H = 300;
 const PAD = { l: 44, r: 12, t: 16, b: 52 };
+// The gap chart under the speed trace.
+const DH = 170;
+const DPAD = { l: 44, r: 12, t: 14, b: 24 };
+// Below this a corner's time difference is within what the position data can resolve.
+const NOISE = 0.02;
 
 const PHRASE: Record<string, (a: string, b: string, d: number) => string | null> = {
   brake_point: (a, b, d) => (Math.abs(d) < 4 ? null : `${a} brakes ${Math.abs(d).toFixed(0)} m ${d > 0 ? "later" : "earlier"} than ${b}`),
@@ -41,7 +46,7 @@ export class LabView {
     this.root.innerHTML = `
       <article class="prose wide">
         <h1 class="display">Telemetry<br>lab</h1>
-        <p>Put two drivers' fastest qualifying laps from the same session on top of each other. The trace is speed against distance; the marks under it are braking, one row per driver. Below, each corner says what the model would notice first.</p>
+        <p>Put two drivers' fastest qualifying laps from the same session on top of each other. The trace is speed against distance; the marks under it are braking, one row per driver. The second chart is the gap between them along the lap, and below it is where the time goes: what each corner won or lost, and why.</p>
         <div class="lab-controls">
           <label class="caps">Session<select data-k="session">${options}</select></label>
           <label class="caps">Driver<select data-k="a"></select></label>
@@ -49,7 +54,11 @@ export class LabView {
         </div>
         <figure class="lab-chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Speed against distance for both drivers"></svg>
           <figcaption class="lab-legend"></figcaption></figure>
+        <figure class="lab-chart lab-delta"><svg viewBox="0 0 ${W} ${DH}" role="img" aria-label="The gap between the two drivers along the lap"></svg>
+          <figcaption class="lab-delta-note"></figcaption></figure>
+        <h2 class="lab-h">Where the time goes</h2>
         <ol class="caption lab-corners"></ol>
+        <p class="lab-noise">Times come from the cars' position data, about four samples a second, so a gap under ${NOISE.toFixed(2)} s at one corner is within the noise. Straights are everything between the corner zones.</p>
       </article>`;
     this.root.querySelector<HTMLSelectElement>("[data-k=session]")!.addEventListener("change", (e) => void this.load(Number((e.target as HTMLSelectElement).value)));
     this.root.querySelector<HTMLSelectElement>("[data-k=a]")!.addEventListener("change", (e) => {
@@ -126,6 +135,29 @@ export class LabView {
     const gap = B.lapTime - A.lapTime;
     this.root.querySelector(".lab-legend")!.innerHTML = `<span class="swatch a"></span><b>${A.code}</b> ${formatLapTime(A.lapTime)} <span class="swatch b"></span><b>${B.code}</b> ${formatLapTime(B.lapTime)} <span class="delta">${A.code} ${gap >= 0 ? "faster" : "slower"} by ${Math.abs(gap).toFixed(3)} s</span>`;
 
+    // The gap along the lap: how much later B reached each point than A (positive: A ahead).
+    const pa = new LapPlayer(A);
+    const pb = new LapPlayer(B);
+    const step = 10;
+    const n = Math.ceil(L / step);
+    // Timing from positions drifts a little over a lap, so the gap at the line is pinned to the
+    // official lap times and the difference spread evenly along the lap.
+    const raw = (d: number) => pb.timeAt(d) - pb.timeAt(0) - (pa.timeAt(d) - pa.timeAt(0));
+    const drift = B.lapTime - A.lapTime - raw(L);
+    const gapAt = (d: number) => raw(d) + drift * (Math.min(Math.max(d, 0), L) / L);
+    const gaps = Array.from({ length: n + 1 }, (_, k) => gapAt(Math.min(k * step, L)));
+    this.drawGap(gaps, step, A.code, B.code, drift);
+
+    // Time won in each corner zone (positive: A gained), and on the straights between them.
+    const won = s.corners.map((c) => gapAt(Math.min(c.hi, L)) - gapAt(Math.max(c.lo, 0)));
+    const total = gaps[n];
+    const straights = total - won.reduce((a, v) => a + v, 0);
+    const biggest = Math.max(...won.map(Math.abs), Math.abs(straights), 0.001);
+    const bar = (v: number) => {
+      const who = v >= 0 ? A.code : B.code;
+      const small = Math.abs(v) < NOISE;
+      return `<span class="gain ${v >= 0 ? "a" : "b"}${small ? " small" : ""}"><i style="width:${(Math.abs(v) / biggest) * 100}%"></i><em class="num">${small ? "level" : `${who} +${Math.abs(v).toFixed(3)} s`}</em></span>`;
+    };
     // Per corner: the biggest difference between the two, in plain words.
     const feats = this.features;
     const items = s.corners.map((c, k) => {
@@ -140,8 +172,37 @@ export class LabView {
         if (text && (!best || size > best.size)) best = { text, size };
       });
       const found = best as { text: string; size: number } | null;
-      return `<li><b>T${c.n}</b><span>${found ? found.text : "Same within the data's resolution"}.</span></li>`;
+      return `<li><b>T${c.n}</b>${bar(won[k])}<span>${found ? found.text : "Same within the data's resolution"}.</span></li>`;
     });
+    items.push(`<li class="straights"><b>Straights</b>${bar(straights)}<span>Speed down the straights and out of the corners onto them.</span></li>`);
     this.root.querySelector(".lab-corners")!.innerHTML = items.join("");
+  }
+
+  /** The gap chart: zero in the middle, above it A is ahead, below it B. */
+  private drawGap(gaps: number[], step: number, a: string, b: string, drift: number) {
+    const s = this.session!;
+    const svg = this.root.querySelector(".lab-delta svg")!;
+    svg.replaceChildren();
+    const L = s.length;
+    const span = Math.max(0.1, ...gaps.map(Math.abs)) * 1.15;
+    const x = (d: number) => DPAD.l + (Math.min(Math.max(d, 0), L) / L) * (W - DPAD.l - DPAD.r);
+    const y = (g: number) => DPAD.t + (1 - (g + span) / (2 * span)) * (DH - DPAD.t - DPAD.b);
+    const el = (tag: string, attrs: Record<string, string | number>) => {
+      const e = document.createElementNS(NS, tag);
+      for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+      svg.appendChild(e);
+      return e;
+    };
+    for (const c of s.corners) el("line", { x1: x(c.s), x2: x(c.s), y1: DPAD.t, y2: DH - DPAD.b, class: "corner" });
+    el("line", { x1: DPAD.l, x2: W - DPAD.r, y1: y(0), y2: y(0), class: "zero" });
+    const t = (g: number) => (Math.abs(g) < 0.0005 ? "0" : `${g > 0 ? "+" : "−"}${Math.abs(g).toFixed(2)} s`);
+    for (const g of [span / 1.15, -span / 1.15]) el("text", { x: DPAD.l - 8, y: y(g) + 4, class: "tick", "text-anchor": "end" }).textContent = t(g);
+    el("text", { x: DPAD.l + 6, y: DPAD.t + 10, class: "tick" }).textContent = `${a} ahead`;
+    el("text", { x: DPAD.l + 6, y: DH - DPAD.b - 4, class: "tick" }).textContent = `${b} ahead`;
+    const pts = gaps.map((g, k) => `${x(k * step).toFixed(1)},${y(g).toFixed(1)}`);
+    el("path", { d: `M${x(0)},${y(0)}L${pts.join("L")}L${x(L)},${y(0)}Z`, class: "gap-area" });
+    el("path", { d: `M${pts.join("L")}`, class: "gap-line" });
+    const end = gaps[gaps.length - 1];
+    this.root.querySelector(".lab-delta-note")!.textContent = `${Math.abs(end).toFixed(3)} s to ${end >= 0 ? a : b} at the line, as the official lap times say. Timing from the cars' positions drifted ${Math.abs(drift).toFixed(3)} s over this lap; that is spread evenly along it.`;
   }
 }

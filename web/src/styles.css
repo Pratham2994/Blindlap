@@ -2382,6 +2382,93 @@ figcaption {
   fill: var(--red);
 }
 
+.lab-delta {
+  margin-top: 14px;
+}
+
+.lab-chart .zero {
+  stroke: var(--ink-3);
+  stroke-width: 1;
+}
+
+.lab-chart .gap-area {
+  fill: var(--paper-3);
+  opacity: 0.6;
+}
+
+.lab-chart .gap-line {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.lab-delta-note,
+.lab-noise {
+  color: var(--ink-3);
+  font-size: 0.84rem;
+}
+
+.lab-h {
+  margin: 28px 0 10px;
+}
+
+/* Where the time goes: a bar per corner for the time won, ink for the first driver, red for the
+   second, then the reason. */
+.lab-corners li {
+  grid-template-columns: 90px minmax(150px, 220px) 1fr;
+  align-items: center;
+}
+
+/* The time in ink, a thin bar under it. */
+.gain {
+  display: grid;
+  gap: 3px;
+}
+
+.gain::after {
+  content: "";
+  display: block;
+  height: 6px;
+  background: var(--paper-2);
+  grid-row: 2;
+  grid-column: 1;
+}
+
+.gain i {
+  display: block;
+  height: 6px;
+  grid-row: 2;
+  grid-column: 1;
+  z-index: 1;
+  background: var(--ink);
+}
+
+.gain.b i {
+  background: var(--red);
+}
+
+.gain.small i {
+  opacity: 0.35;
+}
+
+.gain em {
+  grid-row: 1;
+  font-style: normal;
+  font-weight: 800;
+  font-size: 0.8rem;
+  color: var(--ink);
+}
+
+.gain.small em {
+  color: var(--ink-3);
+  font-weight: 600;
+}
+
+.lab-corners li.straights {
+  border-top: var(--rule);
+}
+
 .lab-legend {
   display: flex;
   flex-wrap: wrap;

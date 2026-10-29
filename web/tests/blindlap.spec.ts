@@ -181,6 +181,10 @@ test("telemetry lab overlays two drivers and explains each corner", async ({ pag
   await expect(page.locator(".lab-chart .trace")).toHaveCount(2);
   const corners = page.locator(".lab-corners li");
   await expect(corners.first()).toContainText(/^T\d+/);
+  // Where the time goes: a time per corner and the straights, and the gap ends at the official one.
+  await expect(corners.last()).toContainText(/^Straights/);
+  await expect(corners.first().locator(".gain em")).toHaveText(/^(level|[A-Z]{3} \+\d\.\d{3} s)$/);
+  await expect(page.locator(".lab-delta .gap-line")).toHaveCount(1);
   const a = page.locator("[data-k=a]");
   const before = await page.locator(".lab-legend").innerText();
   await a.selectOption({ index: 3 });
