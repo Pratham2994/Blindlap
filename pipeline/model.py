@@ -39,12 +39,27 @@ def team(sess, num):
     return sess["drivers"][num]["team_name"]
 
 
+F_INDEX = {f: k for k, f in enumerate(FEATURES)}
+
+
 def corner_rows(sess):
-    """Rows for every (lap, corner): X (n x 30), lap index, label."""
+    """Rows for every (lap, corner), X (n x 43): the 30 style features (10 per corner class), the
+    corner's shape (the field's median apex and entry speed, and whether the field brakes there:
+    geometry, nothing about the driver) and the previous corner's ten z-scores (already read when
+    this one is, so the game's live reading stays honest). Lap index, label."""
     X, lap_idx, y = [], [], []
+    med = sess["med"]
+    n_c = len(sess["classes"])
+    shape = []
+    for c in range(n_c):
+        apex = med[c, F_INDEX["apex_speed"]]
+        entry = med[c, F_INDEX["entry_speed"]]
+        shape.append([0 if np.isnan(apex) else apex / 100, 0 if np.isnan(entry) else entry / 100, float(sess["braked"][c])])
+    blank = np.zeros(len(FEATURES))
     for i, lap in enumerate(sess["laps"]):
         for c, cls in enumerate(sess["classes"]):
-            X.append(expand(sess["z"][i, c], cls))
+            prev = sess["z"][i, c - 1] if c else blank
+            X.append(np.concatenate([expand(sess["z"][i, c], cls), shape[c], prev]))
             lap_idx.append(i)
             y.append(acronym(sess, lap.driver))
     return np.array(X), np.array(lap_idx), np.array(y)
