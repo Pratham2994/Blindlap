@@ -123,23 +123,39 @@ export interface Report {
   crossSeason?: CrossSeason;
 }
 
+/** Driver DNA (pipeline/dna.py). "Own" values have the car taken out; "Raw" ones are as driven. */
 export interface DnaDriver {
   code: string;
   name: string;
   team: string;
   colour: string;
   pos: [number, number, number];
+  posRaw: [number, number, number];
   vector: number[];
   neighbours: string[];
+  neighboursRaw: string[];
   style: Record<string, number>;
-  styleRaw?: Record<string, number>;
-  tells?: string[];
+  styleRaw: Record<string, number>;
+  tells: string[];
+  corners: number;
+  seasons: Record<string, { team: string; corners: number; traits: Record<string, number> }>;
+}
+
+export interface DnaCar {
+  team: string;
+  year: number;
+  colour: string;
+  traits: Record<string, number>;
+  drivers: string[];
 }
 
 export interface Dna {
   explained: number[];
-  loadings: { feature: string; pc: number[] }[];
+  explainedRaw: number[];
+  teammateNearest: { asDriven: number; ownStyle: number; drivers: number };
+  carShare: Record<string, number>;
   drivers: DnaDriver[];
+  cars: DnaCar[];
 }
 
 export interface Career {

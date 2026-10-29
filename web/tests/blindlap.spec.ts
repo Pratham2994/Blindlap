@@ -146,11 +146,22 @@ test("C cycles through the five cameras", async ({ page }) => {
   await expect(pressed).toHaveText("Chase");
 });
 
-test("driver DNA lets you switch drivers", async ({ page }) => {
+test("driver DNA takes the car out, shows seasons and cars, and switches drivers", async ({ page }) => {
   await page.goto("/#/dna/VER");
   const panel = page.locator(".dna-panel");
   await expect(panel.locator("h2")).toHaveText("VER");
-  await expect(panel.locator(".axis")).toHaveCount(7);
+  // Seven traits for the driver, seven for their car.
+  await expect(panel.locator(".axis:not(.car)")).toHaveCount(7);
+  await expect(panel.locator(".axis.car")).toHaveCount(7);
+  await expect(panel.locator(".dna-seasons tbody tr")).toHaveCount(7);
+  await expect(page.locator(".dna-fact")).toContainText(/\d+ of \d+ drivers as driven, \d+ of \d+ with the car taken out/);
+  await expect(page.locator(".share-row")).toHaveCount(7);
+  expect(await page.locator(".car-card").count()).toBeGreaterThan(10);
+  // As driven, then back; the panel says which it shows.
+  await page.getByRole("button", { name: "As driven" }).click();
+  await expect(panel).toContainText("As driven · tick: car taken out");
+  await page.getByRole("button", { name: "Own style" }).click();
+  await expect(panel).toContainText("Own style · tick: as driven");
   await panel.locator("select").selectOption("LEC");
   await expect(panel.locator("h2")).toHaveText("LEC");
 });

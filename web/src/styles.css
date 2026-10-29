@@ -2025,12 +2025,16 @@ a.mode.quick:hover p {
 .dna-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) clamp(280px, 26vw, 360px);
+  align-items: start;
   border: var(--rule);
 }
 
+/* The map keeps its size and stays in view while the longer panel beside it scrolls. */
 .dna-stage {
+  position: sticky;
+  top: 72px;
   border: 0;
-  height: min(68vh, 680px);
+  height: min(78vh, 720px);
   cursor: grab;
 }
 
@@ -2085,6 +2089,161 @@ a.mode.quick:hover p {
   bottom: 0;
   background: var(--red);
   transition: left 0.5s var(--ease-out), width 0.5s var(--ease-out);
+}
+
+/* The other style (as driven, or the car taken out), as a tick. */
+.axis .track .tick {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 3px;
+  margin-left: -1px;
+  background: var(--ink-3);
+  transition: left 0.5s var(--ease-out);
+}
+
+.axis.car .track i {
+  background: var(--ink);
+}
+
+/* Driver DNA: the style switch, the teammate fact, the seasons table, the car sections. */
+.dna-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  margin-bottom: 14px;
+}
+
+.dna-fact {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 0.9rem;
+}
+
+.dna-seasons {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.74rem;
+}
+
+.dna-seasons th {
+  text-align: left;
+  font-weight: 650;
+  color: var(--ink-3);
+  padding: 2px 6px 2px 0;
+  white-space: nowrap;
+}
+
+.dna-seasons thead th {
+  text-align: center;
+}
+
+.dna-seasons td {
+  position: relative;
+  height: 14px;
+  min-width: 34px;
+  background: var(--paper-2);
+  border: 2px solid var(--paper);
+}
+
+.dna-seasons td::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--ink-3);
+}
+
+.dna-seasons td i {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  background: var(--red);
+}
+
+.dna-teams {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 6px 0 0;
+  font-size: 0.74rem;
+  color: var(--ink-3);
+}
+
+.dna-share,
+.dna-cars {
+  margin-top: var(--gutter);
+  border-top: var(--rule);
+  padding-top: 14px;
+}
+
+.dna-share > p,
+.dna-cars > p {
+  max-width: 70ch;
+  color: var(--ink-2);
+  font-size: 0.9rem;
+}
+
+.share-row {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr) 170px;
+  gap: 14px;
+  align-items: center;
+  padding: 6px 0;
+  border-top: var(--hair);
+  font-size: 0.86rem;
+}
+
+.share {
+  height: 12px;
+  background: var(--paper-3);
+}
+
+.share i {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+}
+
+.car-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 14px;
+}
+
+.car-card {
+  border: var(--rule);
+  border-top: 8px solid var(--team);
+  padding: 10px 12px 12px;
+}
+
+.car-card h3 {
+  margin: 0;
+}
+
+.car-card .drivers {
+  margin: 2px 0 6px;
+  color: var(--ink-3);
+  font-size: 0.76rem;
+}
+
+.car-card .axis {
+  grid-template-columns: 92px 1fr;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 0.72rem;
+}
+
+@media (max-width: 860px) {
+  .share-row {
+    grid-template-columns: 110px minmax(0, 1fr);
+  }
+  .share-row .num {
+    grid-column: 2;
+  }
 }
 
 .dna-panel .tells-h {
@@ -2640,6 +2799,8 @@ figcaption {
     grid-template-columns: minmax(0, 1fr);
   }
   .dna-stage {
+    position: relative;
+    top: 0;
     height: 52vh;
   }
   .dna-panel {

@@ -1,6 +1,7 @@
-// Driver DNA: every driver's average corner style, projected to 3D. Close together = drive alike.
+// Driver DNA: how each driver attacks corners, with the car taken out (pipeline/dna.py), projected
+// to 3D. Close together = drive alike. A switch shows the style as driven, car included.
 import * as THREE from "three";
-import type { Careers, Dna, DnaDriver } from "../data";
+import type { Careers, Dna, DnaCar, DnaDriver } from "../data";
 import { careerLine } from "../data";
 import type { World } from "../scene/world";
 import { isDark } from "../theme";
@@ -47,8 +48,11 @@ export class DnaView {
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(45, 1, 1, 2000);
   private group = new THREE.Group();
-  private sprites: { sprite: THREE.Sprite; d: DnaDriver; base: number; rank: number }[] = [];
+  private sprites: { sprite: THREE.Sprite; stalk: THREE.Line; d: DnaDriver; base: number; rank: number; target: THREE.Vector3 }[] = [];
   private links: THREE.LineSegments | null = null;
+  // "own": the car taken out; "raw": as driven.
+  private mode: "own" | "raw" = "own";
+  private current = "";
   private yaw = 0.6;
   private pitch = 0.35;
   private dragging = false;
@@ -65,20 +69,52 @@ export class DnaView {
   ) {
     this.root = document.createElement("div");
     this.root.className = "page dna";
-    const pct = Math.round(dna.explained.reduce((a, v) => a + v, 0) * 100);
+    const tn = dna.teammateNearest;
+    const shares = Object.values(dna.carShare);
+    const lo = Math.round(Math.min(...shares) * 100);
+    const hi = Math.round(Math.max(...shares) * 100);
     this.root.innerHTML = `
       <header class="page-head">
         <h1 class="display">Driver DNA</h1>
-        <p>Every driver's average corner, scored against the field: where they brake, how much speed they carry, when they get back on the power. Drivers who sit close together attack corners alike.</p>
+        <p>How every driver attacks a corner: where they brake, how much speed they carry, when they get back on the power, each against the whole field. Much of that is the car: ${lo} to ${hi}% of each habit, measured below. So the map takes the car out, using teammates and the drivers who changed teams, and what is left is the driver's own style. Close together means they drive alike.</p>
       </header>
+      <div class="dna-bar">
+        <div class="seg" role="group" aria-label="Which style">
+          <button type="button" data-mode="own" aria-pressed="true" title="Each driver with their car taken out">Own style</button>
+          <button type="button" data-mode="raw" aria-pressed="false" title="Each driver's style as driven, car included">As driven</button>
+        </div>
+        <p class="dna-fact">Closest match is their own teammate: <b class="num">${tn.asDriven} of ${tn.drivers}</b> drivers as driven, <b class="num">${tn.ownStyle} of ${tn.drivers}</b> with the car taken out.</p>
+      </div>
       <div class="dna-grid">
         <figure class="frame dna-stage">
           <div class="stage-slot"></div>
-          <figcaption class="caps">Drag to turn · select a driver · lines join closest matches · the three directions hold ${pct}% of the differences</figcaption>
+          <figcaption class="caps" data-k="caption"></figcaption>
         </figure>
         <aside class="dna-panel" aria-live="polite"></aside>
-      </div>`;
+      </div>
+      <section class="dna-share" aria-label="How much of each habit is the car">
+        <h2 class="caps">How much is the car</h2>
+        <p>The share of each habit that comes with the car (the team and season), against the share that stays with the driver wherever they drive.</p>
+        ${Object.entries(dna.carShare)
+          .map(
+            ([k, v]) =>
+              `<div class="share-row"><span>${k}</span><span class="share" role="img" aria-label="${Math.round(v * 100)}% car"><i style="width:${v * 100}%"></i></span><span class="num">${Math.round(v * 100)}% car · ${100 - Math.round(v * 100)}% driver</span></div>`,
+          )
+          .join("")}
+      </section>
+      <section class="dna-cars" aria-label="Car fingerprints">
+        <h2 class="caps">Car fingerprints</h2>
+        <p>What each car makes its drivers do, whoever drives it: the car's part of every habit, scaled so the most extreme car reaches the edge.</p>
+        <div class="car-grid">${[...dna.cars]
+          .sort((a, b) => b.year - a.year || a.team.localeCompare(b.team))
+          .map((c) => carCard(c))
+          .join("")}</div>
+      </section>`;
     this.panel = this.root.querySelector(".dna-panel")!;
+    this.root.querySelector(".dna-bar .seg")!.addEventListener("click", (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-mode]");
+      if (b) this.setMode(b.dataset.mode as "own" | "raw");
+    });
 
     const dark = isDark();
     const ground = dark ? "#121212" : "#f1f0ec";
@@ -97,31 +133,48 @@ export class DnaView {
     }
 
     const byCode = new Map(dna.drivers.map((d) => [d.code, d]));
-    const linkPts: number[] = [];
     for (const d of dna.drivers) {
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: discTexture(d.code, d.colour), transparent: true }));
-      sprite.position.set(d.pos[0] * SCALE, d.pos[1] * SCALE, d.pos[2] * SCALE);
+      const target = new THREE.Vector3(...d.pos).multiplyScalar(SCALE);
+      sprite.position.copy(target);
       sprite.scale.setScalar(10);
       this.group.add(sprite);
-      this.sprites.push({ sprite, d, base: 1, rank: 0 });
       // Stalk down to the floor so depth reads.
-      const stalk = new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints([sprite.position.clone(), sprite.position.clone().setY(-SCALE * 1.05)]),
-        new THREE.LineBasicMaterial({ color: faint }),
-      );
+      const stalk = new THREE.Line(new THREE.BufferGeometry().setFromPoints([target, target.clone().setY(-SCALE * 1.05)]), new THREE.LineBasicMaterial({ color: faint }));
       this.group.add(stalk);
-      const n = byCode.get(d.neighbours[0]);
-      if (n) linkPts.push(...sprite.position.toArray(), n.pos[0] * SCALE, n.pos[1] * SCALE, n.pos[2] * SCALE);
+      this.sprites.push({ sprite, stalk, d, base: 1, rank: 0, target });
     }
-    const lg = new THREE.BufferGeometry();
-    lg.setAttribute("position", new THREE.Float32BufferAttribute(linkPts, 3));
-    this.links = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: dark ? "#f1f0ec" : "#111111", transparent: true, opacity: 0.35 }));
+    this.links = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: dark ? "#f1f0ec" : "#111111", transparent: true, opacity: 0.35 }));
     this.group.add(this.links);
     this.scene.add(this.group);
 
     this.bind();
+    this.setMode("own");
     this.select(focus && byCode.has(focus) ? focus : dna.drivers[0].code);
     dockStage(this.root.querySelector(".stage-slot"));
+  }
+
+  private neighbours(d: DnaDriver): string[] {
+    return this.mode === "own" ? d.neighbours : d.neighboursRaw;
+  }
+
+  /** Own style or as driven: the discs glide to the other map, the links and panel follow. */
+  private setMode(mode: "own" | "raw") {
+    this.mode = mode;
+    this.root.querySelectorAll("[data-mode]").forEach((b) => b.setAttribute("aria-pressed", String((b as HTMLElement).dataset.mode === mode)));
+    const byCode = new Map(this.sprites.map((s) => [s.d.code, s]));
+    for (const s of this.sprites) s.target.set(...(mode === "own" ? s.d.pos : s.d.posRaw)).multiplyScalar(SCALE);
+    const pts: number[] = [];
+    for (const s of this.sprites) {
+      const n = byCode.get(this.neighbours(s.d)[0]);
+      if (n) pts.push(...s.target.toArray(), ...n.target.toArray());
+    }
+    this.links!.geometry.dispose();
+    this.links!.geometry = new THREE.BufferGeometry().setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
+    const ex = mode === "own" ? this.dna.explained : this.dna.explainedRaw;
+    const pct = Math.round(ex.reduce((a, v) => a + v, 0) * 100);
+    this.root.querySelector("[data-k=caption]")!.textContent = `${mode === "own" ? "Own style, car taken out" : "As driven, car included"} · drag to turn · select a driver · lines join closest matches · the three directions hold ${pct}% of the differences`;
+    if (this.current) this.select(this.current);
   }
 
   private on(target: EventTarget, type: string, fn: EventListener) {
@@ -163,24 +216,47 @@ export class DnaView {
   }
 
   private select(code: string) {
+    this.current = code;
     const d = this.dna.drivers.find((x) => x.code === code)!;
+    const near = this.neighbours(d);
     for (const s of this.sprites) {
-      const on = s.d.code === code || d.neighbours.includes(s.d.code);
+      const on = s.d.code === code || near.includes(s.d.code);
       s.base = on ? 1 : 0.5;
       s.rank = s.d.code === code ? 2 : on ? 1 : 0;
       s.sprite.scale.setScalar(s.d.code === code ? 15 : 10);
       // The selected driver's rim lights in hard white; everyone else stays moulded grey.
       (s.sprite.material as THREE.SpriteMaterial).map = discTexture(s.d.code, s.d.colour, s.d.code === code);
     }
-    const axes = Object.entries(d.style)
+    // The bar is the style shown; the tick is the other one (as driven, or the car taken out).
+    const shown = this.mode === "own" ? d.style : d.styleRaw;
+    const other = this.mode === "own" ? d.styleRaw : d.style;
+    const axes = Object.entries(shown)
       .map(([k, v]) => {
         const clamped = Math.max(-1, Math.min(1, v));
-        const raw = d.styleRaw?.[k] ?? v;
         const left = clamped < 0 ? 50 + clamped * 50 : 50;
         const width = Math.abs(clamped) * 50;
-        return `<div class="axis"><span>${k}</span><span class="track" title="${raw > 0 ? "+" : ""}${raw.toFixed(2)} standard deviations vs the field"><i style="left:${left}%;width:${Math.max(width, 1)}%"></i></span></div>`;
+        const tick = 50 + Math.max(-1, Math.min(1, other[k] ?? 0)) * 50;
+        return `<div class="axis"><span>${k}</span><span class="track"><i style="left:${left}%;width:${Math.max(width, 1)}%"></i><b class="tick" style="left:${tick}%"></b></span></div>`;
       })
       .join("");
+    // Season by season, the car taken out: the same seven traits as cells, ink to the right.
+    const years = Object.keys(d.seasons).sort();
+    const seasons = years.length
+      ? `<p class="caps tells-h">Season by season, car taken out</p>
+        <table class="dna-seasons"><thead><tr><th></th>${years.map((y) => `<th class="num" title="${d.seasons[y].team}">${y.slice(2)}</th>`).join("")}</tr></thead><tbody>${Object.keys(d.style)
+          .map(
+            (k) =>
+              `<tr><th>${k}</th>${years
+                .map((y) => {
+                  const v = Math.max(-1, Math.min(1, d.seasons[y].traits[k] ?? 0));
+                  return `<td title="${y}, ${d.seasons[y].team}: ${v > 0 ? "+" : ""}${v.toFixed(2)}"><i style="${v >= 0 ? "left:50%" : `left:${50 + v * 50}%`};width:${Math.abs(v) * 50}%"></i></td>`;
+                })
+                .join("")}</tr>`,
+          )
+          .join("")}</tbody></table>
+        <p class="dna-teams">${years.map((y) => `<span><b class="num">${y}</b> ${d.seasons[y].team}</span>`).join("")}</p>`
+      : "";
+    const car = [...this.dna.cars].filter((c) => c.drivers.includes(code)).sort((a, b) => b.year - a.year)[0];
     const options = this.dna.drivers
       .map((x) => `<option value="${x.code}" ${x.code === code ? "selected" : ""}>${x.code} · ${x.name}</option>`)
       .join("");
@@ -188,9 +264,12 @@ export class DnaView {
       <h2 class="display">${d.code}</h2>
       <p class="caps team">${d.name} · ${d.team}</p>
       ${this.careers.drivers[code] ? `<p class="career num">${careerLine(this.careers.drivers[code])}</p>` : ""}
+      <p class="caps tells-h">${this.mode === "own" ? "Own style · tick: as driven" : "As driven · tick: car taken out"}</p>
       ${axes}
-      ${d.tells?.length ? `<p class="caps tells-h">What gives ${d.code} away</p><ul class="tells">${d.tells.map((t) => `<li>${t.charAt(0).toUpperCase() + t.slice(1)}</li>`).join("")}</ul>` : ""}
-      <p class="near">Drives most like <b>${d.neighbours.join("</b>, <b>")}</b>. The centre line is the field average; bars are scaled so the most extreme driver on each trait reaches the edge.</p>
+      ${d.tells?.length ? `<p class="caps tells-h">What gives ${d.code} away, car taken out</p><ul class="tells">${d.tells.map((t) => `<li>${t.charAt(0).toUpperCase() + t.slice(1)}</li>`).join("")}</ul>` : ""}
+      ${seasons}
+      ${car ? `<p class="caps tells-h">Their car: ${car.team} ${car.year}</p>${carBars(car)}` : ""}
+      <p class="near">Drives most like <b>${near.join("</b>, <b>")}</b>${this.mode === "own" ? ", car taken out" : ", car included"}. The centre line is the field average; bars are scaled so the most extreme driver on each trait reaches the edge.</p>
       <label class="caps jump">Jump to
         <select>${options}</select>
       </label>`;
@@ -199,6 +278,16 @@ export class DnaView {
 
   frame(dt: number) {
     if (this.auto && !matchMedia("(prefers-reduced-motion: reduce)").matches) this.yaw += dt * 0.08;
+    // Discs glide to the map that is shown.
+    const k = Math.min(1, dt * 4);
+    for (const s of this.sprites) {
+      if (s.sprite.position.distanceToSquared(s.target) < 0.0001) continue;
+      s.sprite.position.lerp(s.target, k);
+      const a = s.stalk.geometry.getAttribute("position") as THREE.BufferAttribute;
+      a.setXYZ(0, s.sprite.position.x, s.sprite.position.y, s.sprite.position.z);
+      a.setXYZ(1, s.sprite.position.x, -SCALE * 1.05, s.sprite.position.z);
+      a.needsUpdate = true;
+    }
     const r = (this.world.renderer.domElement.clientWidth || innerWidth) <= 860 ? 280 : 210;
     this.camera.position.set(Math.sin(this.yaw) * Math.cos(this.pitch) * r, Math.sin(this.pitch) * r, Math.cos(this.yaw) * Math.cos(this.pitch) * r);
     this.camera.lookAt(0, -8, 0);
@@ -240,4 +329,18 @@ export class DnaView {
   dispose() {
     for (const [t, type, fn] of this.handlers) t.removeEventListener(type, fn);
   }
+}
+
+/** A car's fingerprint: the seven traits as bars from the field's centre line. */
+function carBars(c: DnaCar): string {
+  return Object.entries(c.traits)
+    .map(([k, v]) => {
+      const x = Math.max(-1, Math.min(1, v));
+      return `<div class="axis car"><span>${k}</span><span class="track"><i style="left:${x < 0 ? 50 + x * 50 : 50}%;width:${Math.max(Math.abs(x) * 50, 1)}%"></i></span></div>`;
+    })
+    .join("");
+}
+
+function carCard(c: DnaCar): string {
+  return `<article class="car-card" style="--team:${c.colour}"><h3 class="caps">${c.team} <span class="num">${c.year}</span></h3><p class="drivers">${c.drivers.join(" · ")}</p>${carBars(c)}</article>`;
 }
