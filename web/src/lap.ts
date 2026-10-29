@@ -18,6 +18,13 @@ const DRIFT_WINDOW = 14;
 // every two laps; on screen the brake light blinked and the red rubber had a grey gap. Gaps shorter
 // than this (seconds) between two "on" samples are shown as braking.
 const BRAKE_GAP = 0.6;
+// The timing says a lap starts on the line at t = 0 and ends on it at its lap time, but the position
+// data puts the car up to about 15 m before or after the line at those moments, so two laps started
+// together were drawn up to 20 m apart. The difference is eased out over the first and last
+// LINE_EASE seconds (at most about 2.5 m/s against the real speed); a difference over LINE_MAX m is
+// a broken lap and left alone.
+const LINE_EASE = 6;
+const LINE_MAX = 40;
 
 /** The brake channel as shown: on (1) or off (0), with short drop-outs inside a braking filled. */
 export function heldBrake(lap: { t: number[]; brk: number[] }): Uint8Array {
@@ -62,10 +69,18 @@ export class LapPlayer {
   readonly duration: number;
   readonly dist: Float64Array; // smoothed distance at each sample time: where the car is drawn
   readonly brake: Uint8Array; // heldBrake
+  /** How far off the line the position data had the car at the start or the end (m). Over LINE_MAX
+   * the data has a gap there (16 laps of 3,379) and the lap is left out of the random picks. */
+  readonly offLine: number;
   private integrated: Float64Array; // distance from the speed channel alone
   private correction: Float64Array; // smoothed drift correction from the position samples
 
-  constructor(readonly lap: LapData) {
+  /** length: the circuit's length, so the lap also ends on the line (without it only the start is
+   * put on the line). */
+  constructor(
+    readonly lap: LapData,
+    length?: number,
+  ) {
     this.duration = lap.lapTime;
     this.brake = heldBrake(lap);
     const { t, s, v } = lap;
@@ -78,8 +93,27 @@ export class LapPlayer {
     this.integrated = integrated;
     this.correction = smooth(smooth(offset, DRIFT_WINDOW), DRIFT_WINDOW);
     this.dist = new Float64Array(n);
-    for (let k = 0; k < n; k++) {
-      this.dist[k] = integrated[k] + this.correction[k];
+    this.fillDist();
+    // On the line at 0:00.000, and again at the lap time.
+    const ease = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
+    const d0 = -this.at(0).s;
+    const d1 = length ? length - this.at(this.duration).s : 0;
+    this.i = 0;
+    this.offLine = Math.max(Math.abs(d0), Math.abs(d1));
+    const fix0 = Math.abs(d0) <= LINE_MAX ? d0 : 0;
+    const fix1 = Math.abs(d1) <= LINE_MAX ? d1 : 0;
+    if (fix0 || fix1) {
+      for (let k = 0; k < n; k++) {
+        const tk = t[k];
+        this.correction[k] += fix0 * (1 - ease(tk / LINE_EASE)) + fix1 * ease((tk - (this.duration - LINE_EASE)) / LINE_EASE);
+      }
+      this.fillDist();
+    }
+  }
+
+  private fillDist() {
+    for (let k = 0; k < this.dist.length; k++) {
+      this.dist[k] = this.integrated[k] + this.correction[k];
       if (k > 0 && this.dist[k] < this.dist[k - 1]) this.dist[k] = this.dist[k - 1];
     }
   }
@@ -101,7 +135,12 @@ export class LapPlayer {
     const v1 = L.v[i + 1] / 3.6;
     const travelled = (v0 * u + 0.5 * (v1 - v0) * u * u) * span;
     const corr = this.correction[i] + (this.correction[i + 1] - this.correction[i]) * u;
-    const s = this.integrated[i] + travelled + corr;
+    let s = this.integrated[i] + travelled + corr;
+    // Before the first sample or after the last (a lap's data can start up to a second after the
+    // line), carry on at the speed there instead of standing still.
+    const n = ts.length;
+    if (t < ts[0]) s -= (L.v[0] / 3.6) * (ts[0] - t);
+    else if (t > ts[n - 1]) s += (L.v[n - 1] / 3.6) * (t - ts[n - 1]);
 
     return {
       t,
@@ -121,8 +160,9 @@ export class LapPlayer {
     const D = this.dist;
     let lo = 0;
     let hi = D.length - 1;
-    if (d <= D[0]) return t[0];
-    if (d >= D[hi]) return t[hi];
+    // Past either end, at the speed there (as at()).
+    if (d <= D[0]) return t[0] - (D[0] - d) / Math.max(this.lap.v[0] / 3.6, 1);
+    if (d >= D[hi]) return t[hi] + (d - D[hi]) / Math.max(this.lap.v[hi] / 3.6, 1);
     while (hi - lo > 1) {
       const mid = (lo + hi) >> 1;
       if (D[mid] <= d) lo = mid;
@@ -131,6 +171,11 @@ export class LapPlayer {
     const f = (d - D[lo]) / (D[hi] - D[lo] || 1);
     return t[lo] + (t[hi] - t[lo]) * f;
   }
+}
+
+/** A lap whose data reaches the line at both ends, so it plays cleanly from the start to the flag. */
+export function playable(lap: LapData, length: number): boolean {
+  return new LapPlayer(lap, length).offLine <= LINE_MAX;
 }
 
 export function formatLapTime(sec: number): string {

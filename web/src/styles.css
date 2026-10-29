@@ -2065,7 +2065,8 @@ a.mode.quick:hover p {
 }
 
 .pair-lap .tm-lap-head {
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 4px 10px;
 }
 
 .pair-lap .tm-jump {
@@ -2164,8 +2165,9 @@ a.mode.quick:hover p {
 }
 
 .pair-gap {
+  margin-left: auto;
   color: var(--ink-3);
-  white-space: nowrap;
+  text-align: right;
 }
 
 .pair-gap b {

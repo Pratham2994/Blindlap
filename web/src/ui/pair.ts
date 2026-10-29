@@ -10,7 +10,7 @@
 import { gearRatios, EngineSynth, VOLUME_KEY } from "../audio/engine";
 import type { CornerZone, DriverInfo, Index, LapData, Session } from "../data";
 import { loadSession, prefetchSurroundings } from "../data";
-import { formatLapTime, LapPlayer } from "../lap";
+import { formatLapTime, LapPlayer, playable } from "../lap";
 import type { Sample } from "../lap";
 import { FEATURE_SHORT, Guesser } from "../model";
 import type { CameraMode, World } from "../scene/world";
@@ -64,8 +64,8 @@ const PAIR_TEXT: Record<string, { min: number; text: (v: string) => string }> = 
 
 const REAL_NOTE =
   "<b>Real, from the cars:</b> each car's speed, gear, throttle, brake and timing, about four times a second. The rear light and the red rubber show the real brake channel (a drop-out shorter than 0.6 s in the middle of a braking is shown as braking). " +
-  "<b>Drawn:</b> where across the road the cars are. The position data puts every car on the same line, so both drive one racing line, and the red car is a see-through ghost, as in a racing game. Each car's rubber runs as a thin mark on its own side of the line. " +
-  "<b>Level into corners:</b> the red car's lap runs up to 10% faster or slower on the straights, so both cars reach every braking zone together. Through each corner both run in real time. " +
+  "<b>Drawn:</b> where across the road the cars are. The position data puts every car on the same line, so both drive one racing line, and the red car is a see-through ghost, as in a racing game. Each car's rubber runs as a thin mark on its own side of the line. The position data can also be up to 15 m off at the start and finish, so each lap is put on the line where its timing says: at 0:00.000 and at its lap time. " +
+  "<b>Level into corners:</b> on the straights the red car's lap runs up to 10% faster or slower, so both cars reach every braking zone together; through each corner both run at their real speed. " +
   "<b>Real gap</b> plays both laps exactly as driven. " +
   "<b>The guess:</b> the model reads every corner of both laps. It never saw this circuit.";
 
@@ -282,7 +282,9 @@ export class PairView {
 
     // Two drivers the model knows, with laps close in time so the cars run together.
     const known = new Set(this.session.model.classes);
-    const laps = this.session.laps.filter((l) => known.has(l.code));
+    const named = this.session.laps.filter((l) => known.has(l.code));
+    const ok = named.filter((l) => playable(l, this.session.length));
+    const laps = new Set(ok.map((l) => l.code)).size >= 2 ? ok : named;
     const a = laps[Math.floor(Math.random() * laps.length)];
     const near = laps
       .filter((l) => l.code !== a.code)
@@ -293,7 +295,7 @@ export class PairView {
     const codes = [plain.code, red.code];
     const model = this.index.models[0].id;
     const side = (lap: LapData): Side => {
-      const player = new LapPlayer(lap);
+      const player = new LapPlayer(lap, this.session.length);
       return { lap, player, guesser: new Guesser(this.session, this.index, codes, model), ratios: gearRatios(lap.v, lap.rpm, lap.gear), next: 0, t: 0, smp: player.at(0) };
     };
     this.cars = { A: side(plain), B: side(red) };
@@ -535,8 +537,8 @@ export class PairView {
     if (note)
       note.textContent =
         this.clockMode === "level"
-          ? "Both cars reach every braking zone together; each corner then runs in real time. Watch who brakes first and who is back on the power first."
-          : "Both laps exactly as driven: the gap on track is the real one.";
+          ? "On each straight the red car is moved a little forward or back, so both cars arrive at the next corner side by side. From there to the corner exit both run at their real speed, so any gap that opens in the corner is real: watch who brakes first and who is back on the power first."
+          : "Both laps exactly as driven, from the same start on the line. The gap you see is the real gap, built up over the whole lap.";
   }
 
   /** Which car the close cameras follow (and the engine sound comes from). */
@@ -629,8 +631,11 @@ export class PairView {
     const gap = this.gapAt(Math.max(0, a.s));
     const g = q("gap");
     if (g) g.textContent = `${Math.abs(gap).toFixed(3)} s`;
+    // What the picture shows (metres on track) and what the timing says (the real gap).
+    const metres = b.s - a.s;
+    const onTrack = Math.abs(metres) < 1 ? "side by side" : `${metres > 0 ? "red" : "plain"} ${Math.abs(metres).toFixed(0)} m ahead`;
     const where = q("where");
-    if (where) where.textContent = Math.abs(gap) < 0.005 ? "Real gap · level" : `Real gap · ${gap > 0 ? "red" : "plain"} ahead by`;
+    if (where) where.textContent = `On track ${onTrack} · real gap${Math.abs(gap) < 0.005 ? "" : ` ${gap > 0 ? "red" : "plain"} ahead`}`;
   }
 
   /** Read the corners each car has passed; once both have, mark the corner and say how they differed. */

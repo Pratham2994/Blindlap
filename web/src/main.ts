@@ -118,7 +118,7 @@ async function homeView(): Promise<View> {
     world.hideLivery();
     world.showCar(true);
     world.labelsOn = false;
-    player = new LapPlayer(fastest);
+    player = new LapPlayer(fastest, session.length);
     t = player.duration * Math.random();
     world.mode = shots[0];
     world.setCarS(player.at(t).s);

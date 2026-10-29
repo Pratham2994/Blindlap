@@ -5,7 +5,7 @@ import { gearRatios, EngineSynth, VOLUME_KEY } from "../audio/engine";
 import type { DriverInfo, Index, LapData, LapRef, Session, SessionResult } from "../data";
 import { careerLine, loadCareers, loadDna, loadRadio, loadResults, loadSession, prefetchSurroundings } from "../data";
 import type { Careers } from "../data";
-import { formatLapTime, LapPlayer } from "../lap";
+import { formatLapTime, LapPlayer, playable } from "../lap";
 import type { Evidence } from "../model";
 import { Guesser } from "../model";
 import type { CameraMode, World } from "../scene/world";
@@ -249,7 +249,11 @@ export class PlayView {
     const mateOf = (code: string) =>
       [...new Set(this.session.laps.map((l) => l.code))].find((c) => c !== code && teamOf(c) === teamOf(code) && known.has(c));
     // In teammate mode only laps whose teammate also set a lap can be played.
-    const pool = this.mates ? this.session.laps.filter((l) => mateOf(l.code)) : this.session.laps;
+    // Laps with a gap in their data at the line are left out (a challenge link still plays its lap).
+    const ok = this.session.laps.filter((l) => playable(l, this.session.length));
+    const clean = ok.length ? ok : this.session.laps;
+    const matePool = clean.filter((l) => mateOf(l.code));
+    const pool = this.mates ? (matePool.length ? matePool : this.session.laps.filter((l) => mateOf(l.code))) : clean;
     const withRadio = pool.filter((l) => l.radio);
     const laps = withRadio.length > 6 ? withRadio : pool;
     // A planned lap index of -1 means "this circuit, any lap".
@@ -257,7 +261,7 @@ export class PlayView {
       planned && planned.lapIndex >= 0
         ? this.session.laps[planned.lapIndex % this.session.laps.length]
         : laps[Math.floor(Math.random() * laps.length)];
-    this.player = new LapPlayer(this.lap);
+    this.player = new LapPlayer(this.lap, this.session.length);
     this.team = teamOf(this.lap.code);
     this.guesser = new Guesser(this.session, this.index, this.mates ? [this.lap.code, mateOf(this.lap.code)!] : undefined, PlayView.model ?? undefined);
     this.ratios = gearRatios(this.lap.v, this.lap.rpm, this.lap.gear);
@@ -956,8 +960,8 @@ export class PlayView {
     this.replay = null;
     this.root.classList.remove("replaying");
     this.radio?.pause();
-    this.duel = { lap: rival, player: new LapPlayer(rival), code: rival.code };
-    this.player = new LapPlayer(this.lap);
+    this.duel = { lap: rival, player: new LapPlayer(rival, this.session.length), code: rival.code };
+    this.player = new LapPlayer(this.lap, this.session.length);
     this.t = 0;
     this.phase = "duel";
     this.root.dataset.phase = "duel";

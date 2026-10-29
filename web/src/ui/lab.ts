@@ -136,8 +136,8 @@ export class LabView {
     this.root.querySelector(".lab-legend")!.innerHTML = `<span class="swatch a"></span><b>${A.code}</b> ${formatLapTime(A.lapTime)} <span class="swatch b"></span><b>${B.code}</b> ${formatLapTime(B.lapTime)} <span class="delta">${A.code} ${gap >= 0 ? "faster" : "slower"} by ${Math.abs(gap).toFixed(3)} s</span>`;
 
     // The gap along the lap: how much later B reached each point than A (positive: A ahead).
-    const pa = new LapPlayer(A);
-    const pb = new LapPlayer(B);
+    const pa = new LapPlayer(A, L);
+    const pb = new LapPlayer(B, L);
     const step = 10;
     const n = Math.ceil(L / step);
     // Timing from positions drifts a little over a lap, so the gap at the line is pinned to the

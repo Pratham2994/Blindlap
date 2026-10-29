@@ -118,7 +118,15 @@ These are the most important things to get right. They come from many correction
   the real brake channel (the normal lap too). The channel drops out for 1 to 3 samples in the middle
   of a braking about once every two laps (478 times in 834 laps); `heldBrake` (lap.ts) shows gaps up
   to 0.6 s as braking, for the light, the meters and the rubber, and the rubber is now coloured by
-  the lap player's distance, so it turns red exactly where the light comes on. The line under the cars compares the two laps at each
+  the lap player's distance, so it turns red exactly where the light comes on.
+  Each lap is also put on the line where its timing says (`LapPlayer(lap, length)`): the position
+  data has the car up to 15 m before or after the line at 0:00.000 and at the lap time, so two laps
+  started together were drawn up to 20 m apart. The difference is eased out over the first and last
+  6 s (the lab's time gaps now start at zero too). Before a lap's first sample and after its last
+  (the data can start up to a second after the line) the car carries on at its speed instead of
+  standing still. 16 laps of 3,379 are still over 40 m off the line at one end (gaps in their data,
+  most in session 11241); `playable()` leaves them out of the random picks of Quick lap, Teammates
+  and Which is which (a challenge link still plays its lap). The line under the cars compares the two laps at each
   corner from `raw` features, scaled by `field.scale`, plus the time gained through it.
 - **Driver DNA team moves** (`dna._moves`, `dna._predict_moves`): every team change (9 now) refitted
   without any of the driver's laps from that season on; new car's term + driver's term against "as

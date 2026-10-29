@@ -1776,7 +1776,7 @@ export class World {
     const f = this.frame!;
     // Coloured by where the car is drawn (the lap player's distance) and the brake as shown, so the
     // rubber turns red exactly where the brake light comes on.
-    const player = new LapPlayer(lap);
+    const player = new LapPlayer(lap, f.length);
     const d = player.dist;
     const n = f.pos.length;
     const pos: number[] = [];
