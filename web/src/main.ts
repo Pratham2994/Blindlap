@@ -11,6 +11,9 @@ import { PlayView } from "./ui/play";
 import { dockStage, flushStage } from "./ui/stage";
 import { isDark, onTheme, setTheme } from "./theme";
 
+// A phone sees the notice in index.html instead: nothing of the app starts (no 3D, no data).
+if (document.documentElement.classList.contains("phone")) await new Promise(() => {});
+
 interface View {
   root: HTMLElement;
   frame?: (dt: number) => void;

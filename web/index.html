@@ -17,9 +17,88 @@
         document.documentElement.dataset.theme = t;
       } catch (e) {}
     </script>
+    <script>
+      // Phones get a notice instead of the app: a 3D lap beside live telemetry and the models'
+      // grid needs a laptop or desktop screen (and graphics a phone rarely has). A phone is a touch
+      // screen whose short side is under 600 px; tablets and narrow desktop windows still get in.
+      try {
+        if (matchMedia("(pointer: coarse)").matches && Math.min(screen.width, screen.height) < 600) document.documentElement.classList.add("phone");
+      } catch (e) {}
+    </script>
+    <style>
+      .phone-gate {
+        display: none;
+      }
+      html.phone body > :not(.phone-gate) {
+        display: none !important;
+      }
+      html.phone,
+      html.phone body {
+        margin: 0;
+        min-height: 100%;
+        background: #f1f0ec;
+        color: #111111;
+      }
+      html.phone[data-theme="dark"],
+      html.phone[data-theme="dark"] body {
+        background: #121212;
+        color: #f1f0ec;
+      }
+      html.phone .phone-gate {
+        display: grid;
+        align-content: center;
+        gap: 18px;
+        min-height: 100svh;
+        box-sizing: border-box;
+        padding: 32px 22px;
+        font: 16px/1.5 system-ui, sans-serif;
+      }
+      .phone-gate .mark {
+        justify-self: start;
+        padding: 6px 10px;
+        background: #e10600;
+        color: #ffffff;
+        font-weight: 900;
+        letter-spacing: 0.04em;
+      }
+      .phone-gate h1 {
+        margin: 0;
+        font-size: 2.4rem;
+        line-height: 1.02;
+        font-weight: 900;
+        text-transform: uppercase;
+      }
+      .phone-gate p {
+        margin: 0;
+        max-width: 34ch;
+      }
+      .phone-gate .link {
+        display: block;
+        font-weight: 700;
+        overflow-wrap: anywhere;
+      }
+      .phone-gate button {
+        justify-self: start;
+        padding: 12px 18px;
+        border: 3px solid currentColor;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+    </style>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23e10600'/%3E%3Cpath d='M7 22h18' stroke='%23f1f0ec' stroke-width='4'/%3E%3C/svg%3E" />
   </head>
   <body>
+    <main class="phone-gate">
+      <span class="mark">BLIND LAP</span>
+      <h1>Made for a bigger screen</h1>
+      <p>Blind Lap plays a real F1 qualifying lap in 3D, with its telemetry, three models guessing the driver live and the reveal, all side by side. That needs a laptop or a desktop.</p>
+      <p>Open it on a computer: <span class="link">pratham2994.github.io/Blindlap</span></p>
+      <button type="button" onclick="var b = this; navigator.clipboard.writeText(location.origin + location.pathname).then(function () { b.textContent = 'Link copied'; }, function () { b.textContent = 'Copy failed'; });">Copy the link</button>
+    </main>
     <canvas id="stage" aria-hidden="true"></canvas>
     <header class="topbar" id="topbar">
       <a class="wordmark" href="#/" aria-label="Blind Lap, home">BLIND LAP</a>
@@ -51,8 +130,9 @@
         </section>
       </div>
       <script>
-        // Only the home page starts from it; a link to any other page starts empty.
-        var home = /^#?\/?$/.test(location.hash);
+        // Only the home page starts from it; a link to any other page starts empty. (On a phone
+        // nothing starts: the notice above is all there is.)
+        var home = /^#?\/?$/.test(location.hash) && !document.documentElement.classList.contains("phone");
         if (!home) document.querySelector("#view .shell").remove();
         // The small data this page needs, asked for while the script is still downloading.
         var page = location.hash.replace(/^#\/?/, "").split("/")[0];
@@ -64,7 +144,7 @@
           l.href = "./data/" + f;
           document.head.appendChild(l);
         };
-        ["index.json"]
+        if (!document.documentElement.classList.contains("phone")) ["index.json"]
           .concat(home ? ["report.json"] : page === "play" || page === "mates" ? ["env/index.json"] : page === "how" ? ["report.json"] : page === "dna" ? ["dna.json", "careers.json"] : page === "battles" ? ["battles.json"] : [])
           .forEach(preload);
         // The home broadcast: pick its circuit (a daytime one) here and start fetching its track and

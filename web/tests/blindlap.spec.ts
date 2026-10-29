@@ -38,6 +38,8 @@ test("a full round: model reads every corner, you guess, reveal, duel", async ({
   await expect(reveal).toContainText(/Ranked\s*P\d+ of \d+/i);
   await expect(page.locator(".lineup .row.truth")).toHaveCount(1);
   await expect(reveal.locator(".caption li")).toHaveCount(3);
+  // The team line is plain text: no other page's card styles leak onto it.
+  expect(await reveal.locator(".team").evaluate((e) => getComputedStyle(e).borderTopWidth)).toBe("0px");
   // When and where in qualifying: the date, the segment, and how the driver's session ended.
   await expect(reveal.locator(".context")).toHaveText(/\d{4} · Qualifying Q[123] · .*(qualified P\d+|took pole|DNF|DNS|DSQ)/);
 
@@ -233,4 +235,24 @@ test("teammate battles show each team's qualifying head-to-head and switch seaso
   await page.getByRole("button", { name: "2025" }).click();
   await expect(page).toHaveURL(/#\/battles\/2025$/);
   await expect(page.getByRole("button", { name: "2025" })).toHaveAttribute("aria-pressed", "true");
+});
+
+test("a phone gets a notice instead of the app, and loads none of its data", async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const page = await context.newPage();
+  const data: string[] = [];
+  page.on("request", (r) => r.url().includes("/data/") && data.push(r.url()));
+  await page.goto("/#/play");
+  await expect(page.getByRole("heading", { name: /made for a bigger screen/i })).toBeVisible();
+  await expect(page.locator("#view")).toBeHidden();
+  await page.waitForTimeout(1500);
+  expect(data).toEqual([]);
+  await context.close();
+});
+
+test("a narrow window on a computer still gets the game", async ({ page }) => {
+  await page.setViewportSize({ width: 420, height: 800 });
+  await page.goto("/#/");
+  await expect(page.getByRole("heading", { name: /who's driving/i })).toBeVisible();
+  await expect(page.locator(".phone-gate")).toBeHidden();
 });

@@ -9,7 +9,7 @@ const out = (process.argv[2] ?? new URL("../../.impeccable/review/responsive/", 
 mkdirSync(out, { recursive: true });
 const base = "http://localhost:5173/";
 const SIZES = [
-  ["13in", 1280, 800], ["13in-retina", 1440, 900], ["15in", 1536, 864], ["16in", 1728, 1117],
+  ["13in", 1280, 800], ["14in", 1366, 768], ["14in-hd", 1536, 960], ["13in-retina", 1440, 900], ["15in", 1536, 864], ["16in", 1728, 1117],
   ["24in", 1920, 1080], ["27in", 2560, 1440], ["tablet", 768, 1024], ["tablet-land", 1024, 768],
   ["phone", 390, 844], ["phone-small", 360, 800], ["phone-land", 844, 390],
 ];

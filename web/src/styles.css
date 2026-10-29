@@ -1895,7 +1895,7 @@ a.mode.quick:hover p {
   line-height: 1.55;
 }
 
-/* Teammate battles */
+/* Teammate battles (scoped: .team is also the reveal's and DNA's team line) */
 .battle-years {
   margin-bottom: 18px;
 }
@@ -1906,7 +1906,7 @@ a.mode.quick:hover p {
   gap: var(--gutter);
 }
 
-.team {
+.battles .team {
   border: var(--rule);
   border-top: 10px solid var(--team);
   padding: 14px 16px 16px;
@@ -1915,40 +1915,40 @@ a.mode.quick:hover p {
   align-content: start;
 }
 
-.team h2 {
+.battles .team h2 {
   margin: 0;
   color: var(--ink-3);
 }
 
-.pair {
+.battles .pair {
   display: grid;
   gap: 8px;
 }
 
-.pair .score {
+.battles .pair .score {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: end;
   gap: 12px;
 }
 
-.pair .who {
+.battles .pair .who {
   display: grid;
   min-width: 0;
 }
 
-.pair .who.right {
+.battles .pair .who.right {
   text-align: right;
 }
 
-.pair .who b {
+.battles .pair .who b {
   font-weight: 900;
   font-variation-settings: "wdth" 125;
   font-size: 1.6rem;
   line-height: 1;
 }
 
-.pair .who small {
+.battles .pair .who small {
   color: var(--ink-3);
   font-size: 0.78rem;
   white-space: nowrap;
@@ -1956,63 +1956,63 @@ a.mode.quick:hover p {
   text-overflow: ellipsis;
 }
 
-.pair .tally {
+.battles .pair .tally {
   font-size: 2rem;
   font-weight: 900;
   line-height: 1;
 }
 
-.pair .tally i {
+.battles .pair .tally i {
   margin: 0 6px;
   font-style: normal;
   color: var(--ink-3);
 }
 
-.pair .split {
+.battles .pair .split {
   height: 8px;
   background: var(--paper-3);
 }
 
-.pair .split i {
+.battles .pair .split i {
   display: block;
   height: 100%;
   background: var(--ink); /* a chart: ink, never team colour */
 }
 
-.pair .gap {
+.battles .pair .gap {
   margin: 0;
   color: var(--ink-2);
   font-size: 0.86rem;
 }
 
-.pair .cells {
+.battles .pair .cells {
   display: flex;
   flex-wrap: wrap;
   gap: 3px;
 }
 
-.pair .cell {
+.battles .pair .cell {
   width: 14px;
   height: 14px;
   border: 2px solid var(--ink);
 }
 
-.pair .cell.a {
+.battles .pair .cell.a {
   background: var(--ink);
 }
 
-.pair .cell:hover {
+.battles .pair .cell:hover {
   outline: 2px solid var(--red);
   outline-offset: 1px;
 }
 
-.pair.minor {
+.battles .pair.minor {
   padding-top: 10px;
   border-top: var(--hair);
 }
 
-.pair.minor .who b,
-.pair.minor .tally {
+.battles .pair.minor .who b,
+.battles .pair.minor .tally {
   font-size: 1.1rem;
 }
 
