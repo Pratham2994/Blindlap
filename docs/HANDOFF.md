@@ -127,6 +127,14 @@ These are the most important things to get right. They come from many correction
   standing still. 16 laps of 3,379 are still over 40 m off the line at one end (gaps in their data,
   most in session 11241); `playable()` leaves them out of the random picks of Quick lap, Teammates
   and Which is which (a challenge link still plays its lap).
+- **Search and sharing** (web/index.html, web/public): title and description, canonical URL,
+  Open Graph and Twitter cards with `og.png` (1200x630, the poster's red block beside a real frame
+  of the game), `WebApplication` structured data (a free browser game), a `<noscript>` summary, a
+  web manifest with 192/512 and Apple touch icons, robots.txt and a one-URL sitemap. Each #/ page
+  sets its own tab title (`PAGE_TITLE` in main.ts). The address
+  `https://pratham2994.github.io/Blindlap/` is written in index.html, robots.txt and sitemap.xml:
+  change all three on a move to another domain. robots.txt only counts at a domain's root, so on
+  GitHub Pages submit the sitemap in Search Console instead.
 - **Tight turns** (`insideReach`, world.ts): per frame point, 85% of the tightest turn radius within
   24 m on the inside. Verges stop short of it, barrier blocks shrink to the wall's real length (left
   out under 30%) and stretch on the outside, fence posts past it are left out. Monaco's hairpin is

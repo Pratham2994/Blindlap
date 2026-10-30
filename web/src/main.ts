@@ -228,6 +228,18 @@ async function homeView(): Promise<View> {
   };
 }
 
+// Each page names itself in the tab and the browser history; the home page keeps the full title.
+const HOME_TITLE = document.title;
+const PAGE_TITLE: Record<string, string> = {
+  play: "Quick lap",
+  mates: "Teammates",
+  pair: "Which is which",
+  dna: "Driver DNA",
+  battles: "Teammate battles",
+  lab: "Telemetry lab",
+  how: "How it knows",
+};
+
 async function route() {
   const hash = location.hash.replace(/^#\/?/, "");
   const [name, arg] = hash.split("/");
@@ -235,6 +247,7 @@ async function route() {
   toggle.setAttribute("aria-expanded", "false");
   setNav(name === "mates" || name === "pair" ? "play" : name || "home");
   document.body.dataset.route = name || "home";
+  document.title = PAGE_TITLE[name] ? `${PAGE_TITLE[name]} · Blind Lap` : HOME_TITLE;
   world.labelsOn = true;
   world.setFrameShift(0);
   try {

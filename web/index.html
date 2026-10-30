@@ -4,16 +4,60 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#f3efe6" />
-    <title>Blind Lap</title>
+    <title>Blind Lap · Guess the F1 driver from a real qualifying lap</title>
     <meta
       name="description"
-      content="A real F1 qualifying lap with the name taken off. Three models read how the car takes each corner and guess who is driving. So do you."
+      content="A real F1 qualifying lap from 2023 to 2026 with the name taken off. Watch it in 3D, read how the car takes each corner, and guess who is driving against three models."
     />
+    <!-- Search and sharing. The site lives at one address; the app's pages are #/ routes inside it. -->
+    <link rel="canonical" href="https://pratham2994.github.io/Blindlap/" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="author" content="Pratham Panchal" />
+    <meta name="application-name" content="Blind Lap" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Blind Lap" />
+    <meta property="og:locale" content="en_GB" />
+    <meta property="og:url" content="https://pratham2994.github.io/Blindlap/" />
+    <meta property="og:title" content="Blind Lap · Who's driving?" />
+    <meta property="og:description" content="A real F1 qualifying lap with the name taken off. Read how the car takes each corner and guess the driver, against three models that never saw the circuit." />
+    <meta property="og:image" content="https://pratham2994.github.io/Blindlap/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:alt" content="Blind Lap: a red poster block reading Who's driving? beside a 3D F1 car on a real circuit." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Blind Lap · Who's driving?" />
+    <meta name="twitter:description" content="A real F1 qualifying lap with the name taken off. Guess the driver from how the car takes each corner." />
+    <meta name="twitter:image" content="https://pratham2994.github.io/Blindlap/og.png" />
+    <meta name="twitter:image:alt" content="Blind Lap: a red poster block reading Who's driving? beside a 3D F1 car on a real circuit." />
+    <link rel="manifest" href="./site.webmanifest" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Blind Lap",
+        "alternateName": "Blind Lap F1",
+        "url": "https://pratham2994.github.io/Blindlap/",
+        "description": "Guess the F1 driver from a real, anonymous qualifying lap. Three machine learning models read braking points, apex speed and throttle at every corner and guess too, on circuits they never trained on.",
+        "applicationCategory": "GameApplication",
+        "genre": ["Formula 1", "Motorsport", "Quiz"],
+        "operatingSystem": "Any desktop web browser",
+        "browserRequirements": "Requires WebGL and JavaScript",
+        "inLanguage": "en",
+        "isAccessibleForFree": true,
+        "image": "https://pratham2994.github.io/Blindlap/og.png",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "author": { "@type": "Person", "name": "Pratham Panchal", "url": "https://github.com/Pratham2994" },
+        "isBasedOn": "https://openf1.org"
+      }
+    </script>
     <script>
       // Set the theme before first paint, so a dark-mode visitor never sees a white flash.
       try {
         var t = localStorage.getItem("blindlap.theme.v1");
-        if (t !== "light" && t !== "dark") t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        if (t !== "light" && t !== "dark" && t !== "pitwall") t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
         document.documentElement.dataset.theme = t;
       } catch (e) {}
     </script>
@@ -97,6 +141,10 @@
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23e10600'/%3E%3Cpath d='M7 22h18' stroke='%23f1f0ec' stroke-width='4'/%3E%3C/svg%3E" />
   </head>
   <body>
+    <noscript>
+      <h1>Blind Lap: who's driving?</h1>
+      <p>A real F1 qualifying lap from 2023 to 2026 with the name taken off. Watch it in 3D, read how the car takes each corner, and guess the driver against three machine learning models that never saw the circuit. Blind Lap needs JavaScript and WebGL in a desktop browser.</p>
+    </noscript>
     <main class="phone-gate">
       <span class="mark">BLIND LAP</span>
       <h1>Made for a bigger screen</h1>

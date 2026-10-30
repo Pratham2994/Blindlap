@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://pratham2994.github.io/Blindlap/sitemap.xml
