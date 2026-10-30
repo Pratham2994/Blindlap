@@ -942,6 +942,7 @@ a.mode.quick:hover p {
 .real-note p {
   margin: 0 0 16px;
   padding: 10px 12px;
+  /* impeccable-disable-next-line side-tab -- DESIGN.md: the real-data note has a red left rule */
   border-left: 3px solid var(--red);
   background: var(--paper-2);
   font-size: 0.86rem;
@@ -1062,6 +1063,7 @@ a.mode.quick:hover p {
 .lineup .call {
   margin: 0 14px 10px;
   padding: 6px 8px;
+  /* impeccable-disable-next-line side-tab -- DESIGN.md: this note's left rule is part of the system */
   border-left: 4px solid var(--ink-3);
   background: var(--paper-2);
   font-size: 0.82rem;
@@ -1152,9 +1154,11 @@ a.mode.quick:hover p {
 .row .bar i {
   display: block;
   height: 100%;
-  width: 0;
+  width: 100%;
   background: var(--ink-2);
-  transition: width 0.5s var(--ease-out), background 0.2s;
+  transform-origin: left center;
+  transform: scaleX(0);
+  transition: transform 0.5s var(--ease-out), background 0.2s;
 }
 
 .row.lead .bar i {
@@ -1296,6 +1300,7 @@ a.mode.quick:hover p {
 
 .hint-list li {
   padding-left: 10px;
+  /* impeccable-disable-next-line side-tab -- DESIGN.md: this note's left rule is part of the system */
   border-left: 3px solid var(--yellow);
 }
 
@@ -1857,8 +1862,9 @@ a.mode.quick:hover p {
 .radio .wave i {
   flex: 1;
   background: var(--ink-3);
-  height: 20%;
-  transition: height 0.08s;
+  height: 100%;
+  transform: scaleY(0.2);
+  transition: transform 0.08s;
 }
 
 .radio.playing .wave i {
@@ -2033,6 +2039,7 @@ a.mode.quick:hover p {
 .pair-model .call {
   margin: 0;
   padding: 6px 8px;
+  /* impeccable-disable-next-line side-tab -- DESIGN.md: this note's left rule is part of the system */
   border-left: 4px solid var(--ink-3);
   background: var(--paper-2);
   font-size: 0.82rem;

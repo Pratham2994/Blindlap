@@ -1061,7 +1061,7 @@ export class PlayView {
     const heights = bars.map((_, i) => 25 + Math.abs(Math.sin(i * 1.7) * 55 + Math.sin(i * 0.6) * 20));
     const paint = () => {
       const f = audio.duration ? Math.max(0, (audio.currentTime - start) / (audio.duration - start)) : 0;
-      bars.forEach((b, i) => (b.style.height = i / bars.length < f || audio.paused ? `${heights[i]}%` : "20%"));
+      bars.forEach((b, i) => (b.style.transform = `scaleY(${(i / bars.length < f || audio.paused ? heights[i] : 20) / 100})`));
       bars.forEach((b, i) => (b.style.opacity = i / bars.length < f ? "1" : "0.45"));
       if (!audio.paused) requestAnimationFrame(paint);
     };
