@@ -123,6 +123,12 @@ export function fitF1Model(source: THREE.Group, colour: THREE.Color): Car {
     if (!mesh.isMesh) return;
     mesh.castShadow = true;
     const mat = mesh.material as THREE.MeshStandardMaterial;
+    // The model's own rear light glows red all the time, which read as braking. It becomes a dark
+    // lens; the brake light (world.ts) shows the real brake channel instead.
+    if (mat.name !== "paint" && mat.emissive && mat.emissive.r > 0.5 && mat.emissive.g < 0.2) {
+      mat.emissive.setRGB(0, 0, 0);
+      mat.color.setRGB(0.18, 0.02, 0.02);
+    }
     if (mat.name === "paint") {
       const paint = mat.clone();
       paint.color.copy(colour);
