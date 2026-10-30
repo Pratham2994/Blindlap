@@ -9,7 +9,7 @@ import type { CameraMode } from "./scene/world";
 import { icons } from "./ui/icons";
 import { PlayView } from "./ui/play";
 import { dockStage, flushStage } from "./ui/stage";
-import { isDark, onTheme, setTheme } from "./theme";
+import { isDark, nextTheme, onTheme, setTheme, theme, THEME_NAME } from "./theme";
 
 // A phone sees the notice in index.html instead: nothing of the app starts (no 3D, no data).
 if (document.documentElement.classList.contains("phone")) await new Promise(() => {});
@@ -50,12 +50,14 @@ toggle.addEventListener("click", () => {
 // canvas (DNA, How) are rebuilt.
 const themeButton = document.querySelector<HTMLButtonElement>(".theme-toggle")!;
 function showTheme() {
-  const dark = isDark();
-  themeButton.textContent = dark ? "Light" : "Dark";
-  themeButton.setAttribute("aria-label", dark ? "Switch to light mode" : "Switch to dark mode");
-  world.setDark(dark);
+  const now = THEME_NAME[theme()];
+  const next = THEME_NAME[nextTheme()];
+  themeButton.innerHTML = `<span class="theme-dot" aria-hidden="true"></span>${now}`;
+  themeButton.setAttribute("aria-label", `Theme: ${now}. Switch to ${next}`);
+  themeButton.title = `Theme: ${now}. Click for ${next}`;
+  world.setDark(isDark());
 }
-themeButton.addEventListener("click", () => setTheme(isDark() ? "light" : "dark"));
+themeButton.addEventListener("click", () => setTheme(nextTheme()));
 onTheme(() => {
   showTheme();
   const name = location.hash.replace(/^#\/?/, "").split("/")[0];

@@ -2,16 +2,16 @@
 name: Blind Lap
 description: A race poster you can play. Paper, heavy ink type, one F1-red block, team colours as flat fields.
 colors:
-  paper: "#f1f0ec"
-  paper-2: "#e6e4de"
-  paper-3: "#d9d6cf"
-  ink: "#111111"
-  ink-2: "#3a3936"
-  ink-3: "#5f5d58"
+  paper: "#f3efe6"
+  paper-2: "#e8e2d6"
+  paper-3: "#d8cfbf"
+  ink: "#16130e"
+  ink-2: "#3e382f"
+  ink-3: "#665e52"
   red: "#e10600"
   red-deep: "#b00500"
   yellow: "#f5c518"
-  green: "#11803d"
+  green: "#0e7337"
 typography:
   display:
     fontFamily: "Archivo Variable, Archivo, system-ui, sans-serif"
@@ -131,8 +131,12 @@ This replaced a first world (matte black tyre rubber, moulded lettering, five co
 ### Surroundings and time of day
 Each circuit's real surroundings come from OpenStreetMap (see docs/HANDOFF.md section 7), in natural colour (the owner found a near-grey first version colourless). Buildings use their mapped wall and roof colours where the map has them (about 2% of buildings), else a typical colour for the type, varied per building: warm renders and brick for houses with terracotta or slate roofs, pale stone and glass for offices, grey steel for sheds; grandstands are a dark structure with red seating seen from above. Trees vary in green from tree to tree. Water (#6fa8c7), woods (#7fa865), parks (#a9c98a), tarmac run-off (#7c7b78), gravel traps (#d9c89c) and a base verge along the track (grass #9cc07a, or pavement #b9b6af at street circuits) are printed into the ground. Grandstands are raked grey decks facing the track, filled with spectators in a mix of shirt colours, with the circuit name faintly over them. In the dark theme and at night the same colours are dimmed, not removed. Night races (from the real session time) get the dark sky and floodlight masts whatever the page theme; a race at sunset gets a warm horizon.
 
-### Dark theme
-The same poster printed in negative, chosen with the Dark/Light button in the top bar (remembered) or by the system setting. Paper becomes #121212 (paper-2 #1c1c1b, paper-3 #34332f), ink becomes #f1f0ec (ink-2 #c9c7c1, ink-3 #9a978f), green lifts to #2fb062 for contrast. Red, yellow and team colours do not change; text on yellow stays #111 in both themes (`--on-signal`). Ink blocks invert with the tokens, so the active nav link and Quick lap tile become light blocks. The 3D scene follows: a near-black sky and fog, a dark printed ground, paper-coloured corner labels, and a paper car while the driver is hidden.
+### Themes
+Three printings of the same poster, chosen with the theme button in the top bar (it names the current printing beside a small swatch and cycles Paper, Night, Pit Wall; remembered), or by the system setting (Paper or Night). Red, yellow and team colours never change; text on yellow stays #111 (`--on-signal`); every text token keeps at least 4.5:1 on its paper.
+- **Paper** (light): warm newsprint #f3efe6 (paper-2 #e8e2d6, paper-3 #d8cfbf) and warm black ink #16130e (ink-2 #3e382f, ink-3 #665e52), green #0e7337. Printed, not white.
+- **Night** (dark): a night-race sky, deep blue #0e1a2b (paper-2 #16253a, paper-3 #2a3d58), ink #edf2f9 (ink-2 #c2cee0, ink-3 #8c9bb3), green #2fb062. Ink blocks invert with the tokens, so the active nav link becomes a light block.
+- **Pit Wall** (dark): the F1 broadcast graphics, carbon navy #15151e (paper-2 #1f1f2c, paper-3 #383849), pure white ink (ink-2 #d3d3dd, ink-3 #9b9bae), green #2fd06a. Its signature is F1 red where the others use an ink block (the page you are on, section heads such as How to play) and a red rule under the top bar and the lap's bar; the Quick lap tile is a paper-3 block.
+The 3D scene follows the two dark printings the same way: a deep blue evening sky (or the night sky at night races), a dark printed ground, paper-coloured corner labels, and a paper car while the driver is hidden. The DNA field takes its ground, rings and roundels from the tokens.
 
 ### Named Rules
 **The Owned Colour Rule.** Team colour is shown only where a named driver owns it: the reveal's who-block (full field, with text in ink or paper chosen by luminance), the 6px chip beside a code, the car after the reveal, the duel car swatches, DNA disc chips. Never on a button, a chart or body text.

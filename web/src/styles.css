@@ -1,18 +1,20 @@
 @import "@fontsource-variable/archivo/wdth.css";
 
 /* Bold poster: paper, ink, F1 red. Team colours appear only as fields or chips that belong to a
-   named driver. Sharp corners, heavy rules, no shadows. */
+   named driver. Sharp corners, heavy rules, no shadows. Three printings of the same poster (theme.ts):
+   Paper (warm newsprint and warm black ink), Night (a floodlit night race: deep blue-grey) and Pit Wall
+   (the broadcast graphics: navy, white, red). F1 red, yellow and team colours never change. */
 :root {
-  --paper: #f1f0ec;
-  --paper-2: #e6e4de;
-  --paper-3: #d9d6cf;
-  --ink: #111111;
-  --ink-2: #3a3936;
-  --ink-3: #5f5d58;
+  --paper: #f3efe6;
+  --paper-2: #e8e2d6;
+  --paper-3: #d8cfbf;
+  --ink: #16130e;
+  --ink-2: #3e382f;
+  --ink-3: #665e52;
   --red: #e10600;
   --red-deep: #b00500;
   --yellow: #f5c518;
-  --green: #11803d;
+  --green: #0e7337;
   --rule: 3px solid var(--ink);
   --hair: 1px solid var(--paper-3);
 
@@ -26,16 +28,30 @@
   color-scheme: light;
 }
 
-/* Dark: the same poster printed in negative. Red, yellow and team colours do not change. */
+/* Night: the poster under a night-race sky, deep blue rather than black. */
 :root[data-theme="dark"] {
-  --paper: #121212;
-  --paper-2: #1c1c1b;
-  --paper-3: #34332f;
-  --ink: #f1f0ec;
-  --ink-2: #c9c7c1;
-  --ink-3: #9a978f;
+  --paper: #0e1a2b;
+  --paper-2: #16253a;
+  --paper-3: #2a3d58;
+  --ink: #edf2f9;
+  --ink-2: #c2cee0;
+  --ink-3: #8c9bb3;
   --green: #2fb062;
-  --chart: #181817;
+  --chart: #12203a;
+
+  color-scheme: dark;
+}
+
+/* Pit Wall: the broadcast graphics. Navy surfaces, pure white type, red rules under the bars. */
+:root[data-theme="pitwall"] {
+  --paper: #15151e;
+  --paper-2: #1f1f2c;
+  --paper-3: #383849;
+  --ink: #ffffff;
+  --ink-2: #d3d3dd;
+  --ink-3: #9b9bae;
+  --green: #2fd06a;
+  --chart: #1b1b27;
 
   color-scheme: dark;
 }
@@ -238,6 +254,46 @@ body.playing .topbar {
 .theme-toggle:hover {
   background: var(--ink);
   color: var(--paper);
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* A swatch of the current printing: its paper inside its ink rule, and red for Pit Wall. */
+.theme-dot {
+  width: 12px;
+  height: 12px;
+  margin-right: 8px;
+  background: var(--paper-3);
+  border: 2px solid var(--ink);
+}
+
+:root[data-theme="pitwall"] .theme-dot {
+  background: var(--red);
+}
+
+/* Pit Wall: the broadcast graphics' signature, F1 red where the other printings use an ink block
+   (the page you are on, section heads), and red rules under the top bar and the lap bar. */
+:root[data-theme="pitwall"] .topbar nav a[aria-current="page"],
+:root[data-theme="pitwall"] .howto h2 {
+  background: var(--red);
+  color: #ffffff;
+}
+
+:root[data-theme="pitwall"] .mode.quick {
+  background: var(--paper-3);
+  color: var(--ink);
+}
+
+:root[data-theme="pitwall"] .mode.quick p {
+  color: var(--ink-2);
+}
+
+:root[data-theme="pitwall"] .topbar,
+:root[data-theme="pitwall"] .play-bar {
+  border-bottom-color: var(--red);
 }
 
 .menu-toggle {

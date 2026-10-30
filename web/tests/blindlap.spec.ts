@@ -70,18 +70,24 @@ test("a full round: model reads every corner, you guess, reveal, duel", async ({
   expect(errors).toEqual([]);
 });
 
-test("dark mode switches the page and is remembered", async ({ page }) => {
+test("the theme button cycles Paper, Night and Pit Wall, and is remembered", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
   await page.goto("/#/");
   const html = page.locator("html");
   await expect(html).toHaveAttribute("data-theme", "light");
-  await page.getByRole("button", { name: /switch to dark mode/i }).click();
+  const button = page.locator(".theme-toggle");
+  await expect(button).toHaveText("Paper");
+  await page.getByRole("button", { name: /switch to night/i }).click();
   await expect(html).toHaveAttribute("data-theme", "dark");
-  const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-  expect(bg).toBe("rgb(18, 18, 18)");
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(14, 26, 43)");
+  await page.getByRole("button", { name: /switch to pit wall/i }).click();
+  await expect(html).toHaveAttribute("data-theme", "pitwall");
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(21, 21, 30)");
   await page.reload();
-  await expect(html).toHaveAttribute("data-theme", "dark");
-  await expect(page.getByRole("button", { name: /switch to light mode/i })).toHaveText("Light");
+  await expect(html).toHaveAttribute("data-theme", "pitwall");
+  await expect(button).toHaveText("Pit Wall");
+  await page.getByRole("button", { name: /switch to paper/i }).click();
+  await expect(html).toHaveAttribute("data-theme", "light");
 });
 
 test("the lap bar seeks, the model forgets corners behind it, and volume is remembered", async ({ page }) => {

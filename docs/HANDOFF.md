@@ -78,7 +78,7 @@ These are the most important things to get right. They come from many correction
 
 - **Home:** "Who's driving?", a live 3D broadcast of a random daytime circuit (cuts between
   cameras), How to play in four steps, four ways to play (Quick lap, Teammates, Which is which, Pick a circuit),
-  the honest accuracy. Top bar: Home, Play, Driver DNA, Telemetry lab, How it knows, theme toggle.
+  the honest accuracy. Top bar: Home, Play, Driver DNA, Telemetry lab, How it knows, theme button (cycles Paper, Night, Pit Wall; `theme.ts`, tokens in styles.css).
 - **First lap ever:** a rules card with a Start button; after that the lights start at once.
 - **Play:** start lights, the lap in 3D; five cameras (Chase, Onboard, Side, TV, Above; C cycles;
   drag to look around; double-click resets); live track map (top right of the view); the models'
@@ -143,7 +143,7 @@ These are the most important things to get right. They come from many correction
   `battles.json`, run by `run_all.sh` after `results.py`): head-to-head per team and season from
   OpenF1's session results (final position; gap in the furthest segment both reached). Each square
   links to a blind lap at that session.
-- Light and dark themes; laid out and checked for 11 screen sizes from 360 px phones to 27".
+- Three themes (Paper, Night, Pit Wall: the F1 broadcast look); laid out and checked for 11 screen sizes from 360 px phones to 27".
 
 ### 3.1 The 3D scene
 - Track from the car's own position data; heights smoothed; bridges lifted where the track crosses

@@ -27,6 +27,8 @@ session.
   with the median gap between their best laps in the same part of qualifying, and how the two drive
   differently in the same car: seven traits with how many sessions each held in, and the clearest
   single corners ("LEC lifts 17% less than SAI at Lusail Turn 16").
+- **Three themes**: Paper (warm newsprint), Night (a night-race blue) and Pit Wall (the F1 broadcast
+  look: carbon navy, white type, red tabs), from the button in the top bar.
 - **Driver DNA**: every driver's corner style with the car taken out. Each corner measurement is split
   into a car part (team and season) and a driver part, fitted over every lap; teammates and drivers
   who changed teams separate the two. A 3D map of own styles (and as driven), each driver season by
