@@ -387,6 +387,31 @@ function trackEdges(pos: THREE.Vector3[], tan: THREE.Vector3[], side: THREE.Vect
   return out;
 }
 
+/** Per point, how far out from the centre line each side may hold anything: 85% of the turn's
+ * radius on its inside (the tightest radius within 24 m, so a hairpin's whole bend is covered),
+ * unlimited on its outside. */
+function insideReach(tan: THREE.Vector3[], step: number): [Float64Array, Float64Array] {
+  const n = tan.length;
+  const w = 3;
+  const curve = new Float64Array(n); // signed: + turns toward +side
+  for (let i = 0; i < n; i++) {
+    const a = tan[(i - w + n) % n];
+    const b = tan[(i + w) % n];
+    curve[i] = Math.atan2(a.x * b.z - a.z * b.x, a.x * b.x + a.z * b.z) / (2 * w * step);
+  }
+  const out: [Float64Array, Float64Array] = [new Float64Array(n).fill(Infinity), new Float64Array(n).fill(Infinity)];
+  const span = Math.ceil(24 / step);
+  for (let i = 0; i < n; i++) {
+    for (let d = -span; d <= span; d++) {
+      const c = curve[(i + d + n) % n];
+      if (Math.abs(c) < 1e-4) continue;
+      const k = c > 0 ? 0 : 1;
+      out[k][i] = Math.min(out[k][i], 0.85 / Math.abs(c));
+    }
+  }
+  return out;
+}
+
 /** A racing line, since the data has none per driver (positions are snapped to one line): the
  * line of least curvature that fits inside the track, the same idea as the minimum-curvature lines
  * race engineers compute. The gentler the bend, the higher the speed it allows, so the line swings
@@ -476,6 +501,10 @@ interface TrackFrame {
   s: number[];
   length: number;
   line: Float64Array; // racing line: sideways offset from the centre line at each point
+  // How far out on each side ([+side, -side]) anything may be built: on the inside of a tight turn,
+  // short of the turn's centre, or barriers and verges fold back over the road (Monaco's hairpin
+  // is 12 m round the middle). Infinity on the outside and on straights.
+  reach: [Float64Array, Float64Array];
   edges: TrackEdges;
 }
 
@@ -850,7 +879,7 @@ export class World {
     const side = tan.map((t) => new THREE.Vector3(-t.z, 0, t.x));
     const s = pos.map((_, i) => i * step);
     const edges = trackEdges(pos, tan, side, step);
-    this.frame = { pos, tan, side, s, length: session.length, line: racingLine(pos, side, step, edges, session.corners.map((c) => c.s)), edges };
+    this.frame = { pos, tan, side, s, length: session.length, line: racingLine(pos, side, step, edges, session.corners.map((c) => c.s)), edges, reach: insideReach(tan, step) };
     this.radius = Math.max(...pos.map((p) => Math.hypot(p.x, p.z)));
 
     this.trackGroup.add(
@@ -1080,8 +1109,10 @@ export class World {
       const sd = f.side[k];
       for (const [sign, e] of [[1, 0], [-1, 1]] as const) {
         const edge = f.edges.half[e][k];
-        const level = f.edges.open[e][k] ? Math.max(edge + 1, 14) : f.edges.wall[e][k] + 0.3;
-        const out = f.edges.open[e][k] && !crowded[k] ? 28 : level + 0.01;
+        // Never past the inside of a tight turn (insideReach): it would fold over the road.
+        const lim = Math.max(f.reach[e][k], edge + 0.3);
+        const level = Math.min(f.edges.open[e][k] ? Math.max(edge + 1, 14) : f.edges.wall[e][k] + 0.3, lim - 0.02);
+        const out = Math.min(f.edges.open[e][k] && !crowded[k] ? 28 : level + 0.01, lim);
         const y = p.y - 0.03;
         const at = (d: number) => [p.x + sd.x * d * sign, p.z + sd.z * d * sign];
         const [ox, oz] = at(out);
@@ -1497,8 +1528,16 @@ export class World {
       for (const sign of [1, -1]) {
         const e = sign > 0 ? 0 : 1;
         if (!f.edges.drawWall[e][i]) continue;
-        const at = p.clone().addScaledVector(this.sideAt(s), sign * f.edges.wall[e][i]).setY(p.y + 0.45);
-        m.compose(at, q, new THREE.Vector3(1, 1, 1));
+        const off = f.edges.wall[e][i];
+        // Inside a tight turn the wall is shorter than the 6 m of centre line it stands beside: the
+        // block shrinks to fit, and where there is no room (a hairpin's inside) it is left out. On
+        // the outside the wall is longer, and the block stretches so no gap opens.
+        const inner = Number.isFinite(f.reach[e][i]) ? 1 - (0.85 * off) / f.reach[e][i] : 1;
+        const outer = Number.isFinite(f.reach[1 - e][i]) ? 1 + (0.85 * off) / f.reach[1 - e][i] : 1;
+        const fit = Math.min(inner * outer, 2.2);
+        if (fit < 0.3) continue;
+        const at = p.clone().addScaledVector(this.sideAt(s), sign * off).setY(p.y + 0.45);
+        m.compose(at, q, new THREE.Vector3(fit, 1, 1));
         if (k % 2 === 0) light.setMatrixAt(nl++, m);
         else dark.setMatrixAt(nd++, m);
       }
@@ -1527,7 +1566,7 @@ export class World {
       const i = this.nearestIndex(s);
       [1, -1].forEach((sign, r) => {
         const runs = rails[r];
-        if (!f.edges.open[r][i]) {
+        if (!f.edges.open[r][i] || offset > f.reach[r][i]) {
           if (runs[runs.length - 1].length) runs.push([]);
           return;
         }

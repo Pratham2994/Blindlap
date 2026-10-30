@@ -65,8 +65,8 @@ const PAIR_TEXT: Record<string, { min: number; text: (v: string) => string }> = 
 const REAL_NOTE =
   "<b>Real, from the cars:</b> each car's speed, gear, throttle, brake and timing, about four times a second. The rear light and the red rubber show the real brake channel (a drop-out shorter than 0.6 s in the middle of a braking is shown as braking). " +
   "<b>Drawn:</b> where across the road the cars are. The position data puts every car on the same line, so both drive one racing line, and the red car is a see-through ghost, as in a racing game. Each car's rubber runs as a thin mark on its own side of the line. The position data can also be up to 15 m off at the start and finish, so each lap is put on the line where its timing says: at 0:00.000 and at its lap time. " +
-  "<b>Level into corners:</b> on the straights the red car's lap runs up to 10% faster or slower, so both cars reach every braking zone together; through each corner both run at their real speed. " +
-  "<b>Real gap</b> plays both laps exactly as driven. " +
+  "<b>Together at each corner:</b> on the straights the red car's lap runs up to 10% faster or slower, so both cars reach every braking zone together; through each corner both run at their real speed. " +
+  "<b>As driven</b> plays both laps exactly as driven. " +
   "<b>The guess:</b> the model reads every corner of both laps. It never saw this circuit.";
 
 interface Score {
@@ -437,11 +437,12 @@ export class PairView {
         <p class="pair-hint">Pick any time before both cars finish; you can change your mind. Right: 1 point.</p>
       </section>
       <section class="pair-view">
-        <p class="caps">The two laps</p>
+        <p class="caps">How the cars run <span class="key">L</span></p>
         <div class="seg" role="group" aria-label="How the two laps run">
-          <button type="button" data-clock="level" aria-pressed="${this.clockMode === "level"}" title="Both cars reach every braking zone together (L)">Level into corners</button>
-          <button type="button" data-clock="real" aria-pressed="${this.clockMode === "real"}" title="Both laps exactly as driven (L)">Real gap</button>
+          <button type="button" data-clock="level" aria-pressed="${this.clockMode === "level"}" title="Both cars start every corner together (L)">Together at each corner</button>
+          <button type="button" data-clock="real" aria-pressed="${this.clockMode === "real"}" title="Both laps exactly as driven (L)">As driven</button>
         </div>
+        <p class="pair-track" aria-live="off"><b class="num" data-k="track-m">0 m</b><span class="caps" data-k="track-who">apart on track</span></p>
         <p class="pair-view-note" data-k="clock-note"></p>
         <p class="caps">Camera on</p>
         <div class="seg" role="group" aria-label="Which car the camera follows">
@@ -537,8 +538,8 @@ export class PairView {
     if (note)
       note.textContent =
         this.clockMode === "level"
-          ? "On each straight the red car is moved a little forward or back, so both cars arrive at the next corner side by side. From there to the corner exit both run at their real speed, so any gap that opens in the corner is real: watch who brakes first and who is back on the power first."
-          : "Both laps exactly as driven, from the same start on the line. The gap you see is the real gap, built up over the whole lap.";
+          ? "On the straights the red car is moved up or back, so both cars start each corner together. In the corner both run at real speed: the car that drops back braked earlier or got on the power later."
+          : "Both laps exactly as driven. The distance between the cars is the real gap, built up over the whole lap.";
   }
 
   /** Which car the close cameras follow (and the engine sound comes from). */
@@ -633,9 +634,13 @@ export class PairView {
     if (g) g.textContent = `${Math.abs(gap).toFixed(3)} s`;
     // What the picture shows (metres on track) and what the timing says (the real gap).
     const metres = b.s - a.s;
-    const onTrack = Math.abs(metres) < 1 ? "side by side" : `${metres > 0 ? "red" : "plain"} ${Math.abs(metres).toFixed(0)} m ahead`;
+    const sideQ = (k: string) => this.side.querySelector<HTMLElement>(`[data-k=${k}]`);
+    const m = sideQ("track-m");
+    if (m) m.textContent = `${Math.abs(metres).toFixed(0)} m`;
+    const who = sideQ("track-who");
+    if (who) who.textContent = Math.abs(metres) < 1 ? "side by side on track" : `on track · the ${metres > 0 ? "red" : "plain"} car ahead`;
     const where = q("where");
-    if (where) where.textContent = `On track ${onTrack} · real gap${Math.abs(gap) < 0.005 ? "" : ` ${gap > 0 ? "red" : "plain"} ahead`}`;
+    if (where) where.textContent = `Real gap${Math.abs(gap) < 0.005 ? "" : ` · ${gap > 0 ? "red" : "plain"} ahead`}`;
   }
 
   /** Read the corners each car has passed; once both have, mark the corner and say how they differed. */

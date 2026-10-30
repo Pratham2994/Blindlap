@@ -109,11 +109,11 @@ These are the most important things to get right. They come from many correction
   own rubber trail 0.24 m either side of the line, like two tyre marks; the duel uses it too.
   (Before, the second car was pushed 2.4 m to whichever side was nearer the middle of the road and
   jumped across each time the line crossed it; a side-by-side version after that put the second car
-  in the middle of the road.) `LevelClock` (Level into corners, the default): each
+  in the middle of the road.) `LevelClock` ("Together at each corner", the default): each
   corner's real-time stretch runs from 90 m before the first of the two braking points to 30 m after
   the later return to full throttle; between stretches the red car's clock runs up to 10% fast or
   slow, so both cars reach each braking zone together (measured: 1 to 2.5 m apart when the first
-  brakes). Real gap plays both laps as driven; switching eases over 1.2 s. Corner replays are always
+  brakes). "As driven" plays both laps as driven (the side column shows the distance between the cars live, so the switch's effect is visible); switching eases over 1.2 s. Corner replays are always
   level. `World.follow` picks the car the close cameras follow. Both cars have a brake light from
   the real brake channel (the normal lap too). The channel drops out for 1 to 3 samples in the middle
   of a braking about once every two laps (478 times in 834 laps); `heldBrake` (lap.ts) shows gaps up
@@ -126,7 +126,12 @@ These are the most important things to get right. They come from many correction
   (the data can start up to a second after the line) the car carries on at its speed instead of
   standing still. 16 laps of 3,379 are still over 40 m off the line at one end (gaps in their data,
   most in session 11241); `playable()` leaves them out of the random picks of Quick lap, Teammates
-  and Which is which (a challenge link still plays its lap). The line under the cars compares the two laps at each
+  and Which is which (a challenge link still plays its lap).
+- **Tight turns** (`insideReach`, world.ts): per frame point, 85% of the tightest turn radius within
+  24 m on the inside. Verges stop short of it, barrier blocks shrink to the wall's real length (left
+  out under 30%) and stretch on the outside, fence posts past it are left out. Monaco's hairpin is
+  12 m round the middle: its 28 m verge folded back over the road and its 5.6 m barrier blocks stuck
+  out into it. The line under the cars compares the two laps at each
   corner from `raw` features, scaled by `field.scale`, plus the time gained through it.
 - **Driver DNA team moves** (`dna._moves`, `dna._predict_moves`): every team change (9 now) refitted
   without any of the driver's laps from that season on; new car's term + driver's term against "as

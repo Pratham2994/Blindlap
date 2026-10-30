@@ -3790,3 +3790,33 @@ figcaption {
 .pair-view .seg button[aria-pressed="true"] .sw.plain {
   border-color: var(--paper);
 }
+
+/* The distance between the two cars on track, live: what the switch above it changes. */
+.pair-track {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  margin: 2px 0 6px;
+}
+
+.pair-track b {
+  font-size: 1.7rem;
+  font-weight: 900;
+  font-variation-settings: "wdth" 125;
+  line-height: 1;
+}
+
+.pair-view .pair-track .caps {
+  margin: 0;
+}
+
+.pair-view .key {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 4px;
+  border: 1px solid var(--ink-3);
+  font-size: 0.62rem;
+  line-height: 1.4;
+  vertical-align: 1px;
+}
