@@ -957,6 +957,10 @@ a.mode.quick:hover p {
   z-index: 4;
   display: none;
   width: min(440px, calc(100% - 32px));
+  /* After the flag the stage is short (the reveal takes the room): stay inside it and scroll. */
+  max-height: calc(100% - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 14px;
   background: var(--paper);
   border: var(--rule);
@@ -976,6 +980,12 @@ a.mode.quick:hover p {
 
 .play.show-real .real-note {
   display: block;
+}
+
+/* After the flag the stage is wide and short: a wider card needs less scrolling (it stays clear of
+   the track map in the top-right corner). */
+.play[data-phase="reveal"] .real-note {
+  width: min(700px, calc(100% - 290px));
 }
 
 .play.show-real [data-real] {
