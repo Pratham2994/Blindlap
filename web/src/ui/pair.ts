@@ -24,6 +24,8 @@ type Car = "A" | "B";
 type Clock = "level" | "real";
 
 const SCORE_KEY = "blindlap.score.v2.pair";
+// The other car's engine plays too, this much quieter, so a lift or a late brake can be heard.
+const OTHER_ENGINE = 0.45;
 const SPEED_KEY = "blindlap.speed.v1";
 const CLOCK_KEY = "blindlap.pair.clock.v1";
 // The cameras of a normal lap, in the order C cycles through them. The close ones follow the car
@@ -206,13 +208,14 @@ export class PairView {
   private score = readScore();
   private disposed = false;
   private starting = false;
+  private otherEngine = new EngineSynth();
   private keyHandler = (e: KeyboardEvent) => this.onKey(e);
   private visibilityHandler = () => {
     if (document.hidden) {
       if (this.phase === "lap") this.setPaused(true);
-      this.engine.suspend();
+      this.engines((e) => e.suspend());
     } else {
-      this.engine.resume();
+      this.engines((e) => e.resume());
     }
   };
 
@@ -233,9 +236,18 @@ export class PairView {
     window.removeEventListener("keydown", this.keyHandler);
     document.removeEventListener("visibilitychange", this.visibilityHandler);
     this.engine.setActive(false);
+    this.otherEngine.close();
     this.world.follow = "car";
     this.world.setGhostS(null);
     document.body.classList.remove("playing");
+  }
+
+  /** Both engines: the followed car's, and the other car's, quieter. */
+  private engines(fn: (e: EngineSynth) => void) {
+    fn(this.engine);
+    fn(this.otherEngine);
+    this.otherEngine.setMuted(this.engine.muted);
+    this.otherEngine.setVolume(this.engine.volume * OTHER_ENGINE);
   }
 
   private async newRound() {
@@ -319,8 +331,8 @@ export class PairView {
     this.root.dataset.phase = "lights";
     this.lightsAt = performance.now();
     this.goAt = this.lightsAt + 5 * 700 + 400 + Math.random() * 900;
-    this.engine.start();
-    this.engine.setActive(true);
+    this.engines((e) => e.start());
+    this.engines((e) => e.setActive(true));
   }
 
   private build() {
@@ -352,6 +364,7 @@ export class PairView {
     bar.querySelector<HTMLInputElement>(".volume input")!.addEventListener("input", (e) => {
       const v = Number((e.target as HTMLInputElement).value) / 100;
       this.engine.setVolume(v);
+      this.otherEngine.setVolume(v * OTHER_ENGINE);
       try {
         localStorage.setItem(VOLUME_KEY, String(v));
       } catch {
@@ -380,6 +393,7 @@ export class PairView {
       } else if (b.hasAttribute("data-sound")) {
         const on = this.engine.muted;
         this.engine.setMuted(!on);
+        this.otherEngine.setMuted(!on);
         b.setAttribute("aria-pressed", String(on));
         b.innerHTML = `${on ? icons.soundOn : icons.soundOff}<span>Sound</span>`;
       }
@@ -553,7 +567,7 @@ export class PairView {
 
   private setPaused(on: boolean) {
     this.paused = on;
-    this.engine.setActive(!on, 0.15);
+    this.engines((e) => e.setActive(!on, 0.15));
     this.root.classList.toggle("paused", on);
     const btn = this.root.querySelector<HTMLButtonElement>("[data-pause]");
     if (btn) {
@@ -777,12 +791,15 @@ export class PairView {
     this.refreshRead();
   }
 
-  /** The followed car's engine. */
+  /** The followed car's engine, and the other car's, quieter. */
   private sound() {
-    const side = this.cars[this.follow];
-    const smp = side.smp;
-    const ratio = side.ratios[smp.gear];
-    this.engine.update(ratio > 0 && smp.speed > 40 ? smp.speed * ratio : smp.rpm, smp.throttle, smp.speed, smp.gear);
+    const play = (e: EngineSynth, side: Side) => {
+      const smp = side.smp;
+      const ratio = side.ratios[smp.gear];
+      e.update(ratio > 0 && smp.speed > 40 ? smp.speed * ratio : smp.rpm, smp.throttle, smp.speed, smp.gear);
+    };
+    play(this.engine, this.cars[this.follow]);
+    play(this.otherEngine, this.cars[this.follow === "A" ? "B" : "A"]);
   }
 
   frame(dt: number) {
@@ -799,7 +816,7 @@ export class PairView {
       const now = performance.now();
       const lit = Math.min(5, Math.floor((now - this.lightsAt) / 700));
       this.root.querySelectorAll(".lights i").forEach((l, i) => l.classList.toggle("on", i < lit && now < this.goAt));
-      this.engine.update(lit >= 5 ? 9000 + Math.random() * 1500 : 4200 + lit * 300, lit >= 5 ? 40 : 4, 0, 1);
+      this.engines((e) => e.update(lit >= 5 ? 9000 + Math.random() * 1500 : 4200 + lit * 300, lit >= 5 ? 40 : 4, 0, 1));
       if (now >= this.goAt) {
         this.root.querySelector(".countdown")?.remove();
         this.band.querySelectorAll<HTMLButtonElement | HTMLInputElement>("[data-jump], .tm-seek").forEach((x) => (x.disabled = false));
@@ -857,14 +874,14 @@ export class PairView {
     this.place();
     this.world.mode = "chase";
     this.world.snapCamera();
-    this.engine.setActive(true);
+    this.engines((e) => e.setActive(true));
     this.root.classList.add("replaying");
   }
 
   private endReplay() {
     this.replay = null;
     this.world.mode = "orbit";
-    this.engine.setActive(false, 0.8);
+    this.engines((e) => e.setActive(false, 0.8));
     this.root.classList.remove("replaying");
   }
 
@@ -876,7 +893,7 @@ export class PairView {
     flag.className = "flag-card";
     flag.innerHTML = `<p class="caps">Both laps complete</p><b class="num">${this.target}?</b><p class="caps">Which car was it?</p>`;
     this.root.querySelector(".stage-frame")?.appendChild(flag);
-    this.engine.setActive(false, 1.2);
+    this.engines((e) => e.setActive(false, 1.2));
     this.band.querySelectorAll<HTMLButtonElement | HTMLInputElement>("[data-jump], .tm-seek").forEach((x) => (x.disabled = true));
     await new Promise((r) => setTimeout(r, 1500));
     if (this.disposed) return;

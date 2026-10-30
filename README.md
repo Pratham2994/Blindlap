@@ -20,7 +20,7 @@ session.
   line, the red car as a see-through ghost, as in a racing game; each lays its own rubber (red where
   it braked) and shows a brake light. "Together at
   each corner" brings them into every braking zone side by side, so you see who brakes first, with
-  the distance between them shown live; "As driven" plays both laps exactly as driven. All the cameras of a normal lap, and either car to follow.
+  the distance between them shown live; "As driven" plays both laps exactly as driven. All the cameras of a normal lap, either car to follow, and both engines (the other car's quieter).
 - **Duel**: after the reveal, race the lap against the driver the model picked, with a live gap.
 - **Challenge link**: send a friend one exact lap, without giving the driver away.
 - **Teammate battles**: each season's qualifying head-to-head inside every team, session by session,

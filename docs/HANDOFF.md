@@ -114,7 +114,7 @@ These are the most important things to get right. They come from many correction
   the later return to full throttle; between stretches the red car's clock runs up to 10% fast or
   slow, so both cars reach each braking zone together (measured: 1 to 2.5 m apart when the first
   brakes). "As driven" plays both laps as driven (the side column shows the distance between the cars live, so the switch's effect is visible); switching eases over 1.2 s. Corner replays are always
-  level. `World.follow` picks the car the close cameras follow. Both cars have a brake light from
+  level. `World.follow` picks the car the close cameras follow; the engine sound follows it too, and a second `EngineSynth` plays the other car at 45% volume (closed when the view goes, since browsers allow few audio contexts). Both cars have a brake light from
   the real brake channel (the normal lap too). The channel drops out for 1 to 3 samples in the middle
   of a braking about once every two laps (478 times in 834 laps); `heldBrake` (lap.ts) shows gaps up
   to 0.6 s as braking, for the light, the meters and the rubber, and the rubber is now coloured by

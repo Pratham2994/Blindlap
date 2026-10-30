@@ -164,6 +164,13 @@ export class EngineSynth {
     if (this.ctx && this.ctx.state === "suspended") void this.ctx.resume();
   }
 
+  /** Release the audio device (an engine made for one page only; browsers allow few at once). */
+  close() {
+    void this.ctx?.close();
+    this.ctx = null;
+    this.oscs = [];
+  }
+
   /** Update from one telemetry sample. rpm comes from gear and speed so shifts are instant. */
   update(rpm: number, throttle: number, speed: number, gear: number) {
     const ctx = this.ctx;
