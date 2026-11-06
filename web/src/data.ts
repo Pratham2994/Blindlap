@@ -223,7 +223,14 @@ function get<T>(path: string): Promise<T> {
       }),
     );
   }
-  return cache.get(path) as Promise<T>;
+  const pending = cache.get(path) as Promise<T>;
+  // A failed load is not kept: after a short network drop the next try fetches again, instead of
+  // failing at once for the rest of the visit. The caller still sees this failure.
+  pending.catch(() => {
+    if (cache.get(path) === pending) cache.delete(path);
+    if (early[path] === pending) delete early[path];
+  });
+  return pending;
 }
 
 export const loadIndex = () => get<Index>("index.json");

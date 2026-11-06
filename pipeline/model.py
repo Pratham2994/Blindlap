@@ -84,6 +84,18 @@ def circuit(s):
     return s["session"]["circuit_short_name"]
 
 
+def aligned_proba(model, X, labels):
+    """P(driver | corner) with one column per label, in the order of `labels`. A fold's model only
+    knows the drivers it was trained on: one whose sessions are all at the held-out circuit (a
+    stand-in for one weekend) is missing from its classes_. Its column stays 0 here, instead of
+    every later column shifting onto the wrong driver."""
+    p = model.predict_proba(X)
+    out = np.zeros((len(X), len(labels)), dtype=p.dtype)
+    col = {d: k for k, d in enumerate(labels)}
+    out[:, [col[d] for d in model.classes_]] = p
+    return out
+
+
 def evaluate(sessions, labels, make_model, name, keep_models=False):
     """Leave-one-circuit-out evaluation. Returns the report, the fitted fold models (only when
     keep_models, since tree ensembles are large) and every held-out probability, per session, as
@@ -93,7 +105,7 @@ def evaluate(sessions, labels, make_model, name, keep_models=False):
     # Leave one circuit out: every year of the held-out circuit leaves training together, so the
     # model never saw the track it is guessing on.
     rows = {s["session"]["session_key"]: corner_rows(s) for s in sessions}
-    classes = None
+    classes = list(labels)   # every fold's columns are put in this order (aligned_proba)
     for c in sorted({circuit(s) for s in sessions}):
         Xtr, ytr = [], []
         for s in sessions:
@@ -104,14 +116,13 @@ def evaluate(sessions, labels, make_model, name, keep_models=False):
             Xtr.append(X[m]); ytr.append(y[m])
         model = make_model()
         model.fit(np.vstack(Xtr), np.concatenate(ytr))
-        classes = classes or list(model.classes_)
         # Practice sessions only add training laps; every score is on qualifying.
         for held in [s for s in sessions if is_quali(s) and circuit(s) == c]:
             sk = held["session"]["session_key"]
             if keep_models:
                 folds[sk] = model
             X, _, _ = rows[sk]
-            probs[sk] = model.predict_proba(X).reshape(len(held["laps"]), len(held["classes"]), -1).astype(np.float32)
+            probs[sk] = aligned_proba(model, X, labels).reshape(len(held["laps"]), len(held["classes"]), -1).astype(np.float32)
     return summarize(sessions, labels, probs, classes, name), folds, probs
 
 
